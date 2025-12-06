@@ -1,0 +1,10 @@
+# Cosas de la carpeta raíz
+node_modules/
+package-lock.json
+.idea/
+
+# Cosas dentro de dnd-manager
+dnd-manager/node_modules/
+dnd-manager/.next/
+dnd-manager/.env
+dnd-manager/.env.local
