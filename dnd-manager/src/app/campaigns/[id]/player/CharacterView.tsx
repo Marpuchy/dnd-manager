@@ -1,3 +1,4 @@
+// src/app/campaigns/[id]/player/CharacterView.tsx
 import {
     Character,
     Details,
@@ -25,13 +26,24 @@ type CharacterViewProps = {
 
 type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 
+type ItemModifier = {
+    ability: AbilityKey;
+    modifier: number;
+};
+
 type InventoryItem = {
     name: string;
     type?: string;
     description?: string;
+
+    // Soporte "legacy": un solo modificador
     ability?: AbilityKey;
     modifier?: number;
+
+    // Nuevo: varios modificadores
+    modifiers?: ItemModifier[];
 };
+
 
 type ParsedInventoryLine =
     | { kind: "json"; item: InventoryItem; raw: string }
@@ -55,6 +67,17 @@ function parseInventoryLineForView(line: string): ParsedInventoryLine {
     }
 }
 
+function accumulateBonus(
+    bonuses: Record<AbilityKey, number>,
+    ability: AbilityKey | undefined,
+    value: unknown
+) {
+    if (!ability) return;
+    const num = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(num)) return;
+    bonuses[ability] += num;
+}
+
 function getAbilityBonusesFromDetails(details: Details): Record<AbilityKey, number> {
     const bonuses: Record<AbilityKey, number> = {
         STR: 0,
@@ -65,9 +88,10 @@ function getAbilityBonusesFromDetails(details: Details): Record<AbilityKey, numb
         CHA: 0,
     };
 
-    const sources = [details.inventory, details.equipment, details.weaponsExtra];
+    // 1) Inventario / equipamiento / armas extra (líneas JSON)
+    const textSources = [details.inventory, details.equipment, details.weaponsExtra];
 
-    for (const source of sources) {
+    for (const source of textSources) {
         if (!source) continue;
 
         const lines = source
@@ -80,16 +104,100 @@ function getAbilityBonusesFromDetails(details: Details): Record<AbilityKey, numb
             if (entry.kind !== "json") continue;
 
             const { item } = entry;
-            if (!item.ability || typeof item.modifier !== "number") continue;
 
-            const key = item.ability;
-            if (!bonuses[key]) bonuses[key] = 0;
-            bonuses[key] += item.modifier;
+            // Formato legacy: ability + modifier
+            if (item.ability && typeof item.modifier === "number") {
+                accumulateBonus(bonuses, item.ability, item.modifier);
+            }
+
+            // Nuevo formato: modifiers[]
+            if (Array.isArray(item.modifiers)) {
+                for (const mod of item.modifiers) {
+                    if (!mod) continue;
+                    accumulateBonus(
+                        bonuses,
+                        mod.ability as AbilityKey | undefined,
+                        mod.modifier
+                    );
+                }
+            }
+        }
+    }
+
+    // 2) Armaduras (details.armors)
+    if (Array.isArray(details.armors)) {
+        for (const armor of details.armors as any[]) {
+            if (!armor) continue;
+
+            // Si guardas un solo modificador
+            if (armor.statAbility) {
+                accumulateBonus(
+                    bonuses,
+                    armor.statAbility as AbilityKey | undefined,
+                    armor.statModifier
+                );
+            }
+
+            // Por si usas ability/modifier también en armors
+            if (armor.ability && typeof armor.modifier === "number") {
+                accumulateBonus(
+                    bonuses,
+                    armor.ability as AbilityKey | undefined,
+                    armor.modifier
+                );
+            }
+
+            // Si la armadura tiene varios modificadores
+            if (Array.isArray(armor.modifiers)) {
+                for (const mod of armor.modifiers as any[]) {
+                    if (!mod) continue;
+                    accumulateBonus(
+                        bonuses,
+                        mod.ability as AbilityKey | undefined,
+                        mod.modifier
+                    );
+                }
+            }
+        }
+    }
+
+    // 3) Arma principal (details.weaponEquipped)
+    const w = (details as any).weaponEquipped;
+    if (w) {
+        // Un solo modificador tipo statAbility/statModifier
+        if (w.statAbility) {
+            accumulateBonus(
+                bonuses,
+                w.statAbility as AbilityKey | undefined,
+                w.statModifier
+            );
+        }
+
+        // Por si usas ability/modifier en weaponEquipped
+        if (w.ability && typeof w.modifier === "number") {
+            accumulateBonus(
+                bonuses,
+                w.ability as AbilityKey | undefined,
+                w.modifier
+            );
+        }
+
+        // Varios modificadores en el arma
+        if (Array.isArray(w.modifiers)) {
+            for (const mod of w.modifiers as any[]) {
+                if (!mod) continue;
+                accumulateBonus(
+                    bonuses,
+                    mod.ability as AbilityKey | undefined,
+                    mod.modifier
+                );
+            }
         }
     }
 
     return bonuses;
 }
+
 
 function renderInventorySection(label: string, rawText?: string | null) {
     const text = rawText ?? "";
@@ -133,12 +241,26 @@ function renderInventorySection(label: string, rawText?: string | null) {
                 }
 
                 const { item } = entry;
-                const modifierLabel =
+
+// Un solo modificador (legacy)
+                const simpleModifierLabel =
                     item.ability && typeof item.modifier === "number"
                         ? `${item.ability} ${
                             item.modifier >= 0 ? `+${item.modifier}` : item.modifier
                         }`
                         : null;
+
+// Varios modificadores (nuevo formato)
+                const multiLabels: string[] = Array.isArray(item.modifiers)
+                    ? item.modifiers
+                        .filter((m) => m && m.ability && typeof m.modifier === "number")
+                        .map(
+                            (m) =>
+                                `${m.ability} ${
+                                    m.modifier >= 0 ? `+${m.modifier}` : m.modifier
+                                }`
+                        )
+                    : [];
 
                 return (
                     <li
@@ -146,19 +268,29 @@ function renderInventorySection(label: string, rawText?: string | null) {
                         className="rounded-md bg-zinc-900 px-2 py-2 border border-zinc-700"
                     >
                         <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold break-words">
+            <span className="text-xs font-semibold break-words">
                 {item.name}
-              </span>
+            </span>
                             {item.type && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-300">
-                  {item.type}
+                    {item.type}
                 </span>
                             )}
-                            {modifierLabel && (
+
+                            {simpleModifierLabel && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
-                  {modifierLabel}
+                    {simpleModifierLabel}
                 </span>
                             )}
+
+                            {multiLabels.map((label, i) => (
+                                <span
+                                    key={i}
+                                    className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300"
+                                >
+                    {label}
+                </span>
+                            ))}
                         </div>
                         {item.description && (
                             <p className="text-[11px] text-zinc-400 whitespace-pre-wrap mt-1">
@@ -167,6 +299,7 @@ function renderInventorySection(label: string, rawText?: string | null) {
                         )}
                     </li>
                 );
+
             })}
         </ul>
     );
@@ -311,7 +444,7 @@ export function CharacterView({
                         />
                     </div>
 
-                    {/* Stats (incluyendo modificadores de objetos) */}
+                    {/* Stats (con modificadores de objetos) */}
                     <div className="space-y-2">
                         <h3 className="text-sm font-semibold text-zinc-300">
                             Atributos (stats) con modificadores de equipo
@@ -344,7 +477,7 @@ export function CharacterView({
                                 </p>
                             ) : (
                                 <ul className="space-y-2">
-                                    {armors.map((armor, index) => (
+                                    {armors.map((armor: any, index: number) => (
                                         <li key={index} className="text-sm text-zinc-300">
                                             <span className="font-medium">{armor.name}</span>{" "}
                                             {armor.bonus !== 0 && (
@@ -373,25 +506,74 @@ export function CharacterView({
                                 Arma equipada
                             </h3>
                             {details.weaponEquipped ? (
-                                <div className="space-y-1">
-                                    <p className="text-sm text-zinc-300 font-medium">
-                                        {details.weaponEquipped.name}
-                                    </p>
-                                    {details.weaponEquipped.damage && (
-                                        <p className="text-xs text-zinc-400">
-                                            Daño: {details.weaponEquipped.damage}
+                                <div className="space-y-2">
+                                    <div className="space-y-1">
+                                        <p className="text-sm text-zinc-300 font-medium">
+                                            {details.weaponEquipped.name}
                                         </p>
-                                    )}
-                                    {details.weaponEquipped.description && (
-                                        <p className="text-xs text-zinc-500 whitespace-pre-wrap">
-                                            {details.weaponEquipped.description}
-                                        </p>
-                                    )}
+                                        {details.weaponEquipped.damage && (
+                                            <p className="text-xs text-zinc-400">
+                                                Daño: {details.weaponEquipped.damage}
+                                            </p>
+                                        )}
+                                        {details.weaponEquipped.description && (
+                                            <p className="text-xs text-zinc-500 whitespace-pre-wrap">
+                                                {details.weaponEquipped.description}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Chips de modificadores de característica */}
+                                    {(() => {
+                                        const mods: { ability: string; value: number }[] = [];
+
+                                        const w: any = details.weaponEquipped;
+
+                                        // statAbility/statModifier
+                                        if (w?.statAbility && typeof w?.statModifier !== "undefined") {
+                                            const n = Number(w.statModifier);
+                                            if (!Number.isNaN(n)) {
+                                                mods.push({ ability: w.statAbility, value: n });
+                                            }
+                                        }
+
+                                        // ability/modifier (legacy)
+                                        if (w?.ability && typeof w?.modifier === "number") {
+                                            mods.push({ ability: w.ability, value: w.modifier });
+                                        }
+
+                                        // modifiers[]
+                                        if (Array.isArray(w?.modifiers)) {
+                                            for (const m of w.modifiers as any[]) {
+                                                if (!m?.ability) continue;
+                                                const n = Number(m.modifier);
+                                                if (Number.isNaN(n)) continue;
+                                                mods.push({ ability: m.ability, value: n });
+                                            }
+                                        }
+
+                                        if (mods.length === 0) return null;
+
+                                        return (
+                                            <div className="flex flex-wrap gap-2">
+                                                {mods.map((m, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300"
+                                                    >
+                                {m.ability}{" "}
+                                                        {m.value >= 0 ? `+${m.value}` : m.value}
+                            </span>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ) : (
                                 <p className="text-sm text-zinc-500">Sin arma equipada</p>
                             )}
                         </div>
+
                     </div>
 
                     {/* Spell slots y Dotes/Rasgos */}
@@ -455,7 +637,7 @@ export function CharacterView({
                         Habilidades y conjuros conocidos / preparados
                     </h3>
 
-                    {/* Límite real de conjuros preparados */}
+                    {/* Límite de conjuros preparados */}
                     {preparedInfo && (
                         <div className="border border-zinc-800 rounded-lg p-3">
                             <h4 className="text-xs font-semibold text-zinc-300 mb-1">
@@ -582,9 +764,7 @@ export function CharacterView({
                 {notesText}
               </pre>
                         ) : (
-                            <p className="text-xs text-zinc-500">
-                                No hay notas guardadas.
-                            </p>
+                            <p className="text-xs text-zinc-500">No hay notas guardadas.</p>
                         )}
                     </div>
                 </div>

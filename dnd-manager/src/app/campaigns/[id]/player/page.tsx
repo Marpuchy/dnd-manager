@@ -21,6 +21,7 @@ import { CharacterForm } from "./CharacterForm";
 import { SpellManagerPanel } from "./SpellManagerPanel";
 
 type RightPanelMode = "character" | "spellManager";
+type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 
 export default function CampaignPlayerPage() {
     const params = useParams<{ id: string }>();
@@ -66,6 +67,11 @@ export default function CampaignPlayerPage() {
     const [weaponName, setWeaponName] = useState("");
     const [weaponDamage, setWeaponDamage] = useState("");
     const [weaponDescription, setWeaponDescription] = useState("");
+    const [weaponStatAbility, setWeaponStatAbility] =
+        useState<AbilityKey | "none">("none");
+    const [weaponStatModifier, setWeaponStatModifier] = useState<number | null>(
+        null
+    );
     const [inventory, setInventory] = useState("");
     const [equipment, setEquipment] = useState("");
     const [abilities, setAbilities] = useState("");
@@ -131,10 +137,12 @@ export default function CampaignPlayerPage() {
                     charsError.message ?? "No se han podido cargar tus personajes."
                 );
             } else if (chars) {
-                const list = (chars as any[]).map((c) => ({
-                    ...c,
-                    details: (c.details || {}) as Details,
-                })) as Character[];
+                const list = (chars as any[]).map(
+                    (c): Character => ({
+                        ...c,
+                        details: (c.details || {}) as Details,
+                    })
+                );
 
                 setCharacters(list);
                 if (!selectedId && list.length > 0) {
@@ -170,6 +178,8 @@ export default function CampaignPlayerPage() {
         setWeaponName("");
         setWeaponDamage("");
         setWeaponDescription("");
+        setWeaponStatAbility("none");
+        setWeaponStatModifier(null);
         setInventory("");
         setEquipment("");
         setAbilities("");
@@ -236,6 +246,14 @@ export default function CampaignPlayerPage() {
         setWeaponName(d.weaponEquipped?.name ?? "");
         setWeaponDamage(d.weaponEquipped?.damage ?? "");
         setWeaponDescription(d.weaponEquipped?.description ?? "");
+        setWeaponStatAbility(
+            (d.weaponEquipped?.statAbility as AbilityKey | undefined) ?? "none"
+        );
+        setWeaponStatModifier(
+            typeof d.weaponEquipped?.statModifier === "number"
+                ? d.weaponEquipped.statModifier
+                : null
+        );
         setInventory(d.inventory ?? "");
         setEquipment(d.equipment ?? "");
         setAbilities(d.abilities ?? "");
@@ -261,20 +279,29 @@ export default function CampaignPlayerPage() {
     }
 
     function cancelEditOrCreate() {
-        resetForm();
         setMode("view");
+        setEditingId(null);
     }
 
-    // Armaduras dinámicas
-    function addArmor() {
-        setArmors((prev) => [...prev, { name: "", bonus: 0, ability: "" }]);
+    function selectCharacter(id: string) {
+        setSelectedId(id);
+        setMode("view");
+        setRightPanelMode("character");
+    }
+
+    function addArmor(armor: Armor) {
+        setArmors((prev) => [...prev, armor]);
     }
 
     function removeArmor(index: number) {
         setArmors((prev) => prev.filter((_, i) => i !== index));
     }
 
-    function updateArmor(index: number, field: string, value: string | number) {
+    function updateArmor(
+        index: number,
+        field: keyof Armor,
+        value: string | number | null
+    ) {
         setArmors((prev) =>
             prev.map((armor, i) =>
                 i === index ? { ...armor, [field]: value } : armor
@@ -323,15 +350,31 @@ export default function CampaignPlayerPage() {
                 level9: spellsL9.trim() || undefined,
             };
 
+            // Construir arma equipada con modificador de stat
+            let weaponEquipped: any | undefined;
+            if (weaponName.trim()) {
+                const numericWeaponMod =
+                    typeof weaponStatModifier === "number" &&
+                    !Number.isNaN(weaponStatModifier)
+                        ? weaponStatModifier
+                        : null;
+
+                weaponEquipped = {
+                    name: weaponName.trim(),
+                    damage: weaponDamage.trim() || undefined,
+                    description: weaponDescription.trim() || undefined,
+                    ...(weaponStatAbility !== "none" && numericWeaponMod !== null
+                        ? {
+                            statAbility: weaponStatAbility,
+                            statModifier: numericWeaponMod,
+                        }
+                        : {}),
+                };
+            }
+
             const details: Details = {
-                armors: armors.filter((a) => a.name.trim() !== ""),
-                weaponEquipped: weaponName.trim()
-                    ? {
-                        name: weaponName.trim(),
-                        damage: weaponDamage.trim() || undefined,
-                        description: weaponDescription.trim() || undefined,
-                    }
-                    : undefined,
+                armors: armors.filter((a) => a.name?.trim() !== ""),
+                weaponEquipped,
                 inventory: inventory.trim() || undefined,
                 equipment: equipment.trim() || undefined,
                 abilities: abilities.trim() || undefined,
@@ -371,6 +414,12 @@ export default function CampaignPlayerPage() {
                     console.error("Error actualizando personaje:", updateError);
                     throw new Error(updateError.message);
                 }
+
+                setCharacters((prev) =>
+                    prev.map((c) =>
+                        c.id === editingId ? { ...c, ...payload } : c
+                    )
+                );
             } else {
                 const { data: inserted, error: insertError } = await supabase
                     .from("characters")
@@ -381,126 +430,149 @@ export default function CampaignPlayerPage() {
                     })
                     .select(
                         "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details"
-                    );
+                    )
+                    .single();
 
                 if (insertError) {
                     console.error("Error creando personaje:", insertError);
                     throw new Error(insertError.message);
                 }
 
-                if (inserted && inserted.length > 0) {
-                    const newChar = inserted[0] as any;
-                    const normalized: Character = {
-                        ...newChar,
-                        details: (newChar.details || {}) as Details,
+                if (inserted) {
+                    const newChar: Character = {
+                        ...inserted,
+                        details: (inserted.details || {}) as Details,
                     };
-                    setCharacters((prev) => [...prev, normalized]);
-                    setSelectedId(normalized.id);
-                }
-            }
-
-            // Refrescar lista
-            const { data: chars } = await supabase
-                .from("characters")
-                .select(
-                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details"
-                )
-                .eq("campaign_id", params.id)
-                .eq("user_id", session.user.id);
-
-            if (chars) {
-                const list = (chars as any[]).map((c) => ({
-                    ...c,
-                    details: (c.details || {}) as Details,
-                })) as Character[];
-                setCharacters(list);
-                if (list.length > 0 && !selectedId) {
-                    setSelectedId(list[0].id);
+                    setCharacters((prev) => [...prev, newChar]);
+                    setSelectedId(newChar.id);
                 }
             }
 
             setMode("view");
-            resetForm();
-        } catch (err) {
-            console.error(err);
-            const message =
-                err instanceof Error ? err.message : "Error guardando personaje.";
-            setError(message);
+            setEditingId(null);
+        } catch (e: any) {
+            console.error(e);
+            setError(e?.message ?? "Error guardando el personaje.");
         }
     }
 
-    if (loading || !allowed) {
+    async function handleDeleteCharacter(id: string) {
+        const confirmDelete = window.confirm(
+            "¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer."
+        );
+        if (!confirmDelete) return;
+
+        setError(null);
+        try {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
+            if (!session?.user) {
+                throw new Error("No hay sesión activa.");
+            }
+
+            const { error: deleteError } = await supabase
+                .from("characters")
+                .delete()
+                .eq("id", id)
+                .eq("campaign_id", params.id)
+                .eq("user_id", session.user.id);
+
+            if (deleteError) {
+                console.error("Error eliminando personaje:", deleteError);
+                throw new Error(deleteError.message);
+            }
+
+            setCharacters((prev) => prev.filter((c) => c.id !== id));
+            if (selectedId === id) {
+                setSelectedId(null);
+            }
+        } catch (e: any) {
+            console.error(e);
+            setError(e?.message ?? "No se ha podido eliminar el personaje.");
+        }
+    }
+
+    const selectedChar =
+        characters.find((c) => c.id === selectedId) ?? null;
+
+    if (!allowed && !loading) {
         return (
-            <main className="min-h-screen bg-black text-zinc-100 flex items-center justify-center">
-                <p className="text-zinc-400">Cargando tus datos de campaña...</p>
+            <main className="p-6 text-sm text-zinc-300">
+                No tienes acceso a esta campaña o no se han podido cargar los datos.
             </main>
         );
     }
 
-    const selectedChar = characters.find((c) => c.id === selectedId) ?? null;
-
     return (
-        <main className="min-h-screen bg-black text-zinc-100 flex">
-            {/* Lista de personajes */}
-            <aside className="w-72 border-r border-zinc-800 bg-zinc-950/80 p-4 space-y-4">
-                <div>
-                    <h1 className="text-xl font-bold text-purple-300">
+        <main className="flex min-h-screen bg-zinc-950 text-zinc-100">
+            {/* Sidebar izquierda: lista de personajes */}
+            <aside className="w-72 border-r border-zinc-800 bg-zinc-950/90 p-4 space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                    <h1 className="text-lg font-semibold text-purple-300">
                         Tus personajes
                     </h1>
+                    <button
+                        type="button"
+                        onClick={startCreate}
+                        className="text-xs px-3 py-1 rounded-md border border-purple-600/70 hover:bg-purple-900/40"
+                    >
+                        Nuevo
+                    </button>
+                </div>
+
+                {loading ? (
+                    <p className="text-xs text-zinc-500">Cargando...</p>
+                ) : characters.length === 0 ? (
                     <p className="text-xs text-zinc-500">
-                        Campaña ID: {String(params.id)}
+                        Todavía no tienes personajes en esta campaña.
                     </p>
-                </div>
-
-                <button
-                    onClick={startCreate}
-                    className="w-full text-sm px-3 py-2 rounded-md border border-purple-600/70 hover:bg-purple-900/40"
-                >
-                    + Crear personaje
-                </button>
-
-                <div className="space-y-2 mt-2">
-                    {characters.length === 0 ? (
-                        <p className="text-sm text-zinc-500">
-                            Aún no has creado ningún personaje.
-                        </p>
-                    ) : (
-                        <ul className="space-y-1">
-                            {characters.map((char) => (
-                                <li
-                                    key={char.id}
-                                    className={`flex items-center justify-between px-2 py-2 rounded-md cursor-pointer ${
-                                        selectedId === char.id
-                                            ? "bg-purple-900/40 border border-purple-700"
-                                            : "hover:bg-zinc-900 border border-zinc-800"
+                ) : (
+                    <ul className="space-y-1 text-sm">
+                        {characters.map((ch) => (
+                            <li key={ch.id}>
+                                <button
+                                    type="button"
+                                    onClick={() => selectCharacter(ch.id)}
+                                    className={`w-full text-left px-3 py-2 rounded-md border text-xs flex flex-col gap-0.5 ${
+                                        selectedId === ch.id
+                                            ? "border-purple-500 bg-purple-900/30"
+                                            : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900"
                                     }`}
-                                    onClick={() => {
-                                        setSelectedId(char.id);
-                                        setMode("view");
-                                        setActiveTab("stats");
-                                        setRightPanelMode("character");
-                                    }}
                                 >
-                                    <div>
-                                        <p className="text-sm text-zinc-100">{char.name}</p>
-                                        <p className="text-[11px] text-zinc-500">
-                                            {prettyClassLabel(char.class)} · Nivel {char.level ?? "?"}
-                                        </p>
+                                    <span className="font-medium">{ch.name}</span>
+                                    <span className="text-[11px] text-zinc-400">
+                    {ch.race || "Sin raza"} ·{" "}
+                                        {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
+                  </span>
+                                    <div className="flex gap-2 mt-1">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                startEdit(ch);
+                                            }}
+                                            className="text-[10px] px-2 py-0.5 rounded border border-zinc-700 hover:bg-zinc-800"
+                                        >
+                                            Editar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteCharacter(ch.id);
+                                            }}
+                                            className="text-[10px] px-2 py-0.5 rounded border border-red-700 text-red-300 hover:bg-red-900/30"
+                                        >
+                                            Eliminar
+                                        </button>
                                     </div>
-                                    <button
-                                        className="text-[11px] px-2 py-1 border border-purple-600/60 rounded-md hover:bg-purple-900/40"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            startEdit(char);
-                                        }}
-                                    >
-                                        Editar
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </aside>
 
             {/* Panel derecho */}
@@ -577,6 +649,10 @@ export default function CampaignPlayerPage() {
                                     setWeaponDamage,
                                     weaponDescription,
                                     setWeaponDescription,
+                                    weaponStatAbility,
+                                    setWeaponStatAbility,
+                                    weaponStatModifier,
+                                    setWeaponStatModifier,
                                     inventory,
                                     setInventory,
                                     equipment,
@@ -607,7 +683,6 @@ export default function CampaignPlayerPage() {
                                     setSpellsL8,
                                     spellsL9,
                                     setSpellsL9,
-
                                     // Campos para clase personalizada
                                     customClassName,
                                     setCustomClassName,
