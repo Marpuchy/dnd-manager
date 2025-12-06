@@ -8,3 +8,9 @@ dnd-manager/node_modules/
 dnd-manager/.next/
 dnd-manager/.env
 dnd-manager/.env.local
+
+node_modules/
+package-lock.json
+package.json
+index.js
+cela
