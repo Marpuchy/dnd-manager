@@ -221,8 +221,8 @@ function renderInventorySection(label: string, rawText?: string | null) {
         // Datos antiguos en texto plano
         return (
             <pre className="whitespace-pre-wrap text-sm text-zinc-300">
-        {text}
-      </pre>
+                {text}
+            </pre>
         );
     }
 
@@ -242,7 +242,7 @@ function renderInventorySection(label: string, rawText?: string | null) {
 
                 const { item } = entry;
 
-// Un solo modificador (legacy)
+                // Un solo modificador (legacy)
                 const simpleModifierLabel =
                     item.ability && typeof item.modifier === "number"
                         ? `${item.ability} ${
@@ -250,7 +250,7 @@ function renderInventorySection(label: string, rawText?: string | null) {
                         }`
                         : null;
 
-// Varios modificadores (nuevo formato)
+                // Varios modificadores (nuevo formato)
                 const multiLabels: string[] = Array.isArray(item.modifiers)
                     ? item.modifiers
                         .filter((m) => m && m.ability && typeof m.modifier === "number")
@@ -268,19 +268,19 @@ function renderInventorySection(label: string, rawText?: string | null) {
                         className="rounded-md bg-zinc-900 px-2 py-2 border border-zinc-700"
                     >
                         <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold break-words">
-                {item.name}
-            </span>
+                            <span className="text-xs font-semibold break-words">
+                                {item.name}
+                            </span>
                             {item.type && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-300">
-                    {item.type}
-                </span>
+                                    {item.type}
+                                </span>
                             )}
 
                             {simpleModifierLabel && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
-                    {simpleModifierLabel}
-                </span>
+                                    {simpleModifierLabel}
+                                </span>
                             )}
 
                             {multiLabels.map((label, i) => (
@@ -288,8 +288,8 @@ function renderInventorySection(label: string, rawText?: string | null) {
                                     key={i}
                                     className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300"
                                 >
-                    {label}
-                </span>
+                                    {label}
+                                </span>
                             ))}
                         </div>
                         {item.description && (
@@ -367,53 +367,26 @@ export function CharacterView({
 
     return (
         <div className="space-y-4">
-            <header className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-purple-300">
-                        {character.name}
-                    </h2>
-                    <p className="text-sm text-zinc-500">
-                        {character.race || "Sin raza"} · {classLabel} · Nivel{" "}
-                        {character.level ?? "?"}
-                    </p>
-                </div>
-                <div className="text-right text-sm text-zinc-400">
-                    <p>XP: {character.experience ?? 0}</p>
-                    <p>
-                        HP: {character.current_hp ?? character.max_hp ?? "?"}/
-                        {character.max_hp ?? "?"}
-                    </p>
-                </div>
-            </header>
+
+            {/* HEADER eliminado: el header superior con nombre/raza/clase/nivel
+               se debe renderizar desde page.tsx para evitar duplicados. */}
 
             {/* Tabs */}
             <div className="border-b border-zinc-800 flex gap-4 text-sm">
                 <button
-                    className={`pb-2 ${
-                        activeTab === "stats"
-                            ? "text-purple-300 border-b-2 border-purple-500"
-                            : "text-zinc-500 hover:text-zinc-300"
-                    }`}
+                    className={`pb-2 leading-none border-b-2 ${activeTab === "stats" ? "text-purple-300 border-purple-500" : "text-zinc-500 hover:text-zinc-300 border-transparent"}`}
                     onClick={() => onTabChange("stats")}
                 >
                     Estadísticas
                 </button>
                 <button
-                    className={`pb-2 ${
-                        activeTab === "spells"
-                            ? "text-purple-300 border-b-2 border-purple-500"
-                            : "text-zinc-500 hover:text-zinc-300"
-                    }`}
+                    className={`pb-2 leading-none border-b-2 ${activeTab === "spells" ? "text-purple-300 border-purple-500" : "text-zinc-500 hover:text-zinc-300 border-transparent"}`}
                     onClick={() => onTabChange("spells")}
                 >
                     Habilidades
                 </button>
                 <button
-                    className={`pb-2 ${
-                        activeTab === "inventory"
-                            ? "text-purple-300 border-b-2 border-purple-500"
-                            : "text-zinc-500 hover:text-zinc-300"
-                    }`}
+                    className={`pb-2 leading-none border-b-2 ${activeTab === "inventory" ? "text-purple-300 border-purple-500" : "text-zinc-500 hover:text-zinc-300 border-transparent"}`}
                     onClick={() => onTabChange("inventory")}
                 >
                     Inventario
@@ -561,9 +534,9 @@ export function CharacterView({
                                                         key={i}
                                                         className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300"
                                                     >
-                                {m.ability}{" "}
+                                                        {m.ability}{" "}
                                                         {m.value >= 0 ? `+${m.value}` : m.value}
-                            </span>
+                                                    </span>
                                                 ))}
                                             </div>
                                         );
@@ -604,8 +577,8 @@ export function CharacterView({
                                                 key={lvl}
                                                 className="px-2 py-1 rounded-md bg-zinc-900 border border-zinc-700"
                                             >
-                        Nivel {lvl}: {num}
-                      </span>
+                                                Nivel {lvl}: {num}
+                                            </span>
                                         ))}
                                 </div>
                             )}
@@ -618,8 +591,8 @@ export function CharacterView({
                             </h3>
                             {featsText ? (
                                 <pre className="whitespace-pre-wrap text-sm text-zinc-300">
-                  {featsText}
-                </pre>
+                                    {featsText}
+                                </pre>
                             ) : (
                                 <p className="text-xs text-zinc-500">
                                     No se han registrado dotes o rasgos.
@@ -647,8 +620,8 @@ export function CharacterView({
                                 Característica clave: {preparedInfo.abilityName}. Puedes
                                 tener{" "}
                                 <span className="font-semibold">
-                  {preparedInfo.total}
-                </span>{" "}
+                                    {preparedInfo.total}
+                                </span>{" "}
                                 conjuros de nivel 1 o superior preparados a la vez (los
                                 trucos no cuentan).
                             </p>
@@ -661,8 +634,8 @@ export function CharacterView({
                                             : "text-emerald-400 font-semibold"
                                     }
                                 >
-                  {preparedCount}/{preparedInfo.total}
-                </span>
+                                    {preparedCount}/{preparedInfo.total}
+                                </span>
                             </p>
                         </div>
                     )}
@@ -761,8 +734,8 @@ export function CharacterView({
                         </h3>
                         {notesText ? (
                             <pre className="whitespace-pre-wrap text-sm text-zinc-300">
-                {notesText}
-              </pre>
+                                {notesText}
+                            </pre>
                         ) : (
                             <p className="text-xs text-zinc-500">No hay notas guardadas.</p>
                         )}

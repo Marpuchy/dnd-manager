@@ -389,7 +389,7 @@ export default function CampaignPlayerPage() {
                 };
             }
 
-            const details: Details = {
+            const detailsObj: Details = {
                 armors: armors.filter((a) => a.name?.trim() !== ""),
                 weaponEquipped,
                 inventory: inventory.trim() || undefined,
@@ -414,7 +414,7 @@ export default function CampaignPlayerPage() {
                 armor_class: armorClass,
                 speed,
                 stats,
-                details,
+                details: detailsObj,
             };
 
             if (mode === "edit" && editingId) {
@@ -696,7 +696,7 @@ export default function CampaignPlayerPage() {
             </aside>
 
             {/* Panel derecho (contenido principal) */}
-            {/* -> Aquí la clave: height full del panel y scroll interno únicamente en el contenido */}
+            {/* -> Aquí: dejamos header estático (no sticky) y todo el contenido se desplaza */}
             <section className="flex-1 p-6 h-screen overflow-hidden flex flex-col">
                 {error && (
                     <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2 inline-block">
@@ -705,7 +705,7 @@ export default function CampaignPlayerPage() {
                 )}
 
                 <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 divide-y divide-zinc-800 overflow-hidden shadow-[0_6px_40px_rgba(2,6,23,0.45)] flex flex-col h-full">
-                    {/* HEADER: fijo */}
+                    {/* HEADER: ahora estático (no sticky) */}
                     <div className="p-4 flex-shrink-0">
                         <div className="flex items-center justify-between gap-4">
                             <div>
@@ -718,12 +718,12 @@ export default function CampaignPlayerPage() {
                             </div>
 
                             <div className="flex items-center gap-2">
-                                {/* (intencionalmente vacío — sin contenido heredado) */}
+                                {/* (espacio para acciones rápidas si quieres) */}
                             </div>
                         </div>
                     </div>
 
-                    {/* CONTENIDO: aquí está el scroll interno */}
+                    {/* CONTENIDO: aquí está el scroll interno — las pestañas se renderizan dentro de CharacterView */}
                     <div className="p-4 flex-1 overflow-y-auto styled-scrollbar">
                         {rightPanelMode === "character" && (
                             <>
@@ -883,8 +883,14 @@ export default function CampaignPlayerPage() {
 
                 /* Small accessibility: ensure focus outlines for keyboard users */
                 button:focus {
-                    outline: 2px solid rgba(140, 90, 220, 0.28);
+                    outline: 2px solid rgba(140, 90, 220, 0.12);
                     outline-offset: 2px;
+                }
+
+                /* Ensure sticky-like visual blend if any sticky remains elsewhere */
+                .sticky {
+                    -webkit-backdrop-filter: blur(6px);
+                    backdrop-filter: blur(6px);
                 }
             `}</style>
         </main>
