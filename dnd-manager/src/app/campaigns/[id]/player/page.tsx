@@ -20,7 +20,7 @@ import ClickableRow from "../../../components/ClickableRow";
 import { CharacterView } from "./CharacterView";
 import { CharacterForm } from "./CharacterForm";
 import { SpellManagerPanel } from "./SpellManagerPanel";
-import { Trash2, Edit2, Menu, ChevronLeft, ChevronRight, Grid } from "lucide-react";
+import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu } from "lucide-react";
 
 type RightPanelMode = "character" | "spellManager";
 type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
@@ -40,12 +40,19 @@ export default function CampaignPlayerPage() {
 
     const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("character");
 
+    // mounted guard para evitar hydration mismatch
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     // Panel personajes abierto/cerrado
     const [charsOpen, setCharsOpen] = useState<boolean>(true);
 
     // Edición / creación
     const [editingId, setEditingId] = useState<string | null>(null);
 
+    // Form fields (resumidos — los mantienes igual que antes)
     const [charName, setCharName] = useState("");
     const [charClass, setCharClass] = useState("");
     const [charLevel, setCharLevel] = useState<number>(1);
@@ -53,12 +60,8 @@ export default function CampaignPlayerPage() {
     const [experience, setExperience] = useState<number>(0);
     const [armorClass, setArmorClass] = useState<number>(10);
     const [speed, setSpeed] = useState<number>(30);
-
-    // Vida
     const [currentHp, setCurrentHp] = useState<number>(10);
     const [hitDieSides, setHitDieSides] = useState<number>(8);
-
-    // Stats
     const [str, setStr] = useState<number>(10);
     const [dex, setDex] = useState<number>(10);
     const [con, setCon] = useState<number>(10);
@@ -95,8 +98,51 @@ export default function CampaignPlayerPage() {
     const [spellsL8, setSpellsL8] = useState("");
     const [spellsL9, setSpellsL9] = useState("");
 
+    // --- Helper: carga personajes desde DB (reutilizable)
+    async function loadCharacters() {
+        setLoading(true);
+        setError(null);
+        try {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
+            if (!session?.user) {
+                router.push("/login");
+                return;
+            }
+
+            const { data: chars, error: charsError } = await supabase
+                .from("characters")
+                .select("id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details")
+                .eq("campaign_id", params.id)
+                .eq("user_id", session.user.id);
+
+            if (charsError) {
+                console.error("Error cargando personajes:", charsError);
+                setError(charsError.message ?? "No se han podido cargar tus personajes.");
+                setCharacters([]);
+            } else if (chars) {
+                const list: Character[] = (chars as any[]).map((c) => ({
+                    ...(c as any),
+                    details: (c.details || {}) as Details,
+                }));
+                setCharacters(list);
+                if (!selectedId && list.length > 0) setSelectedId(list[0].id);
+            } else {
+                setCharacters([]);
+            }
+        } catch (err: any) {
+            console.error("loadCharacters:", err);
+            setError(err?.message ?? "Error cargando personajes.");
+            setCharacters([]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     useEffect(() => {
-        async function checkAccessAndLoad() {
+        async function checkAccessAndInit() {
             setLoading(true);
             setError(null);
 
@@ -122,34 +168,10 @@ export default function CampaignPlayerPage() {
             }
 
             setAllowed(true);
-
-            const { data: chars, error: charsError } = await supabase
-                .from("characters")
-                .select(
-                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details"
-                )
-                .eq("campaign_id", params.id)
-                .eq("user_id", session.user.id);
-
-            if (charsError) {
-                console.error("Error cargando personajes:", charsError);
-                setError(charsError.message ?? "No se han podido cargar tus personajes.");
-            } else if (chars) {
-                const list: Character[] = (chars as any[]).map((c) => ({
-                    ...(c as any),
-                    details: (c.details || {}) as Details,
-                }));
-
-                setCharacters(list);
-                if (!selectedId && list.length > 0) {
-                    setSelectedId(list[0].id);
-                }
-            }
-
-            setLoading(false);
+            await loadCharacters();
         }
 
-        checkAccessAndLoad();
+        checkAccessAndInit();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.id, router]);
 
@@ -350,7 +372,9 @@ export default function CampaignPlayerPage() {
             let weaponEquipped: any | undefined;
             if (weaponName.trim()) {
                 const numericWeaponMod =
-                    typeof weaponStatModifier === "number" && !Number.isNaN(weaponStatModifier) ? weaponStatModifier : null;
+                    typeof weaponStatModifier === "number" && !Number.isNaN(weaponStatModifier)
+                        ? weaponStatModifier
+                        : null;
 
                 weaponEquipped = {
                     name: weaponName.trim(),
@@ -375,8 +399,6 @@ export default function CampaignPlayerPage() {
                 notes: notes.trim() || undefined,
                 hitDie: { sides: hitDieSides },
                 spells,
-
-                // Datos de clase personalizada
                 customClassName: customClassName.trim() || undefined,
                 customCastingAbility,
             };
@@ -401,21 +423,21 @@ export default function CampaignPlayerPage() {
                     .update(payload)
                     .eq("id", editingId)
                     .eq("campaign_id", params.id)
-                    .eq("user_id", session.user.id);
+                    .eq("user_id", (await supabase.auth.getSession()).data.session?.user?.id);
 
                 if (updateError) {
                     console.error("Error actualizando personaje:", updateError);
                     throw new Error(updateError.message);
                 }
 
-                setCharacters((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...payload } : c)));
+                await loadCharacters(); // recargar lista por seguridad
             } else {
                 const { data: inserted, error: insertError } = await supabase
                     .from("characters")
                     .insert({
                         ...payload,
                         campaign_id: params.id,
-                        user_id: session.user.id,
+                        user_id: (await supabase.auth.getSession()).data.session?.user?.id,
                     })
                     .select("id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details")
                     .single();
@@ -426,12 +448,8 @@ export default function CampaignPlayerPage() {
                 }
 
                 if (inserted) {
-                    const newChar: Character = {
-                        ...(inserted as any),
-                        details: (inserted.details || {}) as Details,
-                    };
-                    setCharacters((prev) => [...prev, newChar]);
-                    setSelectedId(newChar.id);
+                    await loadCharacters();
+                    setSelectedId((inserted as any).id ?? null);
                 }
             }
 
@@ -443,8 +461,8 @@ export default function CampaignPlayerPage() {
         }
     }
 
+    // BORRAR personaje: BORRADO REAL en la BD + recarga de la lista
     async function handleDeleteCharacter(id: string) {
-        // Nota: confirm adicional por seguridad
         const confirmDelete = window.confirm("¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer.");
         if (!confirmDelete) return;
 
@@ -458,19 +476,27 @@ export default function CampaignPlayerPage() {
                 throw new Error("No hay sesión activa.");
             }
 
-            const { error: deleteError } = await supabase.from("characters").delete().eq("id", id).eq("campaign_id", params.id).eq("user_id", session.user.id);
+            const { error: deleteError } = await supabase
+                .from("characters")
+                .delete()
+                .eq("id", id)
+                .eq("campaign_id", params.id)
+                .eq("user_id", session.user.id);
 
             if (deleteError) {
                 console.error("Error eliminando personaje:", deleteError);
                 throw new Error(deleteError.message);
             }
 
-            setCharacters((prev) => prev.filter((c) => c.id !== id));
+            // recargamos la lista desde DB para garantizar persistencia y evitar inconsistencias por RLS
+            await loadCharacters();
+
+            // limpiar selección si era el personaje borrado
             if (selectedId === id) {
                 setSelectedId(null);
             }
         } catch (e: any) {
-            console.error(e);
+            console.error("handleDeleteCharacter:", e);
             setError(e?.message ?? "No se ha podido eliminar el personaje.");
         }
     }
@@ -518,10 +544,9 @@ export default function CampaignPlayerPage() {
             if (parsed?.type === "character" && parsed.id) {
                 const char = characters.find((c) => c.id === parsed.id);
                 if (!char) return;
-                const confirmDelete = window.confirm(
-                    `¿Eliminar personaje "${char.name}" arrastrándolo a la papelera? Esta acción no se puede deshacer.`
-                );
+                const confirmDelete = window.confirm(`¿Eliminar personaje "${char.name}" arrastrándolo a la papelera? Esta acción no se puede deshacer.`);
                 if (!confirmDelete) return;
+                // usa la función centralizada para borrar + recargar
                 handleDeleteCharacter(parsed.id);
             }
         } catch {
@@ -529,145 +554,177 @@ export default function CampaignPlayerPage() {
         }
     }
 
+    // --- small helpers for animated classes
+    const asideWidthOpen = "w-72";
+    const asideWidthClosed = "w-12";
+    const asideTransition = "transition-[width,background-color,box-shadow] duration-300 ease-in-out";
+
+    // === mounted guard: si no estamos montados en cliente, devolvemos placeholder neutro
+    if (!mounted) {
+        return (
+            <main className="flex min-h-screen bg-zinc-950 text-zinc-100">
+                <aside className="w-72 border-r border-zinc-800 bg-zinc-950/90 p-4 space-y-4">
+                    <div className="h-8 bg-zinc-900/30 rounded w-2/3" />
+                    <div className="h-6 bg-zinc-900/20 rounded w-1/2 mt-2" />
+                </aside>
+
+                <section className="flex-1 p-6">
+                    <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 p-4 h-24" />
+                </section>
+            </main>
+        );
+    }
+
     return (
         <main className="flex min-h-screen bg-zinc-950 text-zinc-100">
-            {/* PANEL personajes en la IZQUIERDA: cuando cerrado queda como 'mini panel' (w-12) */}
+            {/* PANEL personajes en la IZQUIERDA */}
             <aside
-                className={`relative flex flex-col border-r border-zinc-800 bg-zinc-950/90 transition-all duration-200 ease-in-out ${charsOpen ? "w-72 p-4" : "w-12 p-2"}`}
+                className={`relative flex flex-col border-r border-zinc-800 ${asideTransition} ${charsOpen ? asideWidthOpen : asideWidthClosed}
+          rounded-r-2xl overflow-visible
+          bg-gradient-to-b from-[#120826] via-[#0e0720] to-[#0b0420] shadow-[0_8px_30px_rgba(4,6,35,0.6)]`}
                 aria-hidden={!charsOpen}
             >
-                {/* Renderizo TODO el interior únicamente si charsOpen === true.
-            Esto elimina los artefactos por completo al plegar. */}
-                {charsOpen ? (
-                    <>
-                        {/* header */}
-                        <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800">
-                            <div className="flex items-center gap-2">
-                                <Menu className="h-4 w-4 text-zinc-300" />
-                                <h2 className="text-lg font-semibold text-purple-300">Tus personajes</h2>
+                <div
+                    className={`flex-1 flex flex-col p-4 h-full
+            ${charsOpen ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 -translate-x-2 pointer-events-none"}
+            transition-all duration-300 ease-in-out`}
+                >
+                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-1 rounded bg-zinc-900/30 border border-zinc-800">
+                                <Menu className="h-4 w-4 text-purple-200" />
                             </div>
-
-                            <button type="button" onClick={startCreate} className="text-xs px-3 py-1 rounded-md border border-purple-600/70 hover:bg-purple-900/40">
-                                Nuevo
-                            </button>
-                        </div>
-
-                        {/* lista scrollable */}
-                        <div className="flex-1 overflow-auto styled-scrollbar">
-                            {loading ? (
-                                <p className="text-xs text-zinc-500">Cargando...</p>
-                            ) : characters.length === 0 ? (
-                                <p className="text-xs text-zinc-500">Todavía no tienes personajes en esta campaña.</p>
-                            ) : (
-                                <ul className="space-y-2 text-sm">
-                                    {characters.map((ch) => (
-                                        <li key={ch.id} className="relative flex items-center gap-3" draggable onDragStart={(e) => handleDragStartCharacter(e, ch.id)}>
-                                            <div className="flex-1">
-                                                <ClickableRow
-                                                    onClick={() => selectCharacter(ch.id)}
-                                                    className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 ${
-                                                        selectedId === ch.id ? "border-purple-500 bg-purple-900/30" : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900"
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="min-w-0">
-                                                            <p className="font-medium text-sm text-zinc-100 truncate">{ch.name}</p>
-                                                            <p className="text-[11px] text-zinc-400 truncate">
-                                                                {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="flex-shrink-0 ml-2">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-700/20 bg-transparent text-emerald-300/90">
-                                {ch.level ?? "?"}
-                              </span>
-                                                        </div>
-                                                    </div>
-                                                </ClickableRow>
-                                            </div>
-
-                                            <div className="flex-shrink-0 pr-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        startEdit(ch);
-                                                    }}
-                                                    className="text-[11px] px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 bg-zinc-900/60 flex items-center gap-2"
-                                                    aria-label={`Editar ${ch.name}`}
-                                                    title="Editar"
-                                                >
-                                                    <Edit2 className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-
-                        {/* footer papelera */}
-                        <div className="mt-4 pt-3 border-t border-zinc-800">
-                            <div
-                                onDragOver={handleTrashDragOver}
-                                onDragLeave={handleTrashDragLeave}
-                                onDrop={handleTrashDrop}
-                                className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${isOverTrash ? "border-red-400 bg-red-900/20" : "border-red-700/30 bg-transparent"}`}
-                            >
-                                <Trash2 className="h-5 w-5 text-red-400" />
-                                <div>
-                                    <p className="text-sm font-medium text-red-300">Arrastra aquí para eliminar</p>
-                                    <p className="text-[11px] text-zinc-400">Suelta para eliminar el personaje arrastrado</p>
-                                </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-purple-300 leading-tight">Tus personajes</h2>
+                                <p className="text-[11px] text-zinc-500 mt-0.5">Gestiona tus personajes de campaña</p>
                             </div>
                         </div>
-                    </>
-                ) : (
-                    /* cuando está minimizado dejamos solo el icono visible (ni lista ni footer ni botones) */
-                    <div className="flex h-full items-center justify-center">
-                        <Menu className="h-5 w-5 text-zinc-300" />
+
+                        <button
+                            type="button"
+                            onClick={startCreate}
+                            className="text-xs px-3 py-1 rounded-md border border-purple-600/70 hover:bg-purple-900/30 text-purple-100"
+                        >
+                            Nuevo
+                        </button>
                     </div>
-                )}
 
-                {/* Toggle pegado al borde derecho del aside para que "siga" al panel */}
+                    <div className="flex-1 overflow-auto styled-scrollbar">
+                        {loading ? (
+                            <p className="text-xs text-zinc-500">Cargando...</p>
+                        ) : characters.length === 0 ? (
+                            <p className="text-xs text-zinc-500">Todavía no tienes personajes en esta campaña.</p>
+                        ) : (
+                            <ul className="space-y-2 text-sm">
+                                {characters.map((ch) => (
+                                    <li key={ch.id} className="relative flex items-center gap-3" draggable onDragStart={(e) => handleDragStartCharacter(e, ch.id)}>
+                                        <div className="flex-1">
+                                            <ClickableRow
+                                                onClick={() => selectCharacter(ch.id)}
+                                                className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 ${
+                                                    selectedId === ch.id ? "border-purple-500 bg-purple-900/20" : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900"
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-sm text-zinc-100 truncate">{ch.name}</p>
+                                                        <p className="text-[11px] text-zinc-400 truncate">
+                                                            {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex-shrink-0 ml-2">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-purple-600/25 bg-transparent text-purple-200">
+                              {ch.level ?? "?"}
+                            </span>
+                                                    </div>
+                                                </div>
+                                            </ClickableRow>
+                                        </div>
+
+                                        <div className="flex-shrink-0 pr-1">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    startEdit(ch);
+                                                }}
+                                                className="text-[11px] px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 bg-zinc-900/60 flex items-center gap-2 text-purple-100"
+                                                aria-label={`Editar ${ch.name}`}
+                                                title="Editar"
+                                            >
+                                                <Edit2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-zinc-800">
+                        <div
+                            onDragOver={handleTrashDragOver}
+                            onDragLeave={handleTrashDragLeave}
+                            onDrop={handleTrashDrop}
+                            className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${
+                                isOverTrash ? "border-red-400 bg-red-900/20" : "border-red-700/30 bg-transparent"
+                            }`}
+                        >
+                            <Trash2 className="h-5 w-5 text-red-400" />
+                            <div>
+                                <p className="text-sm font-medium text-red-300">Arrastra aquí para eliminar</p>
+                                <p className="text-[11px] text-zinc-400">Suelta para eliminar el personaje arrastrado</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {!charsOpen && null}
+
                 <button
                     type="button"
                     onClick={() => setCharsOpen((v) => !v)}
-                    className="absolute right-[-18px] top-4 z-30 rounded-full bg-zinc-900 border border-zinc-800 p-2 shadow-sm hover:bg-zinc-800"
+                    className={`absolute top-4 z-30 rounded-full p-2 shadow-sm
+            ${charsOpen ? "right-[-18px] bg-zinc-900 border border-zinc-800 hover:bg-zinc-800" : "right-0 translate-x-1/2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800"}
+            transition-all duration-300 ease-in-out`}
                     aria-label={charsOpen ? "Cerrar lista de personajes" : "Abrir lista de personajes"}
                     title={charsOpen ? "Cerrar lista" : "Abrir lista"}
                 >
-                    {charsOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {charsOpen ? <ChevronLeft className="h-4 w-4 text-purple-200" /> : <ChevronRight className="h-4 w-4 text-purple-200" />}
                 </button>
             </aside>
 
-            {/* Panel derecho */}
-            <section className="flex-1 p-6 space-y-6">
+            {/* Panel derecho (contenido principal) */}
+            {/* -> Aquí la clave: height full del panel y scroll interno únicamente en el contenido */}
+            <section className="flex-1 p-6 h-screen overflow-hidden flex flex-col">
                 {error && (
                     <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2 inline-block">
                         {error}
                     </p>
                 )}
 
-                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
-                    <div className="p-4">
+                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 divide-y divide-zinc-800 overflow-hidden shadow-[0_6px_40px_rgba(2,6,23,0.45)] flex flex-col h-full">
+                    {/* HEADER: fijo */}
+                    <div className="p-4 flex-shrink-0">
                         <div className="flex items-center justify-between gap-4">
                             <div>
-                                <h1 className="text-lg font-semibold text-purple-300">{mode === "create" ? "Nuevo personaje" : selectedChar?.name ?? "Personaje"}</h1>
+                                <h1 className="text-lg font-semibold text-purple-300">
+                                    {mode === "create" ? "Nuevo personaje" : selectedChar?.name ?? "Personaje"}
+                                </h1>
                                 <p className="text-xs text-zinc-400 mt-1">
                                     {selectedChar ? `${selectedChar.race ?? "Sin raza"} · ${prettyClassLabel(selectedChar.class)} · Nivel ${selectedChar.level ?? "?"}` : "Crea o selecciona un personaje"}
                                 </p>
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <div className="text-xs text-zinc-400 flex items-center gap-2">
-                                    <Grid className="h-4 w-4" />
-                                </div>
+                                {/* (intencionalmente vacío — sin contenido heredado) */}
                             </div>
                         </div>
                     </div>
 
-                    <div className="p-4">
+                    {/* CONTENIDO: aquí está el scroll interno */}
+                    <div className="p-4 flex-1 overflow-y-auto styled-scrollbar">
                         {rightPanelMode === "character" && (
                             <>
                                 {mode === "view" && selectedChar && (
@@ -676,7 +733,9 @@ export default function CampaignPlayerPage() {
                                         activeTab={activeTab}
                                         onTabChange={setActiveTab}
                                         onDetailsChange={(newDetails: Details) => {
-                                            setCharacters((prev) => prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c)));
+                                            setCharacters((prev) =>
+                                                prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c))
+                                            );
                                         }}
                                         onOpenSpellManager={() => setRightPanelMode("spellManager")}
                                     />
@@ -771,7 +830,9 @@ export default function CampaignPlayerPage() {
                                     />
                                 )}
 
-                                {mode === "view" && !selectedChar && <p className="text-sm text-zinc-500">Selecciona un personaje en la lista o crea uno nuevo.</p>}
+                                {mode === "view" && !selectedChar && (
+                                    <p className="text-sm text-zinc-500">Selecciona un personaje en la lista o crea uno nuevo.</p>
+                                )}
                             </>
                         )}
 
@@ -780,13 +841,52 @@ export default function CampaignPlayerPage() {
                                 character={selectedChar}
                                 onClose={() => setRightPanelMode("character")}
                                 onDetailsChange={(newDetails: Details) => {
-                                    setCharacters((prev) => prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c)));
+                                    setCharacters((prev) =>
+                                        prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c))
+                                    );
                                 }}
                             />
                         )}
                     </div>
                 </div>
             </section>
+
+            {/* Scrollbar styles injected locally para evitar tocar globals.css */}
+            <style jsx global>{`
+                /* Scrollbar suave, minimalista y elegante */
+                .styled-scrollbar::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-track {
+                    background: rgba(10, 8, 12, 0.12);
+                    border-radius: 10px;
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-thumb {
+                    background: rgba(130, 80, 200, 0.32); /* morado suave */
+                    border-radius: 10px;
+                    border: 2px solid transparent;
+                    background-clip: padding-box;
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: rgba(150, 100, 230, 0.5);
+                }
+
+                /* Firefox */
+                .styled-scrollbar {
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(130, 80, 200, 0.32) rgba(10, 8, 12, 0.12);
+                }
+
+                /* Small accessibility: ensure focus outlines for keyboard users */
+                button:focus {
+                    outline: 2px solid rgba(140, 90, 220, 0.28);
+                    outline-offset: 2px;
+                }
+            `}</style>
         </main>
     );
 }
