@@ -1,42 +1,37 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-/**
- * Página para unirse a una campaña mediante código de invitación.
- * - Evita crear cliente Supabase en el módulo (no se ejecuta en build).
- * - Crea el cliente en el navegador (useEffect / handlers).
- *
- * IMPORTANTE:
- * Asegúrate de tener en Vercel (o en tu .env.local) estas variables:
- * NEXT_PUBLIC_SUPABASE_URL
- * NEXT_PUBLIC_SUPABASE_ANON_KEY
- *
- * (Las variables NEXT_PUBLIC_* deben existir durante el build para sustituirlas, pero
- * no provocan la creación del cliente en el servidor porque la creación ocurre en cliente.)
- */
+type Campaign = {
+    id: string;
+    name: string;
+    invite_code: string | null;
+    role: "PLAYER" | "DM";
+};
 
-export default function JoinCampaignPage() {
+export default function CampaignsPage() {
     const router = useRouter();
-    const [inviteCode, setInviteCode] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
-    // Crea el cliente en el cliente (navegador). Esto no se ejecuta durante el build.
+    // Inicializa el cliente de Supabase en el navegador (no en el scope del módulo)
     useEffect(() => {
-        // Comprueba que las env vars públicas existan (reemplazadas por Next en build)
+        if (typeof window === "undefined") return;
+
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
         if (!url || !key) {
-            console.error("Faltan NEXT_PUBLIC_SUPABASE_* en el entorno.");
-            setMessage(
+            console.warn("Missing NEXT_PUBLIC_SUPABASE_* env vars for client");
+            setError(
                 "Error de configuración: falta la URL/KEY de Supabase. Contacta al administrador."
             );
+            setLoading(false);
             return;
         }
 
@@ -44,147 +39,154 @@ export default function JoinCampaignPage() {
         setSupabase(client);
     }, []);
 
-    async function handleJoin(e?: React.FormEvent) {
-        e?.preventDefault();
-        setMessage(null);
+    // Carga campañas cuando el cliente esté listo
+    useEffect(() => {
+        if (!supabase) return; // <-- evita ejecutar lógica si no hay cliente
 
-        if (!supabase) {
-            setMessage("Cliente de Supabase no inicializado.");
-            return;
-        }
+        // Capturamos una referencia inmutable para que TS sepa que no es null dentro de la función
+        const client = supabase;
 
-        if (!inviteCode.trim()) {
-            setMessage("Introduce un código de invitación.");
-            return;
-        }
+        let cancelled = false;
 
-        try {
+        async function loadCampaigns() {
             setLoading(true);
+            setError(null);
 
-            // Obtén sesión para conocer el usuario
-            const {
-                data: { session },
-                error: sessionErr,
-            } = await supabase.auth.getSession();
+            try {
+                const {
+                    data: { session },
+                    error: sessionErr,
+                } = await client.auth.getSession();
 
-            if (sessionErr) throw sessionErr;
-            if (!session?.user) {
-                // No logueado: redirige a login
-                router.push("/login");
-                return;
-            }
+                if (sessionErr) throw sessionErr;
 
-            // Busca la campaña por invite_code
-            const { data: campaign, error: campaignError } = await supabase
-                .from("campaigns")
-                .select("id, name, invite_code")
-                .eq("invite_code", inviteCode.trim())
-                .limit(1)
-                .single();
-
-            if (campaignError) {
-                if (campaignError.code === "PGRST116") {
-                    // single() sin resultados
-                    setMessage("Código de invitación no válido.");
-                    setLoading(false);
+                if (!session?.user) {
+                    router.push("/login");
                     return;
                 }
-                throw campaignError;
+
+                const { data, error: fetchErr } = await client
+                    .from("campaign_members")
+                    .select("role, campaign_id:campaigns(id, name, invite_code)")
+                    .eq("user_id", session.user.id);
+
+                if (fetchErr) throw fetchErr;
+
+                const formatted = (data ?? []).map((item: any) => ({
+                    id: item.campaign_id.id,
+                    name: item.campaign_id.name,
+                    invite_code: item.campaign_id.invite_code,
+                    role: item.role,
+                }));
+
+                if (!cancelled) setCampaigns(formatted);
+            } catch (err: any) {
+                console.error("Error loading campaigns:", err);
+                if (!cancelled) setError("Error cargando tus campañas.");
+            } finally {
+                if (!cancelled) setLoading(false);
             }
-
-            // Comprueba si ya eres miembro
-            const { data: existing, error: existingErr } = await supabase
-                .from("campaign_members")
-                .select("id, role")
-                .eq("campaign_id", campaign.id)
-                .eq("user_id", session.user.id)
-                .limit(1)
-                .single();
-
-            if (!existingErr && existing) {
-                setMessage("Ya formas parte de esta campaña. Redirigiendo...");
-                setTimeout(() => {
-                    router.push(`/campaigns/${campaign.id}/player`);
-                }, 700);
-                return;
-            }
-
-            // Inserta como jugador
-            const { error: insertErr } = await supabase.from("campaign_members").insert([
-                {
-                    campaign_id: campaign.id,
-                    user_id: session.user.id,
-                    role: "PLAYER",
-                },
-            ]);
-
-            if (insertErr) throw insertErr;
-
-            setMessage("Te has unido correctamente. Redirigiendo...");
-            setTimeout(() => {
-                router.push(`/campaigns/${campaign.id}/player`);
-            }, 700);
-        } catch (err: any) {
-            console.error("Join error:", err);
-            setMessage(err?.message ?? "Error inesperado al unirse a la campaña.");
-        } finally {
-            setLoading(false);
         }
+
+        loadCampaigns();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [supabase, router]);
+
+    if (loading) {
+        return (
+            <main className="min-h-screen bg-black text-zinc-100 flex items-center justify-center">
+                <p>Cargando tus campañas...</p>
+            </main>
+        );
     }
 
+    const dmCampaigns = campaigns.filter((c) => c.role === "DM");
+    const playerCampaigns = campaigns.filter((c) => c.role === "PLAYER");
+
     return (
-        <main className="min-h-screen bg-black text-zinc-100 p-6 max-w-xl mx-auto">
-            <h1 className="text-2xl font-bold text-purple-300 mb-4">Unirme a una campaña</h1>
+        <main className="min-h-screen bg-black text-zinc-100 p-6 space-y-6 max-w-3xl mx-auto">
+            <h1 className="text-3xl font-bold text-purple-300">Tus campañas</h1>
 
-            <p className="mb-4 text-sm text-zinc-400">
-                Introduce el código de invitación que te ha proporcionado el DM.
-            </p>
-
-            {message && (
-                <div className="mb-4 text-sm text-zinc-200 bg-zinc-900/40 border border-zinc-800 rounded-md p-3">
-                    {message}
-                </div>
+            {error && (
+                <p className="text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2">
+                    {error}
+                </p>
             )}
 
-            <form onSubmit={handleJoin} className="space-y-3">
-                <label className="block">
-                    <span className="text-sm text-zinc-400">Código de invitación</span>
-                    <input
-                        value={inviteCode}
-                        onChange={(e) => setInviteCode(e.target.value)}
-                        className="mt-1 w-full bg-zinc-950/60 border border-zinc-800 rounded px-3 py-2"
-                        placeholder="p.ej. ABC123"
-                        autoFocus
-                    />
-                </label>
+            {/* CAMPAÑAS COMO DM */}
+            <section className="space-y-2">
+                <h2 className="text-xl font-semibold text-emerald-300">Como DM</h2>
+                {dmCampaigns.length === 0 ? (
+                    <p className="text-sm text-zinc-500">No eres DM en ninguna campaña.</p>
+                ) : (
+                    <ul className="space-y-2">
+                        {dmCampaigns.map((c) => (
+                            <li
+                                key={c.id}
+                                className="flex justify-between border border-zinc-800 bg-zinc-950/70 rounded-lg p-3"
+                            >
+                                <div>
+                                    <p className="font-medium text-zinc-200">{c.name}</p>
+                                </div>
+                                <Link
+                                    href={`/campaigns/${c.id}/dm`}
+                                    className="text-xs border border-emerald-600/70 px-3 py-1 rounded hover:bg-emerald-900/40"
+                                >
+                                    Entrar
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
 
-                <div className="flex gap-3">
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="px-4 py-2 rounded border border-purple-600/70 hover:bg-purple-900/40"
-                    >
-                        {loading ? "Uniendo..." : "Unirme"}
-                    </button>
+            {/* CAMPAÑAS COMO JUGADOR */}
+            <section className="space-y-2">
+                <h2 className="text-xl font-semibold text-purple-300">Como jugador</h2>
+                {playerCampaigns.length === 0 ? (
+                    <p className="text-sm text-zinc-500">
+                        No participas en ninguna campaña como jugador.
+                    </p>
+                ) : (
+                    <ul className="space-y-2">
+                        {playerCampaigns.map((c) => (
+                            <li
+                                key={c.id}
+                                className="flex justify-between border border-zinc-800 bg-zinc-950/70 rounded-lg p-3"
+                            >
+                                <div>
+                                    <p className="font-medium text-zinc-200">{c.name}</p>
+                                </div>
+                                <Link
+                                    href={`/campaigns/${c.id}/player`}
+                                    className="text-xs border border-purple-600/70 px-3 py-1 rounded hover:bg-purple-900/40"
+                                >
+                                    Entrar
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
 
-                    <Link
-                        href="/campaigns"
-                        className="px-4 py-2 rounded border border-zinc-700 hover:bg-zinc-800/40"
-                    >
-                        Volver
-                    </Link>
-                </div>
-            </form>
-
-            <hr className="my-6 border-zinc-800" />
-
-            <p className="text-sm text-zinc-500">
-                ¿Eres DM y quieres invitar jugadores? Crea una campaña desde{" "}
-                <Link href="/campaigns/create" className="text-emerald-300 underline">
-                    aquí
+            {/* Botones */}
+            <div className="flex gap-3 pt-4">
+                <Link
+                    href="/campaigns/create"
+                    className="border border-emerald-600/70 rounded-lg px-4 py-2 hover:bg-emerald-900/40"
+                >
+                    Crear campaña (DM)
                 </Link>
-                .
-            </p>
+                <Link
+                    href="/campaigns/join"
+                    className="border border-purple-600/70 rounded-lg px-4 py-2 hover:bg-purple-900/40"
+                >
+                    Unirme a una campaña
+                </Link>
+            </div>
         </main>
     );
 }
