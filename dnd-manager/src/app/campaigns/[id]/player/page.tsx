@@ -2,7 +2,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, DragEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { computeMaxHp } from "@/lib/dndMath";
 import {
@@ -20,6 +20,7 @@ import ClickableRow from "../../../components/ClickableRow";
 import { CharacterView } from "./CharacterView";
 import { CharacterForm } from "./CharacterForm";
 import { SpellManagerPanel } from "./SpellManagerPanel";
+import { Trash2, Edit2, Menu, ChevronLeft, ChevronRight, Grid } from "lucide-react";
 
 type RightPanelMode = "character" | "spellManager";
 type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
@@ -37,8 +38,10 @@ export default function CampaignPlayerPage() {
     const [activeTab, setActiveTab] = useState<Tab>("stats");
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    const [rightPanelMode, setRightPanelMode] =
-        useState<RightPanelMode>("character");
+    const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("character");
+
+    // Panel personajes abierto/cerrado
+    const [charsOpen, setCharsOpen] = useState<boolean>(true);
 
     // Edición / creación
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,11 +71,8 @@ export default function CampaignPlayerPage() {
     const [weaponName, setWeaponName] = useState("");
     const [weaponDamage, setWeaponDamage] = useState("");
     const [weaponDescription, setWeaponDescription] = useState("");
-    const [weaponStatAbility, setWeaponStatAbility] =
-        useState<AbilityKey | "none">("none");
-    const [weaponStatModifier, setWeaponStatModifier] = useState<number | null>(
-        null
-    );
+    const [weaponStatAbility, setWeaponStatAbility] = useState<AbilityKey | "none">("none");
+    const [weaponStatModifier, setWeaponStatModifier] = useState<number | null>(null);
     const [inventory, setInventory] = useState("");
     const [equipment, setEquipment] = useState("");
     const [abilities, setAbilities] = useState("");
@@ -81,8 +81,7 @@ export default function CampaignPlayerPage() {
 
     // Clase personalizada
     const [customClassName, setCustomClassName] = useState("");
-    const [customCastingAbility, setCustomCastingAbility] =
-        useState<keyof Stats>("int");
+    const [customCastingAbility, setCustomCastingAbility] = useState<keyof Stats>("int");
 
     // Hechizos en formulario
     const [spellsL0, setSpellsL0] = useState("");
@@ -134,9 +133,7 @@ export default function CampaignPlayerPage() {
 
             if (charsError) {
                 console.error("Error cargando personajes:", charsError);
-                setError(
-                    charsError.message ?? "No se han podido cargar tus personajes."
-                );
+                setError(charsError.message ?? "No se han podido cargar tus personajes.");
             } else if (chars) {
                 const list: Character[] = (chars as any[]).map((c) => ({
                     ...(c as any),
@@ -224,14 +221,14 @@ export default function CampaignPlayerPage() {
 
         const s: Stats =
             char.stats ??
-            ({
+            (({
                 str: 10,
                 dex: 10,
                 con: 10,
                 int: 10,
                 wis: 10,
                 cha: 10,
-            } as Stats);
+            } as Stats));
 
         setStr(s.str ?? 10);
         setDex(s.dex ?? 10);
@@ -247,12 +244,8 @@ export default function CampaignPlayerPage() {
         setWeaponDescription(d.weaponEquipped?.description ?? "");
 
         const weapon: any = (d as any).weaponEquipped;
-        setWeaponStatAbility(
-            (weapon?.statAbility as AbilityKey | undefined) ?? "none"
-        );
-        setWeaponStatModifier(
-            typeof weapon?.statModifier === "number" ? weapon.statModifier : null
-        );
+        setWeaponStatAbility((weapon?.statAbility as AbilityKey | undefined) ?? "none");
+        setWeaponStatModifier(typeof weapon?.statModifier === "number" ? weapon.statModifier : null);
 
         setInventory(d.inventory ?? "");
         setEquipment(d.equipment ?? "");
@@ -308,16 +301,8 @@ export default function CampaignPlayerPage() {
         setArmors((prev) => prev.filter((_, i) => i !== index));
     }
 
-    function updateArmor(
-        index: number,
-        field: keyof Armor,
-        value: string | number | null
-    ) {
-        setArmors((prev) =>
-            prev.map((armor, i) =>
-                i === index ? { ...armor, [field]: value } : armor
-            )
-        );
+    function updateArmor(index: number, field: keyof Armor, value: string | number | null) {
+        setArmors((prev) => prev.map((armor, i) => (i === index ? { ...armor, [field]: value } : armor)));
     }
 
     async function handleSaveCharacter(e: FormEvent) {
@@ -365,10 +350,7 @@ export default function CampaignPlayerPage() {
             let weaponEquipped: any | undefined;
             if (weaponName.trim()) {
                 const numericWeaponMod =
-                    typeof weaponStatModifier === "number" &&
-                    !Number.isNaN(weaponStatModifier)
-                        ? weaponStatModifier
-                        : null;
+                    typeof weaponStatModifier === "number" && !Number.isNaN(weaponStatModifier) ? weaponStatModifier : null;
 
                 weaponEquipped = {
                     name: weaponName.trim(),
@@ -426,9 +408,7 @@ export default function CampaignPlayerPage() {
                     throw new Error(updateError.message);
                 }
 
-                setCharacters((prev) =>
-                    prev.map((c) => (c.id === editingId ? { ...c, ...payload } : c))
-                );
+                setCharacters((prev) => prev.map((c) => (c.id === editingId ? { ...c, ...payload } : c)));
             } else {
                 const { data: inserted, error: insertError } = await supabase
                     .from("characters")
@@ -437,9 +417,7 @@ export default function CampaignPlayerPage() {
                         campaign_id: params.id,
                         user_id: session.user.id,
                     })
-                    .select(
-                        "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details"
-                    )
+                    .select("id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details")
                     .single();
 
                 if (insertError) {
@@ -466,9 +444,8 @@ export default function CampaignPlayerPage() {
     }
 
     async function handleDeleteCharacter(id: string) {
-        const confirmDelete = window.confirm(
-            "¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer."
-        );
+        // Nota: confirm adicional por seguridad
+        const confirmDelete = window.confirm("¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer.");
         if (!confirmDelete) return;
 
         setError(null);
@@ -481,12 +458,7 @@ export default function CampaignPlayerPage() {
                 throw new Error("No hay sesión activa.");
             }
 
-            const { error: deleteError } = await supabase
-                .from("characters")
-                .delete()
-                .eq("id", id)
-                .eq("campaign_id", params.id)
-                .eq("user_id", session.user.id);
+            const { error: deleteError } = await supabase.from("characters").delete().eq("id", id).eq("campaign_id", params.id).eq("user_id", session.user.id);
 
             if (deleteError) {
                 console.error("Error eliminando personaje:", deleteError);
@@ -513,218 +485,307 @@ export default function CampaignPlayerPage() {
         );
     }
 
+    // estado para hover de dropzone
+    const [isOverTrash, setIsOverTrash] = useState(false);
+
+    // Drag handlers para las filas -> asignados en el render del listado
+    function handleDragStartCharacter(event: DragEvent, charId: string) {
+        try {
+            const payload = JSON.stringify({ type: "character", id: charId });
+            event.dataTransfer.setData("application/x-dnd-manager-item", payload);
+            event.dataTransfer.effectAllowed = "move";
+        } catch {
+            // ignore
+        }
+    }
+
+    function handleTrashDragOver(e: DragEvent) {
+        e.preventDefault();
+        setIsOverTrash(true);
+        e.dataTransfer.dropEffect = "move";
+    }
+    function handleTrashDragLeave() {
+        setIsOverTrash(false);
+    }
+
+    function handleTrashDrop(e: DragEvent) {
+        e.preventDefault();
+        setIsOverTrash(false);
+        const raw = e.dataTransfer.getData("application/x-dnd-manager-item");
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw) as { type?: string; id?: string };
+            if (parsed?.type === "character" && parsed.id) {
+                const char = characters.find((c) => c.id === parsed.id);
+                if (!char) return;
+                const confirmDelete = window.confirm(
+                    `¿Eliminar personaje "${char.name}" arrastrándolo a la papelera? Esta acción no se puede deshacer.`
+                );
+                if (!confirmDelete) return;
+                handleDeleteCharacter(parsed.id);
+            }
+        } catch {
+            // ignore
+        }
+    }
+
     return (
         <main className="flex min-h-screen bg-zinc-950 text-zinc-100">
-            {/* Sidebar izquierda: lista de personajes */}
-            <aside className="w-72 border-r border-zinc-800 bg-zinc-950/90 p-4 space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                    <h1 className="text-lg font-semibold text-purple-300">
-                        Tus personajes
-                    </h1>
-                    <button
-                        type="button"
-                        onClick={startCreate}
-                        className="text-xs px-3 py-1 rounded-md border border-purple-600/70 hover:bg-purple-900/40"
-                    >
-                        Nuevo
-                    </button>
-                </div>
+            {/* PANEL personajes en la IZQUIERDA: cuando cerrado queda como 'mini panel' (w-12) */}
+            <aside
+                className={`relative flex flex-col border-r border-zinc-800 bg-zinc-950/90 transition-all duration-200 ease-in-out ${charsOpen ? "w-72 p-4" : "w-12 p-2"}`}
+                aria-hidden={!charsOpen}
+            >
+                {/* Renderizo TODO el interior únicamente si charsOpen === true.
+            Esto elimina los artefactos por completo al plegar. */}
+                {charsOpen ? (
+                    <>
+                        {/* header */}
+                        <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800">
+                            <div className="flex items-center gap-2">
+                                <Menu className="h-4 w-4 text-zinc-300" />
+                                <h2 className="text-lg font-semibold text-purple-300">Tus personajes</h2>
+                            </div>
 
-                {loading ? (
-                    <p className="text-xs text-zinc-500">Cargando...</p>
-                ) : characters.length === 0 ? (
-                    <p className="text-xs text-zinc-500">
-                        Todavía no tienes personajes en esta campaña.
-                    </p>
+                            <button type="button" onClick={startCreate} className="text-xs px-3 py-1 rounded-md border border-purple-600/70 hover:bg-purple-900/40">
+                                Nuevo
+                            </button>
+                        </div>
+
+                        {/* lista scrollable */}
+                        <div className="flex-1 overflow-auto styled-scrollbar">
+                            {loading ? (
+                                <p className="text-xs text-zinc-500">Cargando...</p>
+                            ) : characters.length === 0 ? (
+                                <p className="text-xs text-zinc-500">Todavía no tienes personajes en esta campaña.</p>
+                            ) : (
+                                <ul className="space-y-2 text-sm">
+                                    {characters.map((ch) => (
+                                        <li key={ch.id} className="relative flex items-center gap-3" draggable onDragStart={(e) => handleDragStartCharacter(e, ch.id)}>
+                                            <div className="flex-1">
+                                                <ClickableRow
+                                                    onClick={() => selectCharacter(ch.id)}
+                                                    className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 ${
+                                                        selectedId === ch.id ? "border-purple-500 bg-purple-900/30" : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900"
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="min-w-0">
+                                                            <p className="font-medium text-sm text-zinc-100 truncate">{ch.name}</p>
+                                                            <p className="text-[11px] text-zinc-400 truncate">
+                                                                {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex-shrink-0 ml-2">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-700/20 bg-transparent text-emerald-300/90">
+                                {ch.level ?? "?"}
+                              </span>
+                                                        </div>
+                                                    </div>
+                                                </ClickableRow>
+                                            </div>
+
+                                            <div className="flex-shrink-0 pr-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        startEdit(ch);
+                                                    }}
+                                                    className="text-[11px] px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 bg-zinc-900/60 flex items-center gap-2"
+                                                    aria-label={`Editar ${ch.name}`}
+                                                    title="Editar"
+                                                >
+                                                    <Edit2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+
+                        {/* footer papelera */}
+                        <div className="mt-4 pt-3 border-t border-zinc-800">
+                            <div
+                                onDragOver={handleTrashDragOver}
+                                onDragLeave={handleTrashDragLeave}
+                                onDrop={handleTrashDrop}
+                                className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${isOverTrash ? "border-red-400 bg-red-900/20" : "border-red-700/30 bg-transparent"}`}
+                            >
+                                <Trash2 className="h-5 w-5 text-red-400" />
+                                <div>
+                                    <p className="text-sm font-medium text-red-300">Arrastra aquí para eliminar</p>
+                                    <p className="text-[11px] text-zinc-400">Suelta para eliminar el personaje arrastrado</p>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 ) : (
-                    <ul className="space-y-1 text-sm">
-                        {characters.map((ch) => (
-                            <li key={ch.id}>
-                                <ClickableRow
-                                    onClick={() => selectCharacter(ch.id)}
-                                    className={`w-full text-left px-3 py-2 rounded-md border text-xs flex flex-col gap-0.5 ${
-                                        selectedId === ch.id
-                                            ? "border-purple-500 bg-purple-900/30"
-                                            : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900"
-                                    }`}
-                                >
-                                    <span className="font-medium">{ch.name}</span>
-                                    <span className="text-[11px] text-zinc-400">
-        {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
-      </span>
-
-                                    <div className="mt-2 flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // evita que se dispare selectCharacter
-                                                // abrir edición
-                                                startEdit(ch);
-                                            }}
-                                            className="text-[10px] px-2 py-0.5 rounded border border-zinc-700 hover:bg-zinc-800"
-                                        >
-                                            Editar
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // evita que se dispare selectCharacter
-                                                handleDeleteCharacter(ch.id);
-                                            }}
-                                            className="text-[10px] px-2 py-0.5 rounded border border-red-500/70 hover:bg-red-900/40"
-                                        >
-                                            Eliminar
-                                        </button>
-                                    </div>
-                                </ClickableRow>
-                            </li>
-                        ))}
-
-                    </ul>
+                    /* cuando está minimizado dejamos solo el icono visible (ni lista ni footer ni botones) */
+                    <div className="flex h-full items-center justify-center">
+                        <Menu className="h-5 w-5 text-zinc-300" />
+                    </div>
                 )}
+
+                {/* Toggle pegado al borde derecho del aside para que "siga" al panel */}
+                <button
+                    type="button"
+                    onClick={() => setCharsOpen((v) => !v)}
+                    className="absolute right-[-18px] top-4 z-30 rounded-full bg-zinc-900 border border-zinc-800 p-2 shadow-sm hover:bg-zinc-800"
+                    aria-label={charsOpen ? "Cerrar lista de personajes" : "Abrir lista de personajes"}
+                    title={charsOpen ? "Cerrar lista" : "Abrir lista"}
+                >
+                    {charsOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
             </aside>
 
             {/* Panel derecho */}
-            <section className="flex-1 p-6 space-y-4">
+            <section className="flex-1 p-6 space-y-6">
                 {error && (
                     <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2 inline-block">
                         {error}
                     </p>
                 )}
 
-                {rightPanelMode === "character" && (
-                    <>
-                        {mode === "view" && selectedChar && (
-                            <CharacterView
+                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
+                    <div className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <h1 className="text-lg font-semibold text-purple-300">{mode === "create" ? "Nuevo personaje" : selectedChar?.name ?? "Personaje"}</h1>
+                                <p className="text-xs text-zinc-400 mt-1">
+                                    {selectedChar ? `${selectedChar.race ?? "Sin raza"} · ${prettyClassLabel(selectedChar.class)} · Nivel ${selectedChar.level ?? "?"}` : "Crea o selecciona un personaje"}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <div className="text-xs text-zinc-400 flex items-center gap-2">
+                                    <Grid className="h-4 w-4" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-4">
+                        {rightPanelMode === "character" && (
+                            <>
+                                {mode === "view" && selectedChar && (
+                                    <CharacterView
+                                        character={selectedChar}
+                                        activeTab={activeTab}
+                                        onTabChange={setActiveTab}
+                                        onDetailsChange={(newDetails: Details) => {
+                                            setCharacters((prev) => prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c)));
+                                        }}
+                                        onOpenSpellManager={() => setRightPanelMode("spellManager")}
+                                    />
+                                )}
+
+                                {(mode === "create" || mode === "edit") && (
+                                    <CharacterForm
+                                        mode={mode}
+                                        onSubmit={handleSaveCharacter}
+                                        onCancel={cancelEditOrCreate}
+                                        fields={{
+                                            charName,
+                                            setCharName,
+                                            charClass,
+                                            setCharClass,
+                                            charLevel,
+                                            setCharLevel,
+                                            race,
+                                            setRace,
+                                            experience,
+                                            setExperience,
+                                            armorClass,
+                                            setArmorClass,
+                                            speed,
+                                            setSpeed,
+                                            currentHp,
+                                            setCurrentHp,
+                                            hitDieSides,
+                                            setHitDieSides,
+                                            str,
+                                            setStr,
+                                            dex,
+                                            setDex,
+                                            con,
+                                            setCon,
+                                            intStat,
+                                            setIntStat,
+                                            wis,
+                                            setWis,
+                                            cha,
+                                            setCha,
+                                            armors,
+                                            addArmor,
+                                            removeArmor,
+                                            updateArmor,
+                                            weaponName,
+                                            setWeaponName,
+                                            weaponDamage,
+                                            setWeaponDamage,
+                                            weaponDescription,
+                                            setWeaponDescription,
+                                            weaponStatAbility,
+                                            setWeaponStatAbility,
+                                            weaponStatModifier,
+                                            setWeaponStatModifier,
+                                            inventory,
+                                            setInventory,
+                                            equipment,
+                                            setEquipment,
+                                            abilities,
+                                            setAbilities,
+                                            weaponsExtra,
+                                            setWeaponsExtra,
+                                            notes,
+                                            setNotes,
+                                            spellsL0,
+                                            setSpellsL0,
+                                            spellsL1,
+                                            setSpellsL1,
+                                            spellsL2,
+                                            setSpellsL2,
+                                            spellsL3,
+                                            setSpellsL3,
+                                            spellsL4,
+                                            setSpellsL4,
+                                            spellsL5,
+                                            setSpellsL5,
+                                            spellsL6,
+                                            setSpellsL6,
+                                            spellsL7,
+                                            setSpellsL7,
+                                            spellsL8,
+                                            setSpellsL8,
+                                            spellsL9,
+                                            setSpellsL9,
+                                            // Campos para clase personalizada
+                                            customClassName,
+                                            setCustomClassName,
+                                            customCastingAbility,
+                                            setCustomCastingAbility,
+                                        }}
+                                    />
+                                )}
+
+                                {mode === "view" && !selectedChar && <p className="text-sm text-zinc-500">Selecciona un personaje en la lista o crea uno nuevo.</p>}
+                            </>
+                        )}
+
+                        {rightPanelMode === "spellManager" && selectedChar && (
+                            <SpellManagerPanel
                                 character={selectedChar}
-                                activeTab={activeTab}
-                                onTabChange={setActiveTab}
+                                onClose={() => setRightPanelMode("character")}
                                 onDetailsChange={(newDetails: Details) => {
-                                    setCharacters((prev) =>
-                                        prev.map((c) =>
-                                            c.id === selectedChar.id
-                                                ? { ...c, details: newDetails }
-                                                : c
-                                        )
-                                    );
-                                }}
-                                onOpenSpellManager={() => setRightPanelMode("spellManager")}
-                            />
-                        )}
-
-                        {(mode === "create" || mode === "edit") && (
-                            <CharacterForm
-                                mode={mode}
-                                onSubmit={handleSaveCharacter}
-                                onCancel={cancelEditOrCreate}
-                                fields={{
-                                    charName,
-                                    setCharName,
-                                    charClass,
-                                    setCharClass,
-                                    charLevel,
-                                    setCharLevel,
-                                    race,
-                                    setRace,
-                                    experience,
-                                    setExperience,
-                                    armorClass,
-                                    setArmorClass,
-                                    speed,
-                                    setSpeed,
-                                    currentHp,
-                                    setCurrentHp,
-                                    hitDieSides,
-                                    setHitDieSides,
-                                    str,
-                                    setStr,
-                                    dex,
-                                    setDex,
-                                    con,
-                                    setCon,
-                                    intStat,
-                                    setIntStat,
-                                    wis,
-                                    setWis,
-                                    cha,
-                                    setCha,
-                                    armors,
-                                    addArmor,
-                                    removeArmor,
-                                    updateArmor,
-                                    weaponName,
-                                    setWeaponName,
-                                    weaponDamage,
-                                    setWeaponDamage,
-                                    weaponDescription,
-                                    setWeaponDescription,
-                                    weaponStatAbility,
-                                    setWeaponStatAbility,
-                                    weaponStatModifier,
-                                    setWeaponStatModifier,
-                                    inventory,
-                                    setInventory,
-                                    equipment,
-                                    setEquipment,
-                                    abilities,
-                                    setAbilities,
-                                    weaponsExtra,
-                                    setWeaponsExtra,
-                                    notes,
-                                    setNotes,
-                                    spellsL0,
-                                    setSpellsL0,
-                                    spellsL1,
-                                    setSpellsL1,
-                                    spellsL2,
-                                    setSpellsL2,
-                                    spellsL3,
-                                    setSpellsL3,
-                                    spellsL4,
-                                    setSpellsL4,
-                                    spellsL5,
-                                    setSpellsL5,
-                                    spellsL6,
-                                    setSpellsL6,
-                                    spellsL7,
-                                    setSpellsL7,
-                                    spellsL8,
-                                    setSpellsL8,
-                                    spellsL9,
-                                    setSpellsL9,
-                                    // Campos para clase personalizada
-                                    customClassName,
-                                    setCustomClassName,
-                                    customCastingAbility,
-                                    setCustomCastingAbility,
+                                    setCharacters((prev) => prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c)));
                                 }}
                             />
                         )}
-
-                        {mode === "view" && !selectedChar && (
-                            <p className="text-sm text-zinc-500">
-                                Selecciona un personaje en la lista o crea uno nuevo.
-                            </p>
-                        )}
-                    </>
-                )}
-
-                {rightPanelMode === "spellManager" && selectedChar && (
-                    <SpellManagerPanel
-                        character={selectedChar}
-                        onClose={() => setRightPanelMode("character")}
-                        onDetailsChange={(newDetails: Details) => {
-                            setCharacters((prev) =>
-                                prev.map((c) =>
-                                    c.id === selectedChar.id
-                                        ? { ...c, details: newDetails }
-                                        : c
-                                )
-                            );
-                        }}
-                    />
-                )}
+                    </div>
+                </div>
             </section>
         </main>
     );
