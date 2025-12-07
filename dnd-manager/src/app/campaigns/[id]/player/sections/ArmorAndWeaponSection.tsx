@@ -24,6 +24,10 @@ type ArmorAndWeaponSectionProps = {
     armorBonus: number;
     previewTotalAC: number;
 
+    // weapon fields
+    weaponId?: string | null;
+    setWeaponId?: (v: string | null) => void;
+
     weaponName: string;
     setWeaponName: (v: string) => void;
     weaponDamage: string;
@@ -36,6 +40,12 @@ type ArmorAndWeaponSectionProps = {
     setWeaponStatAbility: (v: AbilityKey | "none") => void;
     weaponStatModifier: number | null;
     setWeaponStatModifier: (v: number | null) => void;
+
+    // nuevas props que antes faltaban
+    weaponProficient?: boolean | null;
+    setWeaponProficient?: (v: boolean) => void;
+    weaponEquipped?: boolean | null;
+    setWeaponEquipped?: (v: boolean) => void;
 };
 
 export function ArmorAndWeaponSection({
@@ -46,6 +56,8 @@ export function ArmorAndWeaponSection({
                                           baseAC,
                                           armorBonus,
                                           previewTotalAC,
+                                          weaponId,
+                                          setWeaponId,
                                           weaponName,
                                           setWeaponName,
                                           weaponDamage,
@@ -56,6 +68,10 @@ export function ArmorAndWeaponSection({
                                           setWeaponStatAbility,
                                           weaponStatModifier,
                                           setWeaponStatModifier,
+                                          weaponProficient,
+                                          setWeaponProficient,
+                                          weaponEquipped,
+                                          setWeaponEquipped,
                                       }: ArmorAndWeaponSectionProps) {
     // ─────────────────────────────────────────────
     //   Estado local para formulario de armaduras
@@ -65,9 +81,7 @@ export function ArmorAndWeaponSection({
     const [armorFormName, setArmorFormName] = useState("");
     const [armorFormBonus, setArmorFormBonus] = useState<number>(0);
     const [armorFormAbilityText, setArmorFormAbilityText] = useState("");
-    const [armorFormStatAbility, setArmorFormStatAbility] = useState<
-        AbilityKey | "none"
-    >("none");
+    const [armorFormStatAbility, setArmorFormStatAbility] = useState<AbilityKey | "none">("none");
     const [armorFormStatModifier, setArmorFormStatModifier] = useState<string>("");
 
     // ─────────────────────────────────────────────
@@ -99,9 +113,7 @@ export function ArmorAndWeaponSection({
         setArmorFormBonus(armor.bonus ?? 0);
         setArmorFormAbilityText((armor as any).ability ?? "");
         setArmorFormStatAbility(armor.statAbility ?? "none");
-        setArmorFormStatModifier(
-            typeof armor.statModifier === "number" ? String(armor.statModifier) : ""
-        );
+        setArmorFormStatModifier(typeof armor.statModifier === "number" ? String(armor.statModifier) : "");
         setIsArmorFormOpen(true);
     }
 
@@ -119,12 +131,8 @@ export function ArmorAndWeaponSection({
 
         const bonus = Number(armorFormBonus) || 0;
         const abilityText = armorFormAbilityText.trim();
-        const statAbility =
-            armorFormStatAbility === "none" ? undefined : armorFormStatAbility;
-        const statModifier =
-            armorFormStatModifier.trim() === ""
-                ? undefined
-                : Number(armorFormStatModifier);
+        const statAbility = armorFormStatAbility === "none" ? undefined : armorFormStatAbility;
+        const statModifier = armorFormStatModifier.trim() === "" ? undefined : Number(armorFormStatModifier);
 
         if (editingArmorIndex === null) {
             const newIndex = armors.length;
@@ -154,8 +162,7 @@ export function ArmorAndWeaponSection({
     function getArmorModifierBadge(a: any): string | null {
         if (!a?.statAbility) return null;
         if (typeof a.statModifier !== "number") return null;
-        const label =
-            abilityKeyToLabelEs[a.statAbility as AbilityKey] ?? a.statAbility;
+        const label = abilityKeyToLabelEs[a.statAbility as AbilityKey] ?? a.statAbility;
         const mod = a.statModifier;
         return `${label} ${mod >= 0 ? `+${mod}` : mod}`;
     }
@@ -193,17 +200,17 @@ export function ArmorAndWeaponSection({
                                     <p className="text-xs text-zinc-400">
                                         Bonificador CA:{" "}
                                         <span className="font-medium text-emerald-300">
-                      {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus}
-                    </span>
+                                            {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus}
+                                        </span>
                                     </p>
                                     {armor.ability && (
                                         <p className="text-xs text-zinc-500 whitespace-pre-wrap">{armor.ability}</p>
                                     )}
                                     {getArmorModifierBadge(armor) && (
                                         <p className="text-[11px] inline-flex items-center gap-1">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-900/20 text-emerald-300">
-                        {getArmorModifierBadge(armor)}
-                      </span>
+                                            <span className="px-2 py-0.5 rounded-full bg-emerald-900/20 text-emerald-300">
+                                                {getArmorModifierBadge(armor)}
+                                            </span>
                                         </p>
                                     )}
                                 </div>
@@ -277,9 +284,7 @@ export function ArmorAndWeaponSection({
                             <label className="text-xs text-purple-200">Modifica característica</label>
                             <select
                                 value={armorFormStatAbility}
-                                onChange={(e) =>
-                                    setArmorFormStatAbility(e.target.value as AbilityKey | "none")
-                                }
+                                onChange={(e) => setArmorFormStatAbility(e.target.value as AbilityKey | "none")}
                                 className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs outline-none focus:border-purple-500"
                             >
                                 <option value="none">Ninguna</option>
@@ -349,11 +354,17 @@ export function ArmorAndWeaponSection({
                                     <p className="text-[11px] mt-1">
                                         Modificador aplicado:{" "}
                                         <span className="px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
-                      {abilityKeyToLabelEs[weaponStatAbility as AbilityKey]}{" "}
+                                            {abilityKeyToLabelEs[weaponStatAbility as AbilityKey]}{" "}
                                             {Number(weaponStatModifier) >= 0 ? `+${Number(weaponStatModifier)}` : Number(weaponStatModifier)}
-                    </span>
+                                        </span>
                                     </p>
                                 )}
+
+                                {/* Show proficiency / equipped badges if provided */}
+                                <div className="flex gap-2 mt-1">
+                                    {weaponProficient ? <span className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">Competente</span> : null}
+                                    {weaponEquipped ? <span className="text-[11px] px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-300">Equipado</span> : null}
+                                </div>
                             </div>
                         ) : (
                             <p className="text-xs text-zinc-500">Sin arma equipada.</p>
@@ -431,6 +442,26 @@ export function ArmorAndWeaponSection({
                                     placeholder="+1, +2, -1..."
                                 />
                             </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                            <label className="flex items-center gap-2 text-xs">
+                                <input
+                                    type="checkbox"
+                                    checked={!!weaponProficient}
+                                    onChange={(e) => setWeaponProficient?.(e.target.checked)}
+                                />
+                                <span className="text-xs text-zinc-300">Competente (proficiency)</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 text-xs">
+                                <input
+                                    type="checkbox"
+                                    checked={!!weaponEquipped}
+                                    onChange={(e) => setWeaponEquipped?.(e.target.checked)}
+                                />
+                                <span className="text-xs text-zinc-300">Equipado</span>
+                            </label>
                         </div>
 
                         {/* Botón guardar arma (simplemente cierra la UI, el guardado real ocurre al submit del form) */}

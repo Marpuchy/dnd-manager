@@ -1,4 +1,6 @@
 // src/app/campaigns/[id]/player/CharacterView.tsx
+"use client";
+
 import React, { useEffect, useState } from "react";
 import {
     Character,
@@ -182,10 +184,8 @@ function normalizeClassName(s: unknown): string[] {
     if (!s) return [];
     if (Array.isArray(s)) return s.map((x) => String(x).toLowerCase().trim());
     if (typeof s === "string") {
-        // puede ser "Wizard, Sorcerer" o "Wizard"
         return s.split(",").map((x) => x.toLowerCase().trim());
     }
-    // objetos curiosos
     try {
         return [String(s).toLowerCase().trim()];
     } catch {
@@ -194,10 +194,7 @@ function normalizeClassName(s: unknown): string[] {
 }
 
 function spellMetaAllowsForCharacter(meta: any, charClass: string | null | undefined, charLevel: number | undefined): boolean {
-    // meta puede ser undefined/null -> assume allow
     if (!meta) return true;
-
-    // 1) Nivel
     if (typeof meta.level === "number") {
         const req = meta.level;
         if (typeof charLevel === "number") {
@@ -205,22 +202,19 @@ function spellMetaAllowsForCharacter(meta: any, charClass: string | null | undef
         }
     }
 
-    // 2) Clase(s)
     const possibleClassFields = [meta.classes, meta.class, meta.class_name, meta.className, meta.classe];
-    let allowedByClass = true; // default permissive
+    let allowedByClass = true;
     for (const field of possibleClassFields) {
         if (!field) continue;
         const classes = normalizeClassName(field);
         if (classes.length === 0) continue;
-        allowedByClass = false; // we have class info -> enforce it
+        allowedByClass = false;
         if (!charClass) continue;
         const cNormalized = (charClass || "").toLowerCase().trim();
-        // try direct match
         if (classes.includes(cNormalized)) {
             allowedByClass = true;
             break;
         }
-        // try plural/synonyms
         if (classes.some((cl) => cl.replace(/s$/, "") === cNormalized.replace(/s$/, ""))) {
             allowedByClass = true;
             break;
@@ -228,6 +222,16 @@ function spellMetaAllowsForCharacter(meta: any, charClass: string | null | undef
     }
 
     return allowedByClass;
+}
+
+/* ---------------------------
+   Small local utility: ability modifier & formatting
+   --------------------------- */
+function abilityModifier(score: number) {
+    return Math.floor((score - 10) / 2);
+}
+function formatModifier(n: number) {
+    return n >= 0 ? `+${n}` : `${n}`;
 }
 
 /* ---------------------------
@@ -240,7 +244,6 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
     onDetailsChange?: (d: Details) => void;
     onOpenSpellManager: () => void;
 }) {
-    // Early return para cuando no hay personaje seleccionado
     if (!character) {
         return (
             <div className="p-4">
@@ -249,12 +252,11 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
         );
     }
 
-    // Aserción segura
     const char = character as Character;
 
     const stats: Stats = char.stats ?? ({ str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 } as Stats);
     const details: Details = char.details || {};
-    const armors = Array.isArray(details.armors) ? details.armors : [];
+    const armors = Array.isArray(details.armors) ? details.armors : ( (char as any).character_armors || [] );
     const armorBonus = sumArmorBonus(armors);
     const baseAC = char.armor_class ?? 10;
     const totalAC = baseAC + armorBonus;
@@ -266,6 +268,11 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
     const notesText = details.notes ?? "";
     const featsText = details.abilities ?? "";
 
+    // use normalized expanded results if present
+    const statsRow = (char as any).character_stats || stats;
+    const weapons = (char as any).character_weapons || (details.weaponEquipped ? [details.weaponEquipped] : []);
+    const equipmentsArray = (char as any).character_equipments || [];
+
     const preparedInfo = getPreparedSpellsInfo(char.class, stats, char.level, details);
     const preparedCount = countPreparedSpells(spells);
     const extras = getClassMagicExtras(char.class, char.level);
@@ -273,17 +280,23 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
     const spellSlots = char.class && char.level ? getSpellSlotsFor(char.class, char.level) : null;
     const abilityBonuses = getAbilityBonusesFromDetails(details);
 
-    const totalStr = (stats.str ?? 10) + (abilityBonuses.STR ?? 0);
-    const totalDex = (stats.dex ?? 10) + (abilityBonuses.DEX ?? 0);
-    const totalCon = (stats.con ?? 10) + (abilityBonuses.CON ?? 0);
-    const totalInt = (stats.int ?? 10) + (abilityBonuses.INT ?? 0);
-    const totalWis = (stats.wis ?? 10) + (abilityBonuses.WIS ?? 0);
-    const totalCha = (stats.cha ?? 10) + (abilityBonuses.CHA ?? 0);
+    const totalStr = (Number(statsRow.str ?? stats.str ?? 10) + (abilityBonuses.STR ?? 0));
+    const totalDex = (Number(statsRow.dex ?? stats.dex ?? 10) + (abilityBonuses.DEX ?? 0));
+    const totalCon = (Number(statsRow.con ?? stats.con ?? 10) + (abilityBonuses.CON ?? 0));
+    const totalInt = (Number(statsRow.int ?? stats.int ?? 10) + (abilityBonuses.INT ?? 0));
+    const totalWis = (Number(statsRow.wis ?? stats.wis ?? 10) + (abilityBonuses.WIS ?? 0));
+    const totalCha = (Number(statsRow.cha ?? stats.cha ?? 10) + (abilityBonuses.CHA ?? 0));
+
+    const modStr = abilityModifier(totalStr);
+    const modDex = abilityModifier(totalDex);
+    const modCon = abilityModifier(totalCon);
+    const modInt = abilityModifier(totalInt);
+    const modWis = abilityModifier(totalWis);
+    const modCha = abilityModifier(totalCha);
 
     const [fetching, setFetching] = useState<Record<string, boolean>>({});
     const [collapsedLevels, setCollapsedLevels] = useState<Record<number, boolean>>({});
 
-    // normaliza línea a clave (coincide con cómo guardamos en cache/details)
     function spellKeyFromLine(line: string) {
         const firstPart = line.split(/—|–|\||:|\/|\\/)[0].trim();
         const cleaned = firstPart.replace(/\(.*\)$/g, "").trim();
@@ -303,9 +316,7 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
         }
     }
 
-    /* ----------------------------------------------------------------
-       Preparar dependencias estables: siempre 10 entradas (nivel0..nivel9)
-       ---------------------------------------------------------------- */
+    /* stable deps for spell lines */
     const stringifiedSpellLines = JSON.stringify([
         spells.level0 ?? "",
         spells.level1 ?? "",
@@ -321,16 +332,12 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
 
     const stringifiedSpellDetails = JSON.stringify((details && (details as any).spellDetails) || {});
 
-    /* ----------------------------------------------------------------
-       Effect: cache + fetch descripciones por nivel (sólo cuando activeTab === "spells")
-       ---------------------------------------------------------------- */
     useEffect(() => {
         if (activeTab !== "spells") return;
 
-        // recolectar líneas/levels que aparecen en la ficha actual
         const linesArr: (string | null)[] = JSON.parse(stringifiedSpellLines);
         const levelsPresent = new Set<number>();
-        const keysPresent = new Set<string>(); // keys (normalizadas) que aparecen
+        const keysPresent = new Set<string>();
 
         for (let lvl = 0; lvl <= 9; lvl++) {
             const raw = linesArr[lvl] ?? "";
@@ -345,27 +352,19 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                         levelsPresent.add(lvl);
                     }
                 }
-            } catch {
-                // ignore parse errors
-            }
+            } catch {}
         }
 
         const existingDetails: Record<string, any> = (details && (details as any).spellDetails) || {};
         const cache = readCache();
 
-        // Si ya tenemos metadatos por clave -> nada que hacer para esa clave.
-        // Para los niveles donde hay hechizos pero no tenemos metadatos para ninguna de sus claves,
-        // lanzamos fetch a /api/dnd/spells?class=...&level=...
         const missingLevels: number[] = [];
 
-        // Determine API class (mapear custom -> wizard para petición por defecto)
         const apiClassRaw = normalizeClassForApi(char.class ?? null) || "";
         const apiClassToUse = apiClassRaw === "custom" ? "wizard" : apiClassRaw;
 
         for (const lvl of Array.from(levelsPresent)) {
-            // check if for this level at least one of the keys present has metadata in existingDetails
             let haveMetaForLevel = false;
-            // walk existingDetails and check if any meta has level === lvl and key exists
             for (const k of Object.keys(existingDetails || {})) {
                 const meta = (existingDetails as any)[k];
                 if (!meta) continue;
@@ -386,7 +385,6 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
             }
         }
 
-        // Persistir en detalles lo que esté en cache local (sessionStorage) antes de lanzar fetchs
         const toPersistFromCache: Record<string, string | null> = {};
         for (const key of Array.from(keysPresent)) {
             if (existingDetails && Object.prototype.hasOwnProperty.call(existingDetails, key)) continue;
@@ -411,12 +409,10 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
             if (onDetailsChange) onDetailsChange(newDetails);
         }
 
-        // Filter out levels already being fetched
         const levelsToFetch = missingLevels.filter((lvl) => !fetching[`lvl-${lvl}`]);
 
         if (levelsToFetch.length === 0) return;
 
-        // mark fetching flags and start requests (parallel)
         setFetching((prev) => {
             const copy = { ...prev };
             for (const lvl of levelsToFetch) copy[`lvl-${lvl}`] = true;
@@ -426,20 +422,14 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
         (async () => {
             try {
                 for (const lvl of levelsToFetch) {
-                    // small guard: if no apiClass configured, skip
                     if (!apiClassToUse) continue;
                     const summaries = await fetchSpellSummariesForClassLevel(apiClassToUse, lvl);
                     if (!summaries || summaries.length === 0) continue;
 
-                    //
-                    // ---------- TYPE-SAFE MERGE: build Record<string, SpellMeta> (no nulls) ----------
-                    //
                     const latestDetails = (details && (details as any).spellDetails) || {};
 
-                    // Construimos un objeto merged que contenga únicamente SpellMeta (no nulls)
                     const merged: Record<string, SpellMeta> = {};
 
-                    // Copiamos las entradas existentes que sean objetos válidos (asumimos SpellMeta)
                     for (const k of Object.keys(latestDetails || {})) {
                         const candidate = (latestDetails as any)[k];
                         if (candidate && typeof candidate === "object") {
@@ -447,7 +437,6 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                         }
                     }
 
-                    // Añadimos/mezclamos los summaries recibidos (s.index debe existir)
                     for (const s of summaries) {
                         if (!s || !s.index) continue;
                         const prev = merged[s.index] || ({} as SpellMeta);
@@ -455,7 +444,6 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                             ...prev,
                             ...(s as SpellMeta),
                         };
-                        // cachear descripción en sessionStorage si viene
                         try {
                             if ((s as any).fullDesc || (s as any).shortDesc) {
                                 const key = s.index;
@@ -464,7 +452,6 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                         } catch {}
                     }
 
-                    // Ahora merged es Record<string, SpellMeta> sin nulls; lo usamos para persistir
                     const updatedDetails: Details = {
                         ...(details || {}),
                         spellDetails: merged,
@@ -495,7 +482,6 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
             const key = spellKeyFromLine(lineText);
             const metaByKey = (spellDetails as any)[key] as SpellMeta | undefined;
 
-            // If metadata not found by key, try to find by name
             let metaByName: SpellMeta | undefined;
             for (const k of Object.keys(spellDetails || {})) {
                 const m = (spellDetails as any)[k] as SpellMeta | undefined;
@@ -640,7 +626,7 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                     {/* Vida, CA, Velocidad */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <InfoBox label="Vida" value={`${char.current_hp ?? char.max_hp ?? "?"}/${char.max_hp ?? "?"}`} />
-                        <InfoBox label="Clase de armadura (CA total)" value={totalAC} sub={`Base ${baseAC} + armaduras (${armorBonus >= 0 ? `+${armorBonus}` : armorBonus})`} />
+                        <InfoBox label="Clase de armadura (CA total)" value={totalAC} />
                         <InfoBox label="Velocidad" value={`${char.speed ?? 30} ft`} />
                     </div>
 
@@ -648,12 +634,30 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                     <div className="space-y-2">
                         <h3 className="text-sm font-semibold text-zinc-300">Atributos (stats) con modificadores de equipo</h3>
                         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                            <StatDisplay label="FUE" value={totalStr} />
-                            <StatDisplay label="DES" value={totalDex} />
-                            <StatDisplay label="CON" value={totalCon} />
-                            <StatDisplay label="INT" value={totalInt} />
-                            <StatDisplay label="SAB" value={totalWis} />
-                            <StatDisplay label="CAR" value={totalCha} />
+                            <div>
+                                <StatDisplay label="FUE" value={totalStr} />
+                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modStr)}</div>
+                            </div>
+                            <div>
+                                <StatDisplay label="DES" value={totalDex} />
+                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modDex)}</div>
+                            </div>
+                            <div>
+                                <StatDisplay label="CON" value={totalCon} />
+                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modCon)}</div>
+                            </div>
+                            <div>
+                                <StatDisplay label="INT" value={totalInt} />
+                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modInt)}</div>
+                            </div>
+                            <div>
+                                <StatDisplay label="SAB" value={totalWis} />
+                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modWis)}</div>
+                            </div>
+                            <div>
+                                <StatDisplay label="CAR" value={totalCha} />
+                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modCha)}</div>
+                            </div>
                         </div>
                         <p className="text-[11px] text-zinc-500">Los modificadores procedentes de objetos del inventario, equipamiento y armas adicionales se aplican a estas estadísticas.</p>
                     </div>
@@ -669,13 +673,43 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                         {/* Arma equipada */}
                         <div className="border border-zinc-800 rounded-lg p-3 space-y-2">
                             <h3 className="text-sm font-semibold text-zinc-200">Arma equipada</h3>
-                            {details.weaponEquipped ? (
+                            {weapons && weapons.length > 0 ? (
                                 <div className="space-y-2">
-                                    <div className="space-y-1">
-                                        <p className="text-sm text-zinc-300 font-medium">{details.weaponEquipped.name}</p>
-                                        {details.weaponEquipped.damage && <p className="text-xs text-zinc-400">Daño: {details.weaponEquipped.damage}</p>}
-                                        {details.weaponEquipped.description && <p className="text-xs text-zinc-500 whitespace-pre-wrap">{details.weaponEquipped.description}</p>}
-                                    </div>
+                                    {(() => {
+                                        const weq = (weapons as any[]).find((w) => w?.equipped) || (weapons as any[])[0] || null;
+                                        if (!weq) return <p className="text-sm text-zinc-500">Sin arma equipada</p>;
+                                        return (
+                                            <div className="space-y-2">
+                                                <p className="text-sm text-zinc-300 font-medium">{weq.name}</p>
+                                                {weq.description && <p className="text-xs text-zinc-500 whitespace-pre-wrap">{weq.description}</p>}
+                                                {weq.damage && <p className="text-xs text-zinc-400">Daño: {(() => {
+                                                    const damageRaw = String(weq.damage || "").trim();
+                                                    const weaponModifier = Number(weq.modifier || 0);
+                                                    const statKey = (weq.stat_ability || weq.statAbility || weq.ability || null) as string | null;
+                                                    if (!damageRaw) return null;
+                                                    const statNormalized = statKey ? (String(statKey).toUpperCase() as AbilityKey) : null;
+                                                    if (!statNormalized) return weaponModifier ? `${damageRaw} ${formatModifier(weaponModifier)}` : damageRaw;
+                                                    const totalMap: Record<AbilityKey, number> = { STR: totalStr, DEX: totalDex, CON: totalCon, INT: totalInt, WIS: totalWis, CHA: totalCha };
+                                                    const usedScore = Number(totalMap[statNormalized] ?? 10);
+                                                    const dmgMod = abilityModifier(usedScore) + weaponModifier;
+                                                    return `${damageRaw} ${formatModifier(dmgMod)}`;
+                                                })()}</p>}
+                                                <div className="text-xs text-zinc-400">Ataque: {(() => {
+                                                    const weaponModifier = Number(weq.modifier || 0);
+                                                    const statKey = (weq.stat_ability || weq.statAbility || weq.ability || null) as string | null;
+                                                    const isProficient = Boolean(weq.is_proficient || weq.isProficient || weq.proficient || weq.proficiency);
+                                                    const statNormalized = statKey ? (String(statKey).toUpperCase() as AbilityKey) : null;
+                                                    if (!statNormalized) return weaponModifier ? formatModifier(weaponModifier) : "N/A";
+                                                    const totalMap: Record<AbilityKey, number> = { STR: totalStr, DEX: totalDex, CON: totalCon, INT: totalInt, WIS: totalWis, CHA: totalCha };
+                                                    const usedScore = Number(totalMap[statNormalized] ?? 10);
+                                                    const mod = abilityModifier(usedScore);
+                                                    const prof = Math.floor(((char.level ?? 1) - 1) / 4) + 2; // pb formula typical
+                                                    const atkBonus = mod + (isProficient ? prof : 0) + weaponModifier;
+                                                    return `${formatModifier(atkBonus)}${isProficient ? " (compet.)" : ""}`;
+                                                })()}</div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ) : <p className="text-sm text-zinc-500">Sin arma equipada</p>}
                         </div>
