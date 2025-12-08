@@ -395,8 +395,8 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         // NEW: if parent provided onSubmit, delegate and don't run internal persistence to avoid double-create
         if (typeof onSubmit === "function") {
             try {
-                // Delegate to parent and skip internal DB logic
-                await Promise.resolve(onSubmit(e));
+                // Call parent handler in a typesafe way
+                (onSubmit as ((ev: FormEvent) => void) | undefined)?.(e);
             } catch (err) {
                 console.error("Error delegating onSubmit to parent:", err);
             }
@@ -464,12 +464,10 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             setLocalCharacterId(cid);
             console.debug("Local character id set:", cid);
 
-            // Notify parent if setter exists
+            // Notify parent if setter exists (typesafe call)
             try {
-                const maybeSetter = (fields as any)?.setCharacterId;
-                if (typeof maybeSetter === "function") {
-                    maybeSetter(cid);
-                }
+                const maybeSetter = (fields as unknown as { setCharacterId?: (id: string) => void }).setCharacterId;
+                maybeSetter?.(cid);
             } catch (err) {
                 console.debug("No se pudo notificar setCharacterId al padre (no existe o falló).", err);
             }
@@ -510,7 +508,10 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                 }
                 try {
                     const inserted = Array.isArray((wRes as any).data) ? (wRes as any).data[0] : (wRes as any).data;
-                    if (inserted && inserted.id && typeof setWeaponId === "function") setWeaponId(inserted.id);
+                    if (inserted && inserted.id) {
+                        // call setter safely
+                        (setWeaponId as unknown as ((id: string) => void) | undefined)?.(inserted.id);
+                    }
                 } catch {}
             }
 
@@ -569,8 +570,11 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
 
             console.log("Personaje guardado correctamente", { characterId: cid });
 
+            // final: if parent provided onSubmit we already delegated earlier; still call if present
             if (typeof onSubmit === "function") {
-                try { onSubmit(e); } catch {}
+                try {
+                    (onSubmit as ((ev: FormEvent) => void) | undefined)?.(e);
+                } catch {}
             }
         } catch (err: any) {
             console.error("Unhandled error en handleSubmit:", inspectError(err), err);
