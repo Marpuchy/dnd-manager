@@ -22,6 +22,8 @@ import { InfoBox } from "./ui/InfoBox";
 import { StatDisplay } from "./ui/StatDisplay";
 import { LearnedSpellLevelBlock } from "./LearnedSpellBlocks";
 
+import { weaponAttackTotal, formatWeaponAttackLabel } from "@/lib/weaponUtils"; // <-- añadido
+
 /* ---------------------------
    Tipos y helpers (inventario / bonuses)
    --------------------------- */
@@ -636,27 +638,21 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                             <div>
                                 <StatDisplay label="FUE" value={totalStr} />
-                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modStr)}</div>
                             </div>
                             <div>
                                 <StatDisplay label="DES" value={totalDex} />
-                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modDex)}</div>
                             </div>
                             <div>
                                 <StatDisplay label="CON" value={totalCon} />
-                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modCon)}</div>
                             </div>
                             <div>
                                 <StatDisplay label="INT" value={totalInt} />
-                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modInt)}</div>
                             </div>
                             <div>
                                 <StatDisplay label="SAB" value={totalWis} />
-                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modWis)}</div>
                             </div>
                             <div>
                                 <StatDisplay label="CAR" value={totalCha} />
-                                <div className="text-[11px] text-zinc-400 mt-1">{formatModifier(modCha)}</div>
                             </div>
                         </div>
                         <p className="text-[11px] text-zinc-500">Los modificadores procedentes de objetos del inventario, equipamiento y armas adicionales se aplican a estas estadísticas.</p>
@@ -684,28 +680,51 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                                                 {weq.description && <p className="text-xs text-zinc-500 whitespace-pre-wrap">{weq.description}</p>}
                                                 {weq.damage && <p className="text-xs text-zinc-400">Daño: {(() => {
                                                     const damageRaw = String(weq.damage || "").trim();
-                                                    const weaponModifier = Number(weq.modifier || 0);
+                                                    const weaponModifier = Number(weq.modifier || weq.statModifier || 0);
                                                     const statKey = (weq.stat_ability || weq.statAbility || weq.ability || null) as string | null;
                                                     if (!damageRaw) return null;
                                                     const statNormalized = statKey ? (String(statKey).toUpperCase() as AbilityKey) : null;
-                                                    if (!statNormalized) return weaponModifier ? `${damageRaw} ${formatModifier(weaponModifier)}` : damageRaw;
+                                                    if (!statNormalized) {
+                                                        // si no hay stat y weaponModifier es 0, no mostrar "+0"
+                                                        return weaponModifier ? `${damageRaw} ${formatModifier(weaponModifier)}` : damageRaw;
+                                                    }
                                                     const totalMap: Record<AbilityKey, number> = { STR: totalStr, DEX: totalDex, CON: totalCon, INT: totalInt, WIS: totalWis, CHA: totalCha };
                                                     const usedScore = Number(totalMap[statNormalized] ?? 10);
-                                                    const dmgMod = abilityModifier(usedScore) + weaponModifier;
-                                                    return `${damageRaw} ${formatModifier(dmgMod)}`;
+
+                                                    // no sumar weaponModifier al daño — solo mostramos el modificador de la característica si es distinto de 0
+                                                    const dmgMod = abilityModifier(usedScore);
+                                                    return dmgMod === 0 ? damageRaw : `${damageRaw} ${formatModifier(dmgMod)}`;
                                                 })()}</p>}
-                                                <div className="text-xs text-zinc-400">Ataque: {(() => {
-                                                    const weaponModifier = Number(weq.modifier || 0);
-                                                    const statKey = (weq.stat_ability || weq.statAbility || weq.ability || null) as string | null;
-                                                    const isProficient = Boolean(weq.is_proficient || weq.isProficient || weq.proficient || weq.proficiency);
-                                                    const statNormalized = statKey ? (String(statKey).toUpperCase() as AbilityKey) : null;
-                                                    if (!statNormalized) return weaponModifier ? formatModifier(weaponModifier) : "N/A";
-                                                    const totalMap: Record<AbilityKey, number> = { STR: totalStr, DEX: totalDex, CON: totalCon, INT: totalInt, WIS: totalWis, CHA: totalCha };
-                                                    const usedScore = Number(totalMap[statNormalized] ?? 10);
-                                                    const mod = abilityModifier(usedScore);
-                                                    const prof = Math.floor(((char.level ?? 1) - 1) / 4) + 2; // pb formula typical
-                                                    const atkBonus = mod + (isProficient ? prof : 0) + weaponModifier;
-                                                    return `${formatModifier(atkBonus)}${isProficient ? " (compet.)" : ""}`;
+                                                <div className="text-xs text-zinc-400">{(() => {
+                                                    // Normalizamos los campos del arma para pasarlos al helper
+                                                    const weaponForCalc = {
+                                                        stat_ability:
+                                                            (weq.stat_ability ??
+                                                                weq.statAbility ??
+                                                                weq.ability ??
+                                                                "").toString().toLowerCase(),
+                                                        modifier: Number(weq.modifier ?? weq.statModifier ?? 0),
+                                                        is_proficient: Boolean(weq.is_proficient ?? weq.isProficient ?? weq.proficient ?? weq.proficiency)
+                                                    };
+
+                                                    // stats en minúscula, como espera weaponUtils
+                                                    const statsForCalc: Record<string, number> = {
+                                                        str: totalStr,
+                                                        dex: totalDex,
+                                                        con: totalCon,
+                                                        int: totalInt,
+                                                        wis: totalWis,
+                                                        cha: totalCha,
+                                                    };
+
+                                                    const levelForProf = Number(char.level ?? 1);
+
+                                                    const atk = weaponAttackTotal(weaponForCalc, statsForCalc, levelForProf);
+                                                    const label = formatWeaponAttackLabel({ total: atk.total, abilityKey: atk.abilityKey });
+
+                                                    // mantener la mención (compet.) igual que antes
+                                                    const profNote = atk.prof ? " (compet.)" : "";
+                                                    return `${label}${profNote}`;
                                                 })()}</div>
                                             </div>
                                         );
