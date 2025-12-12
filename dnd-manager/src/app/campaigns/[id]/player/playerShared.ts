@@ -15,9 +15,27 @@ export type Stats = {
 };
 
 export type Armor = {
+    id?: string | null;
     name: string;
     bonus: number;
-    ability: string;
+    ability?: string | null;
+    stat_ability?: string | null;
+    stat_modifier?: number | null;
+    equipped?: boolean | null;
+    description?: string | null; // añadido para persistir/mostrar descripciones
+    modifiers?: { ability: keyof Stats | string; modifier: number; note?: string }[] | null; // añadidos modificadores extra
+};
+
+export type Weapon = {
+    id?: string | null;
+    name: string;
+    damage?: string | null;
+    stat_ability?: string | null;
+    modifier?: number | null;
+    is_proficient?: boolean | null;
+    description?: string | null;
+    equipped?: boolean | null;
+    meta?: any;
 };
 
 export type HitDie = {
@@ -60,6 +78,8 @@ export type Details = {
         damage?: string;
         description?: string;
     };
+    current_hp?: number | null;
+    max_hp?: number | null;
     inventory?: string;
     equipment?: string;
     abilities?: string;
@@ -170,6 +190,7 @@ export function prettyClassLabel(raw: string | null): string {
    Reglas de conjuros preparados (5e)
    ───────────────────────────────────────────── */
 
+// (el resto de tu archivo permanece exactamente igual — lo mantuve tal como me lo pegaste)
 export function getPreparedSpellsInfo(
     charClass: string | null,
     stats: Stats,
@@ -234,7 +255,14 @@ export function getPreparedSpellsInfo(
     return { total, abilityName, apiClass };
 }
 
-/* Extras mágicos por clase (por ahora: druida → Formas Salvajes) */
+// en src/app/campaigns/[id]/player/playerShared.ts (añadelo en la sección de tipos)
+export type PassiveModifier = {
+    id: string; // uuid o cualquier id único (puedes generarlo cliente-side)
+    ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+    value: number; // +1, -1, etc.
+    note?: string;
+    source?: string; // "arma", "armadura", etc.
+};
 
 export function getClassMagicExtras(
     charClass: string | null,
@@ -272,8 +300,6 @@ export function getClassMagicExtras(
 
     return null;
 }
-
-/* Formateo / helpers de hechizos */
 
 export function formatCastingTime(ct?: string): string {
     if (!ct) return "—";

@@ -17,8 +17,8 @@ import {
     prettyClassLabel,
 } from "./playerShared";
 import ClickableRow from "../../../components/ClickableRow";
-import { CharacterView } from "./CharacterView";
-import { CharacterForm } from "./CharacterForm";
+import { CharacterView } from "./ui/CharacterView";
+import { CharacterForm } from "./ui/CharacterForm";
 import { SpellManagerPanel } from "./SpellManagerPanel";
 import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu } from "lucide-react";
 

@@ -15,14 +15,17 @@ import {
     LearnedSpellLine,
     SpellMeta,
     normalizeClassForApi,
-} from "./playerShared";
+} from "../playerShared";
 import { sumArmorBonus } from "@/lib/dndMath";
 import { getSpellSlotsFor } from "@/lib/spellSlots";
-import { InfoBox } from "./ui/InfoBox";
-import { StatDisplay } from "./ui/StatDisplay";
-import { LearnedSpellLevelBlock } from "./LearnedSpellBlocks";
+import { InfoBox } from "./InfoBox";
+import { StatDisplay } from "./StatDisplay";
+import { LearnedSpellLevelBlock } from "../LearnedSpellBlocks";
 
-import { weaponAttackTotal, formatWeaponAttackLabel } from "@/lib/weaponUtils"; // <-- añadido
+import { weaponAttackTotal, formatWeaponAttackLabel } from "@/lib/weaponUtils";
+
+// Importa el StatsPanel (asegúrate de la ruta; si lo tienes en playerView, cámbialo)
+import StatsPanel from "./playerView/StatsPanel";
 
 /* ---------------------------
    Tipos y helpers (inventario / bonuses)
@@ -53,6 +56,7 @@ function parseInventoryLineForView(line: string): ParsedInventoryLine {
         return { kind: "text", raw: trimmed };
     }
 }
+
 
 function accumulateBonus(bonuses: Record<AbilityKey, number>, ability: AbilityKey | undefined, value: unknown) {
     if (!ability) return;
@@ -258,7 +262,7 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
 
     const stats: Stats = char.stats ?? ({ str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 } as Stats);
     const details: Details = char.details || {};
-    const armors = Array.isArray(details.armors) ? details.armors : ( (char as any).character_armors || [] );
+    const armors = Array.isArray(details.armors) ? details.armors : ((char as any).character_armors || []);
     const armorBonus = sumArmorBonus(armors);
     const baseAC = char.armor_class ?? 10;
     const totalAC = baseAC + armorBonus;
@@ -622,133 +626,26 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
                 <button className={`pb-2 leading-none border-b-2 ${activeTab === "inventory" ? "text-purple-300 border-purple-500" : "text-zinc-500 hover:text-zinc-300 border-transparent"}`} onClick={() => onTabChange("inventory")}>Inventario</button>
             </div>
 
-            {/* STATS tab (igual que antes) */}
+            {/* STATS tab (delegado en StatsPanel) */}
             {activeTab === "stats" && (
-                <div className="space-y-4">
-                    {/* Vida, CA, Velocidad */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <InfoBox label="Vida" value={`${char.current_hp ?? char.max_hp ?? "?"}/${char.max_hp ?? "?"}`} />
-                        <InfoBox label="Clase de armadura (CA total)" value={totalAC} />
-                        <InfoBox label="Velocidad" value={`${char.speed ?? 30} ft`} />
-                    </div>
-
-                    {/* Stats (con modificadores de objetos) */}
-                    <div className="space-y-2">
-                        <h3 className="text-sm font-semibold text-zinc-300">Atributos (stats) con modificadores de equipo</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                            <div>
-                                <StatDisplay label="FUE" value={totalStr} />
-                            </div>
-                            <div>
-                                <StatDisplay label="DES" value={totalDex} />
-                            </div>
-                            <div>
-                                <StatDisplay label="CON" value={totalCon} />
-                            </div>
-                            <div>
-                                <StatDisplay label="INT" value={totalInt} />
-                            </div>
-                            <div>
-                                <StatDisplay label="SAB" value={totalWis} />
-                            </div>
-                            <div>
-                                <StatDisplay label="CAR" value={totalCha} />
-                            </div>
-                        </div>
-                        <p className="text-[11px] text-zinc-500">Los modificadores procedentes de objetos del inventario, equipamiento y armas adicionales se aplican a estas estadísticas.</p>
-                    </div>
-
-                    {/* Armaduras / Arma equipada */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Armaduras */}
-                        <div className="border border-zinc-800 rounded-lg p-3 space-y-2">
-                            <h3 className="text-sm font-semibold text-zinc-200">Armaduras</h3>
-                            {armors.length === 0 ? <p className="text-xs text-zinc-500">No tienes armaduras registradas.</p> : <ul className="space-y-2">{armors.map((armor: any, index: number) => (<li key={index} className="text-sm text-zinc-300"><span className="font-medium">{armor.name}</span>{" "}{armor.bonus !== 0 && <span className="text-xs text-zinc-500">(CA {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus})</span>}{armor.ability && <div className="text-xs text-zinc-400">Habilidad: {armor.ability}</div>}</li>))}</ul>}
-                        </div>
-
-                        {/* Arma equipada */}
-                        <div className="border border-zinc-800 rounded-lg p-3 space-y-2">
-                            <h3 className="text-sm font-semibold text-zinc-200">Arma equipada</h3>
-                            {weapons && weapons.length > 0 ? (
-                                <div className="space-y-2">
-                                    {(() => {
-                                        const weq = (weapons as any[]).find((w) => w?.equipped) || (weapons as any[])[0] || null;
-                                        if (!weq) return <p className="text-sm text-zinc-500">Sin arma equipada</p>;
-                                        return (
-                                            <div className="space-y-2">
-                                                <p className="text-sm text-zinc-300 font-medium">{weq.name}</p>
-                                                {weq.description && <p className="text-xs text-zinc-500 whitespace-pre-wrap">{weq.description}</p>}
-                                                {weq.damage && <p className="text-xs text-zinc-400">Daño: {(() => {
-                                                    const damageRaw = String(weq.damage || "").trim();
-                                                    const weaponModifier = Number(weq.modifier || weq.statModifier || 0);
-                                                    const statKey = (weq.stat_ability || weq.statAbility || weq.ability || null) as string | null;
-                                                    if (!damageRaw) return null;
-                                                    const statNormalized = statKey ? (String(statKey).toUpperCase() as AbilityKey) : null;
-                                                    if (!statNormalized) {
-                                                        // si no hay stat y weaponModifier es 0, no mostrar "+0"
-                                                        return weaponModifier ? `${damageRaw} ${formatModifier(weaponModifier)}` : damageRaw;
-                                                    }
-                                                    const totalMap: Record<AbilityKey, number> = { STR: totalStr, DEX: totalDex, CON: totalCon, INT: totalInt, WIS: totalWis, CHA: totalCha };
-                                                    const usedScore = Number(totalMap[statNormalized] ?? 10);
-
-                                                    // no sumar weaponModifier al daño — solo mostramos el modificador de la característica si es distinto de 0
-                                                    const dmgMod = abilityModifier(usedScore);
-                                                    return dmgMod === 0 ? damageRaw : `${damageRaw} ${formatModifier(dmgMod)}`;
-                                                })()}</p>}
-                                                <div className="text-xs text-zinc-400">{(() => {
-                                                    // Normalizamos los campos del arma para pasarlos al helper
-                                                    const weaponForCalc = {
-                                                        stat_ability:
-                                                            (weq.stat_ability ??
-                                                                weq.statAbility ??
-                                                                weq.ability ??
-                                                                "").toString().toLowerCase(),
-                                                        modifier: Number(weq.modifier ?? weq.statModifier ?? 0),
-                                                        is_proficient: Boolean(weq.is_proficient ?? weq.isProficient ?? weq.proficient ?? weq.proficiency)
-                                                    };
-
-                                                    // stats en minúscula, como espera weaponUtils
-                                                    const statsForCalc: Record<string, number> = {
-                                                        str: totalStr,
-                                                        dex: totalDex,
-                                                        con: totalCon,
-                                                        int: totalInt,
-                                                        wis: totalWis,
-                                                        cha: totalCha,
-                                                    };
-
-                                                    const levelForProf = Number(char.level ?? 1);
-
-                                                    const atk = weaponAttackTotal(weaponForCalc, statsForCalc, levelForProf);
-                                                    const label = formatWeaponAttackLabel({ total: atk.total, abilityKey: atk.abilityKey });
-
-                                                    // mantener la mención (compet.) igual que antes
-                                                    const profNote = atk.prof ? " (compet.)" : "";
-                                                    return `${label}${profNote}`;
-                                                })()}</div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            ) : <p className="text-sm text-zinc-500">Sin arma equipada</p>}
-                        </div>
-                    </div>
-
-                    {/* Spell slots y Dotes/Rasgos */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Spell slots */}
-                        <div className="border border-zinc-800 rounded-lg p-3 space-y-2">
-                            <h3 className="text-sm font-semibold text-zinc-200">Espacios de conjuro</h3>
-                            {!spellSlots ? <p className="text-xs text-zinc-500">Esta clase/nivel no tiene espacios de conjuro estándar.</p> : "slots" in spellSlots ? <p className="text-xs text-zinc-300">Brujo: {spellSlots.slots} espacios de pacto · Nivel de espacio: {spellSlots.slotLevel}</p> : <div className="flex flex-wrap gap-2 text-xs text-zinc-300">{Object.entries(spellSlots || {}).filter(([lvl, num]) => Number(lvl) > 0 && (num as number) > 0).map(([lvl, num]) => (<span key={lvl} className="px-2 py-1 rounded-md bg-zinc-900 border border-zinc-700">Nivel {lvl}: {num}</span>))}</div>}
-                        </div>
-
-                        {/* Dotes / rasgos */}
-                        <div className="border border-zinc-800 rounded-lg p-3 space-y-2">
-                            <h3 className="text-sm font-semibold text-zinc-200">Dotes y rasgos</h3>
-                            {featsText ? <pre className="whitespace-pre-wrap text-sm text-zinc-300">{featsText}</pre> : <p className="text-xs text-zinc-500">No se han registrado dotes o rasgos.</p>}
-                        </div>
-                    </div>
-                </div>
+                <StatsPanel
+                    character={char}
+                    details={details}
+                    statsRow={statsRow as any}
+                    totalAC={totalAC}
+                    totalStr={totalStr}
+                    totalDex={totalDex}
+                    totalCon={totalCon}
+                    totalInt={totalInt}
+                    totalWis={totalWis}
+                    totalCha={totalCha}
+                    onDetailsChange={onDetailsChange}
+                    onCharacterStatChange={(newStats) => {
+                        const newDetails: Details = { ...(details || {}) };
+                        (newDetails as any).character_stats = { ...(statsRow || {}), ...(newStats || {}) };
+                        if (onDetailsChange) onDetailsChange(newDetails);
+                    }}
+                />
             )}
 
             {/* TAB: HABILIDADES */}
@@ -842,9 +739,9 @@ export function CharacterView({ character, activeTab, onTabChange, onDetailsChan
             )}
 
             <style jsx>{`
-                .no-header h4 { display: none; }
-                summary::-webkit-details-marker { display: none; }
-            `}</style>
+        .no-header h4 { display: none; }
+        summary::-webkit-details-marker { display: none; }
+      `}</style>
         </div>
     );
 }

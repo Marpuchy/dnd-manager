@@ -1,17 +1,26 @@
+// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
 "use client";
 
 import React, { FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { abilityMod, computeMaxHp, sumArmorBonus } from "@/lib/dndMath";
-import { Armor, Mode, Stats, DND_CLASS_OPTIONS } from "./playerShared";
-import { InfoBox } from "./ui/InfoBox";
-import { StatInput } from "./ui/StatInput";
-import { TextField, NumberField, TextareaField } from "./ui/FormFields";
+import { Armor, Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
+import { InfoBox } from "./InfoBox";
+import { StatInput } from "./StatInput";
+import { TextField, NumberField, TextareaField } from "./FormFields";
 
-import { ArmorAndWeaponSection } from "./sections/ArmorAndWeaponSection";
-import { InventorySections } from "./sections/InventorySections";
-import { SpellSection } from "./sections/SpellSection";
+import { ArmorAndWeaponSection } from "../sections/ArmorAndWeaponSection";
+import { InventorySections } from "../sections/InventorySections";
+import { SpellSection } from "../sections/SpellSection";
 
+import {
+    upsertStats,
+    createOrUpdateWeapon,
+    createOrUpdateArmor,
+    createOrUpdateCharacterRow,
+    updateCharacterDetails,
+} from "../services/characters.api";
+import { inspectError } from "../utils/inspectError";
 import { supabase } from "@/lib/supabaseClient";
 
 type CharacterFormProps = {
@@ -163,232 +172,6 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     const previewMaxHp = computeMaxHp(charLevel, con, hitDieSides);
     const isCustomClass = charClass === "custom";
 
-    /* ---------------------------
-       helpers
-    --------------------------- */
-
-    function inspectError(e: any) {
-        try {
-            if (!e) return "Error desconocido";
-            if (typeof e === "string") return e;
-            if (e.message) return e.message;
-            const parts: any = {};
-            for (const k of ["message", "details", "hint", "code"]) {
-                if ((e as any)[k]) parts[k] = (e as any)[k];
-            }
-            const other = Object.getOwnPropertyNames(e || {}).reduce((acc: any, k: string) => {
-                if (!["message", "details", "hint", "code"].includes(k)) acc[k] = (e as any)[k];
-                return acc;
-            }, {});
-            return JSON.stringify({ parts, other }, null, 2);
-        } catch (err) {
-            return String(err);
-        }
-    }
-
-    async function upsertStats(character_id: string, stats: { str: number; dex: number; con: number; int: number; wis: number; cha: number }) {
-        const payload = {
-            character_id,
-            str: Number(stats.str ?? 8),
-            dex: Number(stats.dex ?? 8),
-            con: Number(stats.con ?? 8),
-            int: Number(stats.int ?? 8),
-            wis: Number(stats.wis ?? 8),
-            cha: Number(stats.cha ?? 8),
-            updated_at: new Date().toISOString(),
-        };
-        return supabase.from("character_stats").upsert(payload, { onConflict: "character_id" });
-    }
-
-    async function createOrUpdateWeapon(character_id: string, weapon: {
-        id?: string | null;
-        name: string;
-        damage?: string | null;
-        stat_ability?: string | null;
-        modifier?: number | null;
-        is_proficient?: boolean | null;
-        description?: string | null;
-        equipped?: boolean | null;
-    }) {
-        if (weapon.equipped) {
-            const { error: unequipErr } = await supabase.from("character_weapons").update({ equipped: false }).eq("character_id", character_id);
-            if (unequipErr) return { data: null, error: unequipErr };
-        }
-
-        if (weapon.id) {
-            const { data, error } = await supabase.from("character_weapons").update({
-                name: weapon.name,
-                damage: weapon.damage ?? null,
-                stat_ability: weapon.stat_ability ?? null,
-                modifier: Number(weapon.modifier ?? 0),
-                is_proficient: !!weapon.is_proficient,
-                description: weapon.description ?? null,
-                equipped: !!weapon.equipped,
-            }).eq("id", weapon.id).select("*");
-            return { data, error };
-        } else {
-            const { data, error } = await supabase.from("character_weapons").insert([{
-                character_id,
-                name: weapon.name,
-                damage: weapon.damage ?? null,
-                stat_ability: weapon.stat_ability ?? null,
-                modifier: Number(weapon.modifier ?? 0),
-                is_proficient: !!weapon.is_proficient,
-                description: weapon.description ?? null,
-                equipped: !!weapon.equipped,
-                meta: {}
-            }]).select("*");
-            return { data, error };
-        }
-    }
-
-    async function createOrUpdateArmor(character_id: string, armor: {
-        id?: string | null;
-        name: string;
-        bonus?: number | null;
-        stat_ability?: string | null;
-        stat_modifier?: number | null;
-        equipped?: boolean | null;
-    }) {
-        if (armor.equipped) {
-            const { error: unequipErr } = await supabase.from("character_armors").update({ equipped: false }).eq("character_id", character_id);
-            if (unequipErr) return { data: null, error: unequipErr };
-        }
-
-        if (armor.id) {
-            const { data, error } = await supabase.from("character_armors").update({
-                name: armor.name,
-                bonus: Number(armor.bonus ?? 0),
-                stat_ability: armor.stat_ability ?? null,
-                stat_modifier: Number(armor.stat_modifier ?? 0),
-                equipped: !!armor.equipped
-            }).eq("id", armor.id).select("*");
-            return { data, error };
-        } else {
-            const { data, error } = await supabase.from("character_armors").insert([{
-                character_id,
-                name: armor.name,
-                bonus: Number(armor.bonus ?? 0),
-                stat_ability: armor.stat_ability ?? null,
-                stat_modifier: Number(armor.stat_modifier ?? 0),
-                equipped: !!armor.equipped,
-                meta: {}
-            }]).select("*");
-            return { data, error };
-        }
-    }
-
-    /**
-     * Deterministic create/update:
-     * - si tenemos character_id -> UPDATE explícito
-     * - si no -> INSERT y tratar de recuperar el id
-     *
-     * Si el INSERT no devuelve id (por RLS o políticas), hacemos
-     * una SELECT fallback por campaign+user+name ordenado por created_at desc.
-     */
-    async function createOrUpdateCharacterRow(
-        character_id: string | null,
-        user_id: string | null,
-        campaign_id_resolved: string | null
-    ) {
-        if (!campaign_id_resolved) {
-            const msg = "No se ha resuelto campaign_id en createOrUpdateCharacterRow: abortando.";
-            console.error(msg, { character_id, user_id, campaign_id_resolved });
-            return { data: null, error: new Error(msg) };
-        }
-
-        const basePayload: Record<string, any> = {
-            campaign_id: campaign_id_resolved,
-            user_id: user_id ?? null,
-            name: charName ?? null,
-            class: charClass ?? null,
-            level: Number(charLevel ?? 1),
-            race: race ?? null,
-            experience: Number(experience ?? 0),
-            armor_class: armorClass !== undefined && armorClass !== null ? Number(armorClass) : null,
-            speed: speed !== undefined && speed !== null ? Number(speed) : null,
-            max_hp: previewMaxHp !== undefined && previewMaxHp !== null ? Number(previewMaxHp) : null,
-            current_hp: currentHp !== undefined && currentHp !== null ? Number(currentHp) : null,
-            details: {} // actualizaremos después
-        };
-
-        try {
-            if (character_id) {
-                console.debug("Updating existing character id:", character_id, "payload:", basePayload);
-                const { data, error } = await supabase
-                    .from("characters")
-                    .update(basePayload)
-                    .eq("id", character_id)
-                    .select("id")
-                    .maybeSingle();
-
-                if (error) {
-                    console.error("Supabase update error characters:", inspectError(error), { character_id, basePayload });
-                    return { data: null, error };
-                }
-
-                console.debug("Updated character response:", data);
-                return { data, error: null };
-            }
-
-            // INSERT path
-            console.debug("Inserting new character payload:", basePayload);
-            const { data: insertData, error: insertErr } = await supabase
-                .from("characters")
-                .insert([basePayload])
-                .select("id")
-                .maybeSingle();
-
-            if (insertErr) {
-                console.error("Supabase insert error characters:", inspectError(insertErr), { basePayload });
-                return { data: null, error: insertErr };
-            }
-
-            console.debug("Insert response (may be null due to RLS):", insertData);
-
-            // If insert returned id, great.
-            if (insertData && (insertData as any).id) {
-                return { data: insertData, error: null };
-            }
-
-            // FALLBACK: try to find the newly created row by campaign_id + user_id + name (most recent)
-            try {
-                console.debug("Insert did not return id; running fallback select to discover id.");
-                const { data: found, error: findErr } = await supabase
-                    .from("characters")
-                    .select("id, created_at")
-                    .eq("campaign_id", campaign_id_resolved)
-                    .eq("user_id", user_id ?? null)
-                    .ilike("name", String(charName ?? "").trim())
-                    .order("created_at", { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-
-                if (findErr) {
-                    console.error("Fallback select error when trying to resolve inserted character id:", inspectError(findErr));
-                    return { data: null, error: findErr };
-                }
-
-                console.debug("Fallback select result:", found);
-                if (found && (found as any).id) {
-                    return { data: found, error: null };
-                }
-
-                console.warn("Fallback select didn't find inserted character row. insertData was null and fallback returned null.");
-                return { data: null, error: null };
-            } catch (fallbackErr) {
-                console.error("Exception during fallback select:", fallbackErr);
-                return { data: null, error: fallbackErr };
-            }
-        } catch (err) {
-            console.error("Exception in createOrUpdateCharacterRow:", err);
-            return { data: null, error: err };
-        }
-    }
-
-    /* ---------------------------
-       submit handler
-    --------------------------- */
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
 
@@ -435,146 +218,180 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             }
 
             // 1) create or update characters row
-            const charRes = await createOrUpdateCharacterRow(localCharacterId ?? null, userId, campaignId);
-            console.debug("createOrUpdateCharacterRow response (raw):", charRes);
+            const basePayload: Record<string, any> = {
+                campaign_id: campaignId,
+                user_id: userId ?? null,
+                name: charName ?? null,
+                class: charClass ?? null,
+                level: Number(charLevel ?? 1),
+                race: race ?? null,
+                experience: Number(experience ?? 0),
+                armor_class: armorClass !== undefined && armorClass !== null ? Number(armorClass) : null,
+                speed: speed !== undefined && speed !== null ? Number(speed) : null,
+                max_hp: previewMaxHp !== undefined && previewMaxHp !== null ? Number(previewMaxHp) : null,
+                current_hp: currentHp !== undefined && currentHp !== null ? Number(currentHp) : null,
+                details: {} // actualizaremos después
+            };
 
-            if ((charRes as any).error) {
-                console.error("Error en createOrUpdateCharacterRow:", inspectError((charRes as any).error));
-                alert("Error al crear/actualizar personaje: " + inspectError((charRes as any).error));
-                setSaving(false);
-                return;
-            }
-
-            // Extract id from response or fallback to local/incoming
-            let cid: string | null = null;
-            if ((charRes as any).data) {
-                const d = (charRes as any).data;
-                cid = Array.isArray(d) ? (d[0]?.id ?? null) : (d?.id ?? null);
-            }
-            if (!cid && (localCharacterId || incomingCharacterId)) cid = localCharacterId ?? incomingCharacterId ?? null;
-
-            if (!cid) {
-                console.error("createOrUpdateCharacterRow no devolvió id y no tenemos fallback. Respuesta:", charRes);
-                alert("Error: no se obtuvo id del personaje. Revisa consola (posible RLS).");
-                setSaving(false);
-                return;
-            }
-
-            // Persist local id so next saves are UPDATE
-            setLocalCharacterId(cid);
-            console.debug("Local character id set:", cid);
-
-            // Notify parent if setter exists (typesafe call)
             try {
-                const maybeSetter = (fields as unknown as { setCharacterId?: (id: string) => void }).setCharacterId;
-                maybeSetter?.(cid);
-            } catch (err) {
-                console.debug("No se pudo notificar setCharacterId al padre (no existe o falló).", err);
-            }
+                const charRes = await createOrUpdateCharacterRow(localCharacterId ?? null, userId, campaignId, basePayload);
+                console.debug("createOrUpdateCharacterRow response (raw):", charRes);
 
-            // 2) upsert stats
-            const statsRes = await upsertStats(cid, {
-                str: Number(str ?? 8),
-                dex: Number(dex ?? 8),
-                con: Number(con ?? 8),
-                int: Number(intStat ?? 8),
-                wis: Number(wis ?? 8),
-                cha: Number(cha ?? 8),
-            });
-            if ((statsRes as any).error) {
-                console.error("Error en upsertStats:", inspectError((statsRes as any).error));
-                alert("Error al guardar stats: " + inspectError((statsRes as any).error));
-                setSaving(false);
-                return;
-            }
-
-            // 3) weapon
-            if (weaponName && weaponName.trim().length > 0) {
-                const wRes = await createOrUpdateWeapon(cid, {
-                    id: weaponId ?? undefined,
-                    name: weaponName,
-                    damage: weaponDamage ?? null,
-                    stat_ability: weaponStatAbility ?? null,
-                    modifier: Number(weaponStatModifier ?? 0),
-                    is_proficient: !!weaponProficient,
-                    description: weaponDescription ?? null,
-                    equipped: !!weaponEquipped
-                });
-                if ((wRes as any).error) {
-                    console.error("Error en createOrUpdateWeapon:", inspectError((wRes as any).error));
-                    alert("Error al guardar arma: " + inspectError((wRes as any).error));
+                if ((charRes as any).error) {
+                    console.error("Error en createOrUpdateCharacterRow:", inspectError((charRes as any).error));
+                    alert("Error al crear/actualizar personaje: " + inspectError((charRes as any).error));
                     setSaving(false);
                     return;
                 }
-                try {
-                    const inserted = Array.isArray((wRes as any).data) ? (wRes as any).data[0] : (wRes as any).data;
-                    if (inserted && inserted.id) {
-                        // call setter safely
-                        (setWeaponId as unknown as ((id: string) => void) | undefined)?.(inserted.id);
-                    }
-                } catch {}
-            }
 
-            // 4) armors
-            if (Array.isArray(armors)) {
-                for (const a of armors) {
-                    const aRes = await createOrUpdateArmor(cid, {
-                        id: a.id ?? undefined,
-                        name: a.name ?? (a.armorName ?? "Armadura"),
-                        bonus: Number(a.bonus ?? 0),
-                        stat_ability: a.statAbility ?? a.ability ?? null,
-                        stat_modifier: Number(a.statModifier ?? a.stat_modifier ?? 0),
-                        equipped: !!a.equipped
+                // Extract id from response or fallback to local/incoming
+                let cid: string | null = null;
+                if ((charRes as any).data) {
+                    const d = (charRes as any).data;
+                    cid = Array.isArray(d) ? (d[0]?.id ?? null) : (d?.id ?? null);
+                }
+                if (!cid && (localCharacterId || incomingCharacterId)) cid = localCharacterId ?? incomingCharacterId ?? null;
+
+                if (!cid) {
+                    console.error("createOrUpdateCharacterRow no devolvió id y no tenemos fallback. Respuesta:", charRes);
+                    alert("Error: no se obtuvo id del personaje. Revisa consola (posible RLS).");
+                    setSaving(false);
+                    return;
+                }
+
+                // Persist local id so next saves are UPDATE
+                setLocalCharacterId(cid);
+                console.debug("Local character id set:", cid);
+
+                // Notify parent if setter exists (typesafe call)
+                try {
+                    const maybeSetter = (fields as unknown as { setCharacterId?: (id: string) => void }).setCharacterId;
+                    maybeSetter?.(cid);
+                } catch (err) {
+                    console.debug("No se pudo notificar setCharacterId al padre (no existe o falló).", err);
+                }
+
+                // 2) upsert stats
+                const statsRes = await upsertStats(cid, {
+                    str: Number(str ?? 8),
+                    dex: Number(dex ?? 8),
+                    con: Number(con ?? 8),
+                    int: Number(intStat ?? 8),
+                    wis: Number(wis ?? 8),
+                    cha: Number(cha ?? 8),
+                });
+                if ((statsRes as any).error) {
+                    console.error("Error en upsertStats:", inspectError((statsRes as any).error));
+                    alert("Error al guardar stats: " + inspectError((statsRes as any).error));
+                    setSaving(false);
+                    return;
+                }
+
+                // 3) weapon
+                if (weaponName && weaponName.trim().length > 0) {
+                    const wRes = await createOrUpdateWeapon(cid, {
+                        id: weaponId ?? undefined,
+                        name: weaponName,
+                        damage: weaponDamage ?? null,
+                        stat_ability: weaponStatAbility ?? null,
+                        modifier: Number(weaponStatModifier ?? 0),
+                        is_proficient: !!weaponProficient,
+                        description: weaponDescription ?? null,
+                        equipped: !!weaponEquipped
                     });
-                    if ((aRes as any).error) {
-                        console.error("Error guardando armadura:", inspectError((aRes as any).error), "armor:", a);
-                        alert("Error al guardar armadura: " + inspectError((aRes as any).error));
+                    if ((wRes as any).error) {
+                        console.error("Error en createOrUpdateWeapon:", inspectError((wRes as any).error));
+                        alert("Error al guardar arma: " + inspectError((wRes as any).error));
                         setSaving(false);
                         return;
                     }
+                    try {
+                        const inserted = Array.isArray((wRes as any).data) ? (wRes as any).data[0] : (wRes as any).data;
+                        if (inserted && inserted.id) {
+                            // call setter safely
+                            (setWeaponId as unknown as ((id: string) => void) | undefined)?.(inserted.id);
+                        }
+                    } catch {}
                 }
-            }
 
-            // 5) update details JSON
-            const detailsPatch: any = {
-                inventory: inventory ?? null,
-                equipment: equipment ?? null,
-                abilities: abilities ?? null,
-                weaponsExtra: weaponsExtra ?? null,
-                notes: notes ?? null,
-                spells: {
-                    level0: spellsL0 ?? null,
-                    level1: spellsL1 ?? null,
-                    level2: spellsL2 ?? null,
-                    level3: spellsL3 ?? null,
-                    level4: spellsL4 ?? null,
-                    level5: spellsL5 ?? null,
-                    level6: spellsL6 ?? null,
-                    level7: spellsL7 ?? null,
-                    level8: spellsL8 ?? null,
-                    level9: spellsL9 ?? null,
-                },
-                customClassName: customClassName ?? null,
-                customCastingAbility: customCastingAbility ?? null,
-            };
+                // 4) armors (ACTUALIZADO: enviar description y modifiers si existen)
+                if (Array.isArray(armors)) {
+                    for (const a of armors) {
+                        const aRes = await createOrUpdateArmor(cid, {
+                            id: a.id ?? undefined,
+                            name: a.name ?? (a.armorName ?? "Armadura"),
+                            bonus: Number(a.bonus ?? 0),
+                            stat_ability: a.statAbility ?? a.ability ?? null,
+                            stat_modifier: Number(a.statModifier ?? a.stat_modifier ?? 0),
+                            equipped: !!a.equipped,
+                            // <-- NUEVO: enviar descripción si existe (varias claves posibles)
+                            description:
+                                (a as any).description ??
+                                (a as any).desc ??
+                                (a as any).text ??
+                                (a as any).info ??
+                                (a as any).notes ??
+                                null,
+                            // <-- NUEVO: enviar modifiers extra si existen (ajusta si tu API no los soporta)
+                            modifiers: Array.isArray((a as any).modifiers)
+                                ? (a as any).modifiers.map((m: any) => ({
+                                    ability: m.ability ?? m.statAbility ?? m.stat_ability ?? null,
+                                    modifier: Number(m.modifier ?? m.value ?? m.amount ?? 0),
+                                    note: m.note ?? null
+                                }))
+                                : undefined
+                        });
+                        if ((aRes as any).error) {
+                            console.error("Error guardando armadura:", inspectError((aRes as any).error), "armor:", a);
+                            alert("Error al guardar armadura: " + inspectError((aRes as any).error));
+                            setSaving(false);
+                            return;
+                        }
+                    }
+                }
 
-            const { data: detailsData, error: detailsErr } = await supabase.from("characters").update({
-                details: detailsPatch
-            }).eq("id", cid).select("id");
-            if (detailsErr) {
-                console.error("Error actualizando details:", inspectError(detailsErr));
-                alert("Error al actualizar detalles del personaje: " + inspectError(detailsErr));
-                setSaving(false);
-                return;
-            }
+                // 5) update details JSON
+                const detailsPatch: any = {
+                    inventory: inventory ?? null,
+                    equipment: equipment ?? null,
+                    abilities: abilities ?? null,
+                    weaponsExtra: weaponsExtra ?? null,
+                    notes: notes ?? null,
+                    spells: {
+                        level0: spellsL0 ?? null,
+                        level1: spellsL1 ?? null,
+                        level2: spellsL2 ?? null,
+                        level3: spellsL3 ?? null,
+                        level4: spellsL4 ?? null,
+                        level5: spellsL5 ?? null,
+                        level6: spellsL6 ?? null,
+                        level7: spellsL7 ?? null,
+                        level8: spellsL8 ?? null,
+                        level9: spellsL9 ?? null,
+                    },
+                    customClassName: customClassName ?? null,
+                    customCastingAbility: customCastingAbility ?? null,
+                };
 
-            console.log("Personaje guardado correctamente", { characterId: cid });
+                const { data: detailsData, error: detailsErr } = await updateCharacterDetails(cid, detailsPatch);
+                if (detailsErr) {
+                    console.error("Error actualizando details:", inspectError(detailsErr));
+                    alert("Error al actualizar detalles del personaje: " + inspectError(detailsErr));
+                    setSaving(false);
+                    return;
+                }
 
-            // final: if parent provided onSubmit we already delegated earlier; still call if present
-            if (typeof onSubmit === "function") {
-                try {
-                    (onSubmit as ((ev: FormEvent) => void) | undefined)?.(e);
-                } catch {}
+                console.log("Personaje guardado correctamente", { characterId: cid });
+
+                // final: if parent provided onSubmit we already delegated earlier; still call if present
+                if (typeof onSubmit === "function") {
+                    try {
+                        (onSubmit as ((ev: FormEvent) => void) | undefined)?.(e);
+                    } catch {}
+                }
+            } catch (err) {
+                console.error("Error during persistence flow:", err);
+                throw err;
             }
         } catch (err: any) {
             console.error("Unhandled error en handleSubmit:", inspectError(err), err);
@@ -622,7 +439,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             <form id="character-form" onSubmit={handleSubmit} className="space-y-6">
                 {/* Datos básicos / clase / vida */}
                 <section className="space-y-3">
-                    <h3 className="text-sm font-semibold text-zinc-200">Datos básicos</h3>
+                    <h3 className="text-sm font-semibold text-purple-200">Datos básicos</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <TextField label="Nombre" value={charName} onChange={setCharName} required />
 

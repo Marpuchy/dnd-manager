@@ -1,7 +1,7 @@
-// src/app/campaigns/[id]/player/sections/ArmorAndWeaponSection.tsx
 import React, { useState } from "react";
-import { Armor } from "../playerShared";
+import { Armor, PassiveModifier } from "../playerShared";
 import { InfoBox } from "../ui/InfoBox";
+import { formatWeaponDamage } from "../utils/weaponDisplay";
 
 type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 
@@ -35,17 +35,18 @@ type ArmorAndWeaponSectionProps = {
     weaponDescription: string;
     setWeaponDescription: (v: string) => void;
 
-    // ahora pasamos los modificadores desde el padre/page.tsx
     weaponStatAbility: AbilityKey | "none";
     setWeaponStatAbility: (v: AbilityKey | "none") => void;
     weaponStatModifier: number | null;
     setWeaponStatModifier: (v: number | null) => void;
 
-    // nuevas props que antes faltaban
     weaponProficient?: boolean | null;
     setWeaponProficient?: (v: boolean) => void;
     weaponEquipped?: boolean | null;
     setWeaponEquipped?: (v: boolean) => void;
+
+    weaponPassiveModifiers?: PassiveModifier[];
+    setWeaponPassiveModifiers?: (m: PassiveModifier[]) => void;
 };
 
 export function ArmorAndWeaponSection({
@@ -72,10 +73,9 @@ export function ArmorAndWeaponSection({
                                           setWeaponProficient,
                                           weaponEquipped,
                                           setWeaponEquipped,
+                                          weaponPassiveModifiers,
+                                          setWeaponPassiveModifiers,
                                       }: ArmorAndWeaponSectionProps) {
-    // ─────────────────────────────────────────────
-    //   Estado local para formulario de armaduras
-    // ─────────────────────────────────────────────
     const [isArmorFormOpen, setIsArmorFormOpen] = useState(false);
     const [editingArmorIndex, setEditingArmorIndex] = useState<number | null>(null);
     const [armorFormName, setArmorFormName] = useState("");
@@ -84,13 +84,12 @@ export function ArmorAndWeaponSection({
     const [armorFormStatAbility, setArmorFormStatAbility] = useState<AbilityKey | "none">("none");
     const [armorFormStatModifier, setArmorFormStatModifier] = useState<string>("");
 
-    // ─────────────────────────────────────────────
-    //   Estado local arma equipada: únicamente UI open/close
-    //   (los valores reales del modificador vienen por props)
-    // ─────────────────────────────────────────────
     const [isWeaponFormOpen, setIsWeaponFormOpen] = useState(false);
 
-    // Helpers armaduras (igual que antes)
+    const [newModAbility, setNewModAbility] = useState<AbilityKey>("STR");
+    const [newModValue, setNewModValue] = useState<number>(1);
+    const [newModNote, setNewModNote] = useState<string>("");
+
     function openNewArmorForm() {
         setEditingArmorIndex(null);
         setArmorFormName("");
@@ -105,6 +104,7 @@ export function ArmorAndWeaponSection({
         const armor = armors[index] as Armor & {
             statAbility?: AbilityKey;
             statModifier?: number;
+            ability?: string;
         };
         if (!armor) return;
 
@@ -167,9 +167,60 @@ export function ArmorAndWeaponSection({
         return `${label} ${mod >= 0 ? `+${mod}` : mod}`;
     }
 
-    // ─────────────────────────────────────────────
-    //   Render
-    // ─────────────────────────────────────────────
+    const formattedDamage = formatWeaponDamage(weaponDamage, null);
+
+    function addWeaponPassiveModifier() {
+        if (!setWeaponPassiveModifiers) return;
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const newMod: PassiveModifier = {
+            id,
+            ability: newModAbility,
+            value: Number(newModValue) || 0,
+            note: newModNote?.trim() || undefined,
+            source: "weapon",
+        };
+        setWeaponPassiveModifiers([...(weaponPassiveModifiers ?? []), newMod]);
+        setNewModAbility("STR");
+        setNewModValue(1);
+        setNewModNote("");
+    }
+
+    function removeWeaponPassiveModifier(id: string) {
+        if (!setWeaponPassiveModifiers) return;
+        setWeaponPassiveModifiers((weaponPassiveModifiers ?? []).filter((m) => m.id !== id));
+    }
+
+    const renderWeaponModifiers = () => {
+        const list = weaponPassiveModifiers ?? [];
+        if (list.length === 0) return <p className="text-xs text-zinc-500">No hay modificadores pasivos del arma.</p>;
+        return (
+            <ul className="space-y-1">
+                {list.map((m) => (
+                    <li key={m.id} className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-amber-900/20 text-amber-300">{abilityKeyToLabelEs[m.ability]}</span>
+                            <span className="font-mono">{m.value >= 0 ? `+${m.value}` : m.value}</span>
+                            {m.note ? <span className="text-zinc-400 ml-2">· {m.note}</span> : null}
+                        </div>
+                        <div>
+                            <button
+                                type="button"
+                                onClick={() => removeWeaponPassiveModifier(m.id)}
+                                className="text-[11px] px-2 py-0.5 rounded border border-red-600 text-red-400"
+                            >
+                                Eliminar
+                            </button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        );
+    };
+
+    function resolveArmorDesc(armor: any) {
+        return armor.description ?? armor.ability ?? (armor.meta && (armor.meta.description || armor.meta.desc)) ?? null;
+    }
+
     return (
         <div className="border border-zinc-800 rounded-lg p-3 space-y-3 bg-zinc-950/60">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -203,11 +254,10 @@ export function ArmorAndWeaponSection({
                                             {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus}
                                         </span>
                                     </p>
-                                    {armor.ability && (
-                                        <p className="text-xs text-zinc-500 whitespace-pre-wrap">{armor.ability}</p>
-                                    )}
+                                    {/* description compatibility */}
+                                    {resolveArmorDesc(armor) ? <p className="text-xs text-zinc-500 whitespace-pre-wrap mt-1">{resolveArmorDesc(armor)}</p> : null}
                                     {getArmorModifierBadge(armor) && (
-                                        <p className="text-[11px] inline-flex items-center gap-1">
+                                        <p className="text-[11px] inline-flex items-center gap-1 mt-1">
                                             <span className="px-2 py-0.5 rounded-full bg-emerald-900/20 text-emerald-300">
                                                 {getArmorModifierBadge(armor)}
                                             </span>
@@ -327,7 +377,7 @@ export function ArmorAndWeaponSection({
                 </div>
             )}
 
-            {/* Arma equipada */}
+            {/* Arma equipada (resto inalterado) */}
             <div className="border border-zinc-800 rounded-lg p-3 space-y-2 bg-zinc-950/60">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-purple-200">Arma equipada</h3>
@@ -345,22 +395,25 @@ export function ArmorAndWeaponSection({
                         {weaponName || weaponDamage || weaponDescription ? (
                             <div className="space-y-1">
                                 <p className="text-sm text-zinc-100 font-medium">{weaponName || "Arma sin nombre"}</p>
-                                {weaponDamage && <p className="text-xs text-zinc-400">Daño: {weaponDamage}</p>}
+
+                                {weaponDamage && <p className="text-xs text-zinc-400">Daño: <span className="font-mono">{weaponDamage}</span></p>}
+
                                 {weaponDescription && <p className="text-xs text-zinc-500 whitespace-pre-wrap">{weaponDescription}</p>}
 
-                                {(weaponStatAbility !== "none" &&
-                                    weaponStatModifier !== null &&
-                                    !Number.isNaN(Number(weaponStatModifier))) && (
+                                <div className="mt-2">
+                                    <div className="text-[11px] text-zinc-400 mb-1">Modificadores pasivos del arma</div>
+                                    {renderWeaponModifiers()}
+                                </div>
+
+                                {(weaponStatAbility !== "none") && (
                                     <p className="text-[11px] mt-1">
-                                        Modificador aplicado:{" "}
+                                        Característica usada (para tirar con el arma):{" "}
                                         <span className="px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
-                                            {abilityKeyToLabelEs[weaponStatAbility as AbilityKey]}{" "}
-                                            {Number(weaponStatModifier) >= 0 ? `+${Number(weaponStatModifier)}` : Number(weaponStatModifier)}
+                                            {abilityKeyToLabelEs[weaponStatAbility as AbilityKey]}
                                         </span>
                                     </p>
                                 )}
 
-                                {/* Show proficiency / equipped badges if provided */}
                                 <div className="flex gap-2 mt-1">
                                     {weaponProficient ? <span className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">Competente</span> : null}
                                     {weaponEquipped ? <span className="text-[11px] px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-300">Equipado</span> : null}
@@ -386,7 +439,7 @@ export function ArmorAndWeaponSection({
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs text-purple-200">Daño (ej: 1d8 cortante)</label>
+                            <label className="text-xs text-purple-200">Daño (ej: 1d8 + 3)</label>
                             <input
                                 type="text"
                                 value={weaponDamage}
@@ -394,6 +447,7 @@ export function ArmorAndWeaponSection({
                                 className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs outline-none focus:border-purple-500"
                                 placeholder="1d8 + 3 cortante"
                             />
+                            <div className="text-[11px] text-zinc-500 mt-1">Introduce el daño tal cual quieres que aparezca (ej. "1d8 + 3").</div>
                         </div>
 
                         <div className="space-y-1">
@@ -408,7 +462,7 @@ export function ArmorAndWeaponSection({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div className="space-y-1">
-                                <label className="text-xs text-purple-200">Modifica característica</label>
+                                <label className="text-xs text-purple-200">Característica para tirar</label>
                                 <select
                                     value={weaponStatAbility}
                                     onChange={(e) => setWeaponStatAbility(e.target.value as AbilityKey | "none")}
@@ -425,7 +479,7 @@ export function ArmorAndWeaponSection({
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs text-purple-200">Modificador</label>
+                                <label className="text-xs text-purple-200">Modificador (solo para tirar, no altera el string de daño)</label>
                                 <input
                                     type="number"
                                     value={weaponStatModifier !== null ? String(weaponStatModifier) : ""}
@@ -441,6 +495,46 @@ export function ArmorAndWeaponSection({
                                     className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs outline-none focus:border-purple-500"
                                     placeholder="+1, +2, -1..."
                                 />
+                                <div className="text-[11px] text-zinc-500 mt-1">Este valor es solo para tiradas, no para mostrar en la línea de daño si tú ya lo incluyes manualmente.</div>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 border-t border-zinc-700 pt-3">
+                            <div className="text-xs text-zinc-400 mb-2">Añadir modificador pasivo al arma (afecta stats)</div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                                <div>
+                                    <label className="text-xs text-zinc-300">Característica</label>
+                                    <select value={newModAbility} onChange={(e) => setNewModAbility(e.target.value as AbilityKey)} className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs outline-none">
+                                        <option value="STR">Fuerza (FUE)</option>
+                                        <option value="DEX">Destreza (DES)</option>
+                                        <option value="CON">Constitución (CON)</option>
+                                        <option value="INT">Inteligencia (INT)</option>
+                                        <option value="WIS">Sabiduría (SAB)</option>
+                                        <option value="CHA">Carisma (CAR)</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs text-zinc-300">Valor</label>
+                                    <input type="number" value={newModValue} onChange={(e) => setNewModValue(Number(e.target.value))} className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs outline-none" />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs text-zinc-300">Nota (opcional)</label>
+                                    <input type="text" value={newModNote} onChange={(e) => setNewModNote(e.target.value)} className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-xs outline-none" placeholder="e.g. 'Filo rúnico'"/>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end mt-2">
+                                <button type="button" onClick={addWeaponPassiveModifier} className="text-[11px] px-3 py-1 rounded-md border border-emerald-500/70 hover:bg-emerald-900/40">
+                                    Añadir modificador pasivo
+                                </button>
+                            </div>
+
+                            <div className="mt-3">
+                                <div className="text-xs text-zinc-400 mb-1">Modificadores actuales</div>
+                                {renderWeaponModifiers()}
                             </div>
                         </div>
 
@@ -464,7 +558,6 @@ export function ArmorAndWeaponSection({
                             </label>
                         </div>
 
-                        {/* Botón guardar arma (simplemente cierra la UI, el guardado real ocurre al submit del form) */}
                         <div className="flex justify-end pt-1">
                             <button
                                 type="button"
