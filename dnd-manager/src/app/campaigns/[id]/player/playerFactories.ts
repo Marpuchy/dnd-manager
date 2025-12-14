@@ -1,40 +1,45 @@
 // src/app/campaigns/[id]/player/playerFactories.ts
-import { Armor, Weapon, AbilityKey } from "././playerShared";
+import { Armor, Weapon } from "./playerShared";
 
 /**
- * Crea una armadura con valores por defecto (asegura fields obligatorios).
+ * Crea una armadura con valores por defecto
+ * (alineado EXACTAMENTE con el tipo Armor)
  */
 export function newArmor(partial?: Partial<Armor>): Armor {
     return {
         id: partial?.id ?? `armor_${Date.now()}`,
         name: partial?.name ?? "Nueva armadura",
         bonus: Number(partial?.bonus ?? 0),
-        description: partial?.description ?? "",
+
         ability: partial?.ability ?? null,
         stat_ability: partial?.stat_ability ?? null,
         stat_modifier: partial?.stat_modifier ?? null,
-        equipped: partial?.equipped ?? null,
+
+        equipped: partial?.equipped ?? false,
+        description: partial?.description ?? null,
+
         modifiers: partial?.modifiers ?? [],
-        statAbility: (partial as any)?.statAbility ?? null,
-        statModifier: (partial as any)?.statModifier ?? null,
-        meta: partial?.meta ?? null,
     };
 }
 
 /**
- * Crea un arma con valores por defecto (asegura name no undefined).
+ * Crea un arma con valores por defecto
+ * (alineado EXACTAMENTE con el tipo Weapon)
  */
 export function newWeapon(partial?: Partial<Weapon>): Weapon {
     return {
         id: partial?.id ?? `weapon_${Date.now()}`,
-        name: partial?.name ?? "Nuevo arma",
+        name: partial?.name ?? "Nueva arma",
+
         damage: partial?.damage ?? "",
-        description: partial?.description ?? "",
+        description: partial?.description ?? null,
+
         stat_ability: partial?.stat_ability ?? null,
         modifier: partial?.modifier ?? null,
-        is_proficient: partial?.is_proficient ?? null,
-        equipped: partial?.equipped ?? null,
-        modifiers: partial?.modifiers ?? [],
+
+        is_proficient: partial?.is_proficient ?? false,
+        equipped: partial?.equipped ?? false,
+
         meta: partial?.meta ?? null,
     };
 }
