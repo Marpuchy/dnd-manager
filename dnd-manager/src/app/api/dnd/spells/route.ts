@@ -7,7 +7,6 @@ type SpellRefList = {
     results: { index: string; name: string; url: string }[];
 };
 
-// Modelo parcial de lo que devuelve la API pública
 type SpellDetail = {
     index: string;
     name: string;
@@ -29,44 +28,76 @@ export async function GET(req: NextRequest) {
     const classIndex = searchParams.get("class");
     const levelStr = searchParams.get("level");
 
-    if (!classIndex || !levelStr) {
+    if (!classIndex || levelStr === null) {
         return NextResponse.json(
             { error: "Parámetros 'class' y 'level' requeridos" },
             { status: 400 }
         );
     }
 
-    try {
-        // 1) Hechizos que un PJ de esa CLASE y NIVEL puede conocer
-        const spellsRes = await fetch(
-            `${BASE_URL}/classes/${classIndex}/levels/${levelStr}/spells`,
-            { next: { revalidate: 86400 } } // cache 1 día
+    const level = Number(levelStr);
+    if (Number.isNaN(level) || level < 0) {
+        return NextResponse.json(
+            { error: "Nivel inválido" },
+            { status: 400 }
         );
+    }
 
-        if (!spellsRes.ok) {
-            return NextResponse.json(
-                { error: "No se han podido obtener los hechizos" },
-                { status: 500 }
+    try {
+        let spellRefs: SpellRefList;
+
+        // 🔹 NIVEL 0 → trucos (NO existe /levels/0/spells)
+        if (level === 0) {
+            const res = await fetch(
+                `${BASE_URL}/classes/${classIndex}/spells`,
+                { next: { revalidate: 86400 } }
             );
+
+            if (!res.ok) {
+                return NextResponse.json(
+                    { error: "No se han podido obtener los trucos" },
+                    { status: 500 }
+                );
+            }
+
+            spellRefs = (await res.json()) as SpellRefList;
+        }
+        // 🔹 NIVEL 1+ → hechizos normales
+        else {
+            const res = await fetch(
+                `${BASE_URL}/classes/${classIndex}/levels/${level}/spells`,
+                { next: { revalidate: 86400 } }
+            );
+
+            if (!res.ok) {
+                return NextResponse.json(
+                    { error: "No se han podido obtener los hechizos" },
+                    { status: 500 }
+                );
+            }
+
+            spellRefs = (await res.json()) as SpellRefList;
         }
 
-        const json = (await spellsRes.json()) as SpellRefList;
-
-        // 2) Detalles de cada hechizo (en paralelo)
+        // 🔹 Detalles de cada hechizo
         const details = await Promise.all(
-            json.results.map(async (s) => {
+            spellRefs.results.map(async (s) => {
                 const res = await fetch(`${BASE_URL}/spells/${s.index}`, {
                     next: { revalidate: 86400 },
                 });
+
                 if (!res.ok) return null;
+
                 const data = (await res.json()) as SpellDetail;
 
                 const shortDesc = data.desc?.[0] ?? "";
                 const fullDescParts: string[] = [];
-                if (data.desc && data.desc.length > 0) {
+
+                if (data.desc?.length) {
                     fullDescParts.push(...data.desc);
                 }
-                if (data.higher_level && data.higher_level.length > 0) {
+
+                if (data.higher_level?.length) {
                     fullDescParts.push(
                         "",
                         "A niveles superiores:",
@@ -92,8 +123,7 @@ export async function GET(req: NextRequest) {
             })
         );
 
-        const filtered = details.filter(Boolean);
-        return NextResponse.json(filtered);
+        return NextResponse.json(details.filter(Boolean));
     } catch (e) {
         console.error(e);
         return NextResponse.json(
