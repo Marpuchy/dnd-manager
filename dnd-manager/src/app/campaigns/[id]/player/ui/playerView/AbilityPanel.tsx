@@ -14,6 +14,7 @@ import {
     normalizeClassForApi,
 } from "../../playerShared";
 import { LearnedSpellLevelBlock } from "../../LearnedSpellBlocks";
+import CreateCustomSpellModal from "../../modals/CreateCustomSpellModal";
 
 /* ---------------------------
    Cache
@@ -53,7 +54,8 @@ function abilityAllowed(
     charLevel: number
 ) {
     if (!meta) return true;
-    if (typeof meta.level === "number" && meta.level > charLevel) return false;
+    if (typeof meta.level === "number" && meta.level > charLevel)
+        return false;
     return true;
 }
 
@@ -89,6 +91,7 @@ export default function AbilityPanel({
     const extras = getClassMagicExtras(character.class, character.level);
 
     const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+    const [showCustomSpell, setShowCustomSpell] = useState(false);
     const builtRef = useRef(false);
 
     const levels = [
@@ -105,7 +108,7 @@ export default function AbilityPanel({
     ];
 
     /* ---------------------------
-       Auto-fetch SRD (solo mount)
+       Auto-fetch SRD
     --------------------------- */
     useEffect(() => {
         if (builtRef.current) return;
@@ -151,8 +154,26 @@ export default function AbilityPanel({
                 spellDetails: merged,
             });
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    function addCustomSpell(spell: SpellMeta) {
+        const key = spellKeyFromLine(spell.name);
+        const levelKey = `level${spell.level}` as keyof typeof spells;
+
+        onDetailsChange?.({
+            ...details,
+            spells: {
+                ...details.spells,
+                [levelKey]: details.spells?.[levelKey]
+                    ? `${details.spells[levelKey]}\n${spell.name}`
+                    : spell.name,
+            },
+            spellDetails: {
+                ...(details as any)?.spellDetails,
+                [key]: spell,
+            },
+        });
+    }
 
     function filtered(level: number, raw?: string | null): LearnedSpellLine[] {
         if (!raw) return [];
@@ -179,35 +200,8 @@ export default function AbilityPanel({
             .filter(Boolean) as LearnedSpellLine[];
     }
 
-    /* ---------------------------
-       RENDER
-    --------------------------- */
     return (
         <div className="space-y-4">
-            {preparedInfo && (
-                <div className="border border-zinc-800 rounded-lg p-3">
-                    <p className="text-xs text-zinc-300">
-                        Preparados:{" "}
-                        <span className="font-semibold">
-                            {preparedCount}/{preparedInfo.total}
-                        </span>
-                    </p>
-                </div>
-            )}
-
-            {extras && (
-                <div className="border border-zinc-800 rounded-lg p-3">
-                    <h4 className="text-xs font-semibold text-zinc-300 mb-1">
-                        {extras.title}
-                    </h4>
-                    <ul className="text-xs list-disc list-inside">
-                        {extras.lines.map((l, i) => (
-                            <li key={i}>{l}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
             <div className="flex justify-between">
                 <div className="flex gap-2">
                     <button
@@ -221,10 +215,7 @@ export default function AbilityPanel({
                         onClick={() =>
                             setCollapsed(
                                 Object.fromEntries(
-                                    Array.from({ length: 10 }, (_, i) => [
-                                        i,
-                                        true,
-                                    ])
+                                    Array.from({ length: 10 }, (_, i) => [i, true])
                                 )
                             )
                         }
@@ -232,12 +223,21 @@ export default function AbilityPanel({
                         Plegar todo
                     </button>
                 </div>
-                <button
-                    className="text-xs border px-3 py-1 rounded"
-                    onClick={onOpenSpellManager}
-                >
-                    Abrir gestor SRD
-                </button>
+
+                <div className="flex gap-2">
+                    <button
+                        className="text-xs border px-3 py-1 rounded"
+                        onClick={onOpenSpellManager}
+                    >
+                        Abrir gestor SRD
+                    </button>
+                    <button
+                        className="text-xs border px-3 py-1 rounded"
+                        onClick={() => setShowCustomSpell(true)}
+                    >
+                        Crear hechizo personalizado
+                    </button>
+                </div>
             </div>
 
             {levels.map(({ lvl, label, text }) => {
@@ -253,22 +253,27 @@ export default function AbilityPanel({
                         <summary className="px-3 py-2 cursor-pointer bg-zinc-900/30 flex justify-between">
                             <span>{label}</span>
                             <span className="text-xs text-zinc-400">
-                                ({lines.length})
-                            </span>
+                ({lines.length})
+              </span>
                         </summary>
                         <div className="p-3">
                             <LearnedSpellLevelBlock
                                 level={lvl}
                                 label=""
                                 lines={lines}
-                                spellDetails={
-                                    (details as any)?.spellDetails || {}
-                                }
+                                spellDetails={(details as any)?.spellDetails || {}}
                             />
                         </div>
                     </details>
                 );
             })}
+
+            {showCustomSpell && (
+                <CreateCustomSpellModal
+                    onClose={() => setShowCustomSpell(false)}
+                    onCreate={addCustomSpell}
+                />
+            )}
         </div>
     );
 }
