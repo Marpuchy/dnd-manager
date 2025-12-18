@@ -113,7 +113,8 @@ export function SpellManagerPanel({
         charLevel,
         details
     );
-    const currentPreparedCount = countPreparedSpells(details.spells);
+    const currentPreparedCount = countPreparedSpells(details.spells ?? ({} as Spells))
+
 
     /* ---------------------------
        LOAD SPELLS
