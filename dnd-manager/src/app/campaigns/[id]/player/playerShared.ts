@@ -328,31 +328,21 @@ export function formatComponents(
     return base;
 }
 
-export function countPreparedSpells(spells?: Spells): number {
-    if (!spells) return 0;
+export function countPreparedSpells(spells: Spells): number {
+    let count = 0;
 
-    let total = 0;
+    Object.entries(spells).forEach(([key, level]) => {
+        // ❌ Ignorar cantrips (level0)
+        if (key === "level0") return;
 
-    for (const value of Object.values(spells)) {
-        if (!value) continue;
-
-        // 🟢 NUEVO FORMATO
-        if (Array.isArray(value)) {
-            total += value.length;
-            continue;
+        if (Array.isArray(level)) {
+            count += level.length;
         }
+    });
 
-        // 🟡 FORMATO ANTIGUO (string)
-        if (typeof value === "string") {
-            total += value
-                .split("\n")
-                .map((s) => s.trim())
-                .filter(Boolean).length;
-        }
-    }
-
-    return total;
+    return count;
 }
+
 
 
 export function parseSpellLines(text?: string): LearnedSpellLine[] {
