@@ -5,6 +5,27 @@ export type Member = {
     role: "PLAYER" | "DM";
 };
 
+// Hechizo aprendido por el personaje
+export type LearnedSpellRef = {
+    index: string;   // ← VERDAD ÚNICA
+    name: string;
+};
+
+// Ahora los spells del personaje pueden ser:
+export type Spells = {
+    level0?: string | LearnedSpellRef[];
+    level1?: string | LearnedSpellRef[];
+    level2?: string | LearnedSpellRef[];
+    level3?: string | LearnedSpellRef[];
+    level4?: string | LearnedSpellRef[];
+    level5?: string | LearnedSpellRef[];
+    level6?: string | LearnedSpellRef[];
+    level7?: string | LearnedSpellRef[];
+    level8?: string | LearnedSpellRef[];
+    level9?: string | LearnedSpellRef[];
+};
+
+
 export type Stats = {
     str: number;
     dex: number;
@@ -40,19 +61,6 @@ export type Weapon = {
 
 export type HitDie = {
     sides: number; // 6, 8, 10, 12...
-};
-
-export type Spells = {
-    level0?: string;
-    level1?: string;
-    level2?: string;
-    level3?: string;
-    level4?: string;
-    level5?: string;
-    level6?: string;
-    level7?: string;
-    level8?: string;
-    level9?: string;
 };
 
 export type SpellMeta = {
@@ -322,18 +330,30 @@ export function formatComponents(
 
 export function countPreparedSpells(spells?: Spells): number {
     if (!spells) return 0;
-    let count = 0;
-    for (let lvl = 1; lvl <= 9; lvl++) {
-        const key = `level${lvl}` as keyof Spells;
-        const text = (spells[key] ?? "") as string;
-        if (!text) continue;
-        count += text
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean).length;
+
+    let total = 0;
+
+    for (const value of Object.values(spells)) {
+        if (!value) continue;
+
+        // 🟢 NUEVO FORMATO
+        if (Array.isArray(value)) {
+            total += value.length;
+            continue;
+        }
+
+        // 🟡 FORMATO ANTIGUO (string)
+        if (typeof value === "string") {
+            total += value
+                .split("\n")
+                .map((s) => s.trim())
+                .filter(Boolean).length;
+        }
     }
-    return count;
+
+    return total;
 }
+
 
 export function parseSpellLines(text?: string): LearnedSpellLine[] {
     if (!text) return [];
@@ -352,3 +372,33 @@ export function parseSpellLines(text?: string): LearnedSpellLine[] {
             };
         });
 }
+
+// 🔽 AÑADE ESTO AL FINAL DEL ARCHIVO (o donde prefieras entre helpers)
+export function migrateOldSpells(spells?: Spells): Spells {
+    if (!spells) return {};
+
+    const out: Spells = {};
+
+    for (const [level, value] of Object.entries(spells)) {
+        // 🟢 YA ES FORMATO NUEVO → NO TOCAR
+        if (Array.isArray(value)) {
+            out[level as keyof Spells] = value;
+            continue;
+        }
+
+        // 🟡 FORMATO ANTIGUO → MIGRAR
+        if (typeof value === "string") {
+            out[level as keyof Spells] = value
+                .split("\n")
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .map((name) => ({
+                    index: "", // ⚠️ legacy, se resolverá después
+                    name,
+                }));
+        }
+    }
+
+    return out;
+}
+

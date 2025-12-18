@@ -1,4 +1,3 @@
-// src/app/campaigns/[id]/player/SpellManagerPanel.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,6 +10,7 @@ import {
     Stats,
     CLASS_LABELS,
     DND_CLASS_OPTIONS,
+    LearnedSpellRef,
     normalizeClassForApi,
     getPreparedSpellsInfo,
     countPreparedSpells,
@@ -26,16 +26,71 @@ type Props = {
 
 type StatusFilter = "all" | "learned" | "unlearned";
 
-export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props) {
+/* ---------------------------
+   HELPERS
+--------------------------- */
+function normalizeSpellName(name: string) {
+    return name.split("—")[0].trim();
+}
+
+/* ---------------------------
+   D&D SPELL LEVEL PROGRESSION
+--------------------------- */
+function getMaxSpellLevelForClass(
+    classId: string | null,
+    level: number
+): number {
+    if (!classId || level <= 0) return 0;
+
+    const apiClass = normalizeClassForApi(classId);
+
+    const fullCasters = [
+        "druid",
+        "cleric",
+        "wizard",
+        "bard",
+        "sorcerer",
+    ];
+
+    const halfCasters = ["paladin", "ranger"];
+
+    if (fullCasters.includes(apiClass)) {
+        return Math.floor((level + 1) / 2);
+    }
+
+    if (halfCasters.includes(apiClass)) {
+        return Math.floor(level / 4) + 1;
+    }
+
+    return Math.floor((level + 1) / 2);
+}
+
+/* ---------------------------
+   COMPONENT
+--------------------------- */
+export function SpellManagerPanel({
+                                      character,
+                                      onDetailsChange,
+                                      onClose,
+                                  }: Props) {
     const stats: Stats =
         character.stats ?? {
-            str: 10, dex: 10, con: 10,
-            int: 10, wis: 10, cha: 10,
+            str: 10,
+            dex: 10,
+            con: 10,
+            int: 10,
+            wis: 10,
+            cha: 10,
         };
 
     const details: Details = character.details || {};
     const charLevel = character.level ?? 0;
     const apiClass = normalizeClassForApi(character.class ?? null);
+
+    const maxLearnableSpellLevel = getMaxSpellLevelForClass(
+        character.class,
+        charLevel
+    );
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -45,7 +100,8 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
     const [searchTerm, setSearchTerm] = useState("");
     const [sortMode, setSortMode] = useState<"level" | "alpha">("level");
     const [levelFilter, setLevelFilter] = useState<"all" | number>("all");
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+    const [statusFilter, setStatusFilter] =
+        useState<StatusFilter>("all");
 
     const [sourceClass, setSourceClass] = useState(
         apiClass === "custom" ? "wizard" : apiClass
@@ -60,7 +116,7 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
     const currentPreparedCount = countPreparedSpells(details.spells);
 
     /* ---------------------------
-       CARGA CORRECTA SRD
+       LOAD SPELLS
     --------------------------- */
     useEffect(() => {
         if (!apiClass) return;
@@ -73,15 +129,18 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
             setLoading(true);
             setError(null);
 
-            const classForApi = apiClass === "custom" ? sourceClass : apiClass;
+            const classForApi =
+                apiClass === "custom" ? sourceClass : apiClass;
+
             const collected: SpellSummary[] = [];
 
-            for (let lvl = 0; lvl <= charLevel; lvl++) {
+            for (let charLvl = 1; charLvl <= charLevel; charLvl++) {
                 const res = await fetch(
                     `/api/dnd/spells?class=${encodeURIComponent(
                         classForApi
-                    )}&level=${lvl}`
+                    )}&level=${charLvl}`
                 );
+
                 if (!res.ok) continue;
 
                 const data: SpellSummary[] = await res.json();
@@ -92,25 +151,47 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                 Object.fromEntries(collected.map((s) => [s.index, s]))
             );
 
-            setSpells(unique);
+            const filtered = unique.filter(
+                (s) =>
+                    typeof s.level === "number" &&
+                    s.level <= maxLearnableSpellLevel
+            );
+
+            setSpells(filtered);
         } catch (e: any) {
-            setError(e?.message ?? "Error cargando habilidades.");
+            setError(e?.message ?? "Error cargando hechizos.");
         } finally {
             setLoading(false);
         }
     }
 
+    /* ---------------------------
+       LEARNED STATE (FIX)
+    --------------------------- */
     function isSpellLearned(spell: SpellSummary): boolean {
         const currentSpells: Spells = details.spells || {};
         const levelKey = `level${spell.level}` as keyof Spells;
-        const text = (currentSpells[levelKey] ?? "") as string;
+        const value = currentSpells[levelKey];
 
-        return text
-            .split("\n")
-            .map((l) => l.split("—")[0].trim())
-            .includes(spell.name);
+        if (Array.isArray(value)) {
+            return value.some(
+                (s: LearnedSpellRef) => s.index === spell.index
+            );
+        }
+
+        if (typeof value === "string") {
+            return value
+                .split("\n")
+                .map(normalizeSpellName)
+                .includes(spell.name);
+        }
+
+        return false;
     }
 
+    /* ---------------------------
+       LEARN SPELL (FIX)
+    --------------------------- */
     async function handleLearnSpell(spell: SpellSummary) {
         try {
             setSavingId(spell.index);
@@ -118,6 +199,7 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
 
             const currentSpells: Spells = details.spells || {};
             const levelKey = `level${spell.level}` as keyof Spells;
+            const value = currentSpells[levelKey];
 
             if (spell.level >= 1 && preparedInfo) {
                 const count = countPreparedSpells(currentSpells);
@@ -129,56 +211,39 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                 }
             }
 
-            const currentText = (currentSpells[levelKey] ?? "") as string;
-            if (currentText.includes(spell.name)) return;
+            let updatedLevel: string | LearnedSpellRef[];
 
-            const newLine = `${spell.name}${
-                spell.shortDesc ? ` — ${spell.shortDesc}` : ""
-            }`;
+            if (Array.isArray(value)) {
+                if (
+                    value.some(
+                        (s) => s.index === spell.index
+                    )
+                )
+                    return;
 
-            const updatedSpells: Spells = {
-                ...currentSpells,
-                [levelKey]: currentText
-                    ? `${currentText}\n${newLine}`
-                    : newLine,
-            };
+                updatedLevel = [
+                    ...value,
+                    { index: spell.index, name: spell.name },
+                ];
+            } else {
+                const lines =
+                    typeof value === "string"
+                        ? value
+                            .split("\n")
+                            .map(normalizeSpellName)
+                            .filter(Boolean)
+                        : [];
 
-            const updatedDetails: Details = {
-                ...details,
-                spells: updatedSpells,
-            };
+                if (lines.includes(spell.name)) return;
 
-            await supabase
-                .from("characters")
-                .update({ details: updatedDetails })
-                .eq("id", character.id);
-
-            onDetailsChange?.(updatedDetails);
-        } catch {
-            setError("Error añadiendo la habilidad.");
-        } finally {
-            setSavingId(null);
-        }
-    }
-
-    async function handleForgetSpell(spell: SpellSummary) {
-        try {
-            setSavingId(spell.index);
-            setError(null);
-
-            const currentSpells: Spells = details.spells || {};
-            const levelKey = `level${spell.level}` as keyof Spells;
-
-            const newText = (currentSpells[levelKey] ?? "")
-                .split("\n")
-                .filter((l) => !l.startsWith(spell.name))
-                .join("\n");
+                updatedLevel = [...lines, spell.name].join("\n");
+            }
 
             const updatedDetails: Details = {
                 ...details,
                 spells: {
                     ...currentSpells,
-                    [levelKey]: newText || undefined,
+                    [levelKey]: updatedLevel,
                 },
             };
 
@@ -189,19 +254,84 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
 
             onDetailsChange?.(updatedDetails);
         } catch {
-            setError("Error eliminando la habilidad.");
+            setError("Error aprendiendo el hechizo.");
         } finally {
             setSavingId(null);
         }
     }
 
-    const availableLevels = Array.from(new Set(spells.map((s) => s.level))).sort(
-        (a, b) => a - b
-    );
+    /* ---------------------------
+       FORGET SPELL (FIX)
+    --------------------------- */
+    async function handleForgetSpell(spell: SpellSummary) {
+        try {
+            setSavingId(spell.index);
+            setError(null);
+
+            const currentSpells: Spells = details.spells || {};
+            const levelKey = `level${spell.level}` as keyof Spells;
+            const value = currentSpells[levelKey];
+
+            let updatedLevel: string | LearnedSpellRef[] | undefined;
+
+            if (Array.isArray(value)) {
+                const filtered = value.filter(
+                    (s) => s.index !== spell.index
+                );
+                updatedLevel =
+                    filtered.length > 0 ? filtered : undefined;
+            } else if (typeof value === "string") {
+                const filtered = value
+                    .split("\n")
+                    .map(normalizeSpellName)
+                    .filter(
+                        (l: string) => l !== spell.name
+                    );
+
+                updatedLevel =
+                    filtered.length > 0
+                        ? filtered.join("\n")
+                        : undefined;
+            }
+
+            const updatedDetails: Details = {
+                ...details,
+                spells: {
+                    ...currentSpells,
+                    [levelKey]: updatedLevel,
+                },
+            };
+
+            await supabase
+                .from("characters")
+                .update({ details: updatedDetails })
+                .eq("id", character.id);
+
+            onDetailsChange?.(updatedDetails);
+        } catch {
+            setError("Error olvidando el hechizo.");
+        } finally {
+            setSavingId(null);
+        }
+    }
+
+    /* ---------------------------
+       FILTER + SORT (TU CÓDIGO)
+    --------------------------- */
+    const availableLevels = Array.from(
+        new Set(spells.map((s) => s.level))
+    ).sort((a, b) => a - b);
 
     const filteredAndSorted = spells
         .filter((s) => {
-            if (levelFilter !== "all" && s.level !== Number(levelFilter)) return false;
+            if (levelFilter !== "all" && s.level !== levelFilter)
+                return false;
+
+            if (
+                s.level > maxLearnableSpellLevel ||
+                s.level < 0
+            )
+                return false;
 
             const term = searchTerm.trim().toLowerCase();
             if (term) {
@@ -213,35 +343,45 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
             }
 
             const learned = isSpellLearned(s);
-            if (statusFilter === "learned" && !learned) return false;
-            if (statusFilter === "unlearned" && learned) return false;
+            if (statusFilter === "learned" && !learned)
+                return false;
+            if (statusFilter === "unlearned" && learned)
+                return false;
 
             return true;
         })
         .sort((a, b) => {
-            if (sortMode === "alpha") return a.name.localeCompare(b.name);
+            if (sortMode === "alpha")
+                return a.name.localeCompare(b.name);
             if (a.level !== b.level) return a.level - b.level;
             return a.name.localeCompare(b.name);
         });
 
+    /* ---------------------------
+       RENDER (100% TUYO)
+    --------------------------- */
     return (
         <div className="border border-zinc-800 rounded-xl bg-zinc-950/90 h-full flex flex-col">
-            {/* HEADER */}
             <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between gap-4">
-                <div className="space-y-1">
+                <div>
                     <h2 className="text-sm font-semibold text-purple-200">
-                        Gestor de habilidades · {character.name}
+                        Gestor de hechizos · {character.name}
                     </h2>
                     <p className="text-[11px] text-zinc-400">
-                        {CLASS_LABELS[apiClass] ?? apiClass} · Nivel {charLevel}
+                        {CLASS_LABELS[apiClass] ?? apiClass} · Nivel{" "}
+                        {charLevel}
+                    </p>
+                    <p className="text-[11px] text-zinc-400">
+                        Máx nivel de hechizo: {maxLearnableSpellLevel}
                     </p>
                     {preparedInfo && (
                         <p className="text-[11px] text-zinc-400">
-                            Preparados nivel 1+: {currentPreparedCount}/
+                            Preparados: {currentPreparedCount}/
                             {preparedInfo.total}
                         </p>
                     )}
                 </div>
+
                 <button
                     onClick={onClose}
                     className="text-[11px] px-3 py-2 rounded-md border border-zinc-600 hover:bg-zinc-900"
@@ -250,11 +390,10 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                 </button>
             </div>
 
-            {/* CONTROLES */}
-            <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-4 bg-zinc-950">
+            <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-4">
                 <input
                     type="text"
-                    placeholder="Buscar por nombre o descripción..."
+                    placeholder="Buscar hechizo..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="flex-1 min-w-[220px] rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm"
@@ -262,7 +401,9 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
 
                 <select
                     value={sortMode}
-                    onChange={(e) => setSortMode(e.target.value as any)}
+                    onChange={(e) =>
+                        setSortMode(e.target.value as any)
+                    }
                     className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
                 >
                     <option value="level">Nivel → Nombre</option>
@@ -270,7 +411,11 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                 </select>
 
                 <select
-                    value={levelFilter === "all" ? "all" : String(levelFilter)}
+                    value={
+                        levelFilter === "all"
+                            ? "all"
+                            : String(levelFilter)
+                    }
                     onChange={(e) =>
                         setLevelFilter(
                             e.target.value === "all"
@@ -283,14 +428,20 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                     <option value="all">Todos</option>
                     {availableLevels.map((lvl) => (
                         <option key={lvl} value={lvl}>
-                            {lvl === 0 ? "Trucos (0)" : `Nivel ${lvl}`}
+                            {lvl === 0
+                                ? "Trucos"
+                                : `Nivel ${lvl}`}
                         </option>
                     ))}
                 </select>
 
                 <select
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                    onChange={(e) =>
+                        setStatusFilter(
+                            e.target.value as StatusFilter
+                        )
+                    }
                     className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
                 >
                     <option value="all">Todos</option>
@@ -301,10 +452,14 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                 {apiClass === "custom" && (
                     <select
                         value={sourceClass}
-                        onChange={(e) => setSourceClass(e.target.value)}
+                        onChange={(e) =>
+                            setSourceClass(e.target.value)
+                        }
                         className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
                     >
-                        {DND_CLASS_OPTIONS.filter((c) => c.id !== "custom").map((c) => (
+                        {DND_CLASS_OPTIONS.filter(
+                            (c) => c.id !== "custom"
+                        ).map((c) => (
                             <option key={c.id} value={c.id}>
                                 {c.label}
                             </option>
@@ -313,22 +468,19 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                 )}
             </div>
 
-            {/* LISTA */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
                 {loading && (
                     <p className="text-xs text-zinc-400">
-                        Cargando lista de habilidades…
+                        Cargando hechizos…
                     </p>
                 )}
-                {error && <p className="text-xs text-red-400">{error}</p>}
+                {error && (
+                    <p className="text-xs text-red-400">{error}</p>
+                )}
 
                 {!loading &&
                     filteredAndSorted.map((s) => {
                         const learned = isSpellLearned(s);
-                        const typeLabel =
-                            s.level === 0
-                                ? "Truco (cantrip)"
-                                : `Hechizo de nivel ${s.level}`;
 
                         return (
                             <div
@@ -339,30 +491,33 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                                         : "border-zinc-700 bg-zinc-950/40"
                                 }`}
                             >
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex justify-between">
                                     <div>
-                                        <p className="font-medium text-zinc-100">
+                                        <p className="font-medium">
                                             {s.name}
                                         </p>
                                         <p className="text-[11px] text-zinc-500">
-                                            {typeLabel} ·{" "}
-                                            {formatCastingTime(s.casting_time)}
+                                            Nivel {s.level} ·{" "}
+                                            {formatCastingTime(
+                                                s.casting_time
+                                            )}
                                         </p>
                                     </div>
+
                                     <button
                                         onClick={() =>
                                             learned
                                                 ? handleForgetSpell(s)
                                                 : handleLearnSpell(s)
                                         }
-                                        disabled={savingId === s.index}
-                                        className={`text-[11px] px-3 py-1 rounded-md border ${
-                                            learned
-                                                ? "border-red-500/70 hover:bg-red-900/40"
-                                                : "border-emerald-500/70 hover:bg-emerald-900/40"
-                                        }`}
+                                        disabled={
+                                            savingId === s.index
+                                        }
+                                        className="text-[11px] px-3 py-1 rounded-md border"
                                     >
-                                        {learned ? "Olvidar" : "Aprender"}
+                                        {learned
+                                            ? "Olvidar"
+                                            : "Aprender"}
                                     </button>
                                 </div>
 
@@ -372,50 +527,13 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
                                     </p>
                                 )}
 
-                                <details className="mt-1 text-xs text-zinc-300 whitespace-pre-wrap">
-                                    <summary className="cursor-pointer text-[11px] text-zinc-400">
-                                        Ver descripción completa
+                                <details className="text-xs">
+                                    <summary className="cursor-pointer text-zinc-400">
+                                        Ver descripción
                                     </summary>
-                                    <div className="mt-1">
-                                        <p className="text-[11px] text-zinc-400 mb-1">
-                                            <span className="font-semibold">
-                                                Componentes:
-                                            </span>{" "}
-                                            {formatComponents(
-                                                s.components,
-                                                s.material
-                                            )}
-                                        </p>
-                                        <p className="text-[11px] text-zinc-400 mb-1">
-                                            <span className="font-semibold">
-                                                Duración:
-                                            </span>{" "}
-                                            {s.duration ?? "—"}
-                                        </p>
-                                        <p className="text-[11px] text-zinc-400 mb-1">
-                                            <span className="font-semibold">
-                                                Escuela:
-                                            </span>{" "}
-                                            {s.school ?? "—"}
-                                        </p>
-                                        <p className="text-[11px] text-zinc-400 mb-1">
-                                            <span className="font-semibold">
-                                                Concentración:
-                                            </span>{" "}
-                                            {s.concentration ? "Sí" : "No"}
-                                        </p>
-                                        <p className="text-[11px] text-zinc-400 mb-2">
-                                            <span className="font-semibold">
-                                                Ritual:
-                                            </span>{" "}
-                                            {s.ritual ? "Sí" : "No"}
-                                        </p>
-                                        <div>
-                                            {s.fullDesc ??
-                                                s.shortDesc ??
-                                                "Sin descripción ampliada disponible."}
-                                        </div>
-                                    </div>
+                                    <pre className="mt-1 whitespace-pre-wrap text-zinc-300">
+                                        {s.fullDesc}
+                                    </pre>
                                 </details>
                             </div>
                         );
@@ -424,3 +542,5 @@ export function SpellManagerPanel({ character, onDetailsChange, onClose }: Props
         </div>
     );
 }
+
+export default SpellManagerPanel;

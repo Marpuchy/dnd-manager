@@ -1,19 +1,22 @@
-// src/app/campaigns/[id]/player/LearnedSpellBlocks.tsx
+"use client";
+
 import React from "react";
-import {
-    LearnedSpellLine,
-    SpellMeta,
-    formatCastingTime,
-    formatComponents,
-} from "./playerShared";
+import { LearnedSpellRef, SpellMeta } from "./playerShared";
+
+/* ---------------------------
+   TYPES
+--------------------------- */
 
 type LevelBlockProps = {
     level: number;
     label: string;
-    lines: LearnedSpellLine[];
-    // Algunos spellDetails pueden tener entradas null si no se encontró la SRD: soportamos eso.
-    spellDetails?: Record<string, SpellMeta | null>;
+    lines: LearnedSpellRef[];
+    spellDetails: Record<string, SpellMeta>;
 };
+
+/* ---------------------------
+   LEVEL BLOCK
+--------------------------- */
 
 export function LearnedSpellLevelBlock({
                                            level,
@@ -21,42 +24,28 @@ export function LearnedSpellLevelBlock({
                                            lines,
                                            spellDetails,
                                        }: LevelBlockProps) {
-    // Construimos un mapa nombre->meta solo para los metadatos válidos y del nivel correspondiente.
-    const metaByName: Record<string, SpellMeta> = {};
-
-    if (spellDetails) {
-        for (const key of Object.keys(spellDetails)) {
-            const meta = spellDetails[key];
-            if (!meta) continue; // <- protección: saltamos entradas null/undefined
-            try {
-                if (meta.level === level) {
-                    // Guardamos por nombre tal y como esperamos que 'line.name' aparezca.
-                    // Normalmente meta.name será el nombre canónico.
-                    if (meta.name) metaByName[meta.name] = meta;
-                }
-            } catch {
-                // no hacemos nada si meta tiene forma inesperada
-                continue;
-            }
-        }
-    }
+    if (!lines.length) return null;
 
     return (
         <div className="border border-zinc-800 rounded-lg p-3">
-            <h4 className="text-sm font-semibold text-zinc-200 mb-2">{label}</h4>
+            {label && (
+                <h4 className="text-sm font-semibold text-zinc-200 mb-2">
+                    {label}
+                </h4>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {lines.map((line, i) => {
-                    // 'line' podría ser string u objeto (según parseSpellLines) — normalizamos
-                    const name =
-                        typeof line === "string" ? line : (line && (line as any).name) || String(line);
-                    // intentamos buscar meta por el nombre tal cual; si no existe, meta será undefined y la tarjeta básica se renderiza
-                    const meta = metaByName[name] ?? undefined;
+                {lines.map((spell) => {
+                    const meta =
+                        spell.index != null
+                            ? spellDetails[String(spell.index)]
+                            : undefined;
+
                     return (
                         <LearnedSpellCard
-                            key={`${name}-${i}`}
+                            key={spell.index || spell.name}
                             level={level}
-                            line={typeof line === "string" ? { name } : (line as any)}
+                            spell={spell}
                             meta={meta}
                         />
                     );
@@ -66,68 +55,113 @@ export function LearnedSpellLevelBlock({
     );
 }
 
+/* ---------------------------
+   SPELL CARD
+--------------------------- */
+
 type CardProps = {
     level: number;
-    line: LearnedSpellLine;
+    spell: LearnedSpellRef;
     meta?: SpellMeta;
 };
 
-function LearnedSpellCard({ level, line, meta }: CardProps) {
-    const typeLabel = level === 0 ? "Truco (cantrip)" : `Hechizo de nivel ${level}`;
+function LearnedSpellCard({ level, spell, meta }: CardProps) {
+    const typeLabel =
+        level === 0 ? "Truco (cantrip)" : `Hechizo de nivel ${level}`;
 
-    // Si no hay meta (no encontrado en SRD todavía) mostramos tarjeta simple con nombre y tipo
+    /* ---------------------------
+       SIN METADATA
+    --------------------------- */
     if (!meta) {
         return (
             <div className="border border-zinc-700 rounded-md p-2">
-                <p className="text-sm font-semibold text-zinc-100">{line.name}</p>
-                <p className="text-[11px] text-zinc-500">{typeLabel}</p>
+                <p className="text-sm font-semibold text-zinc-100">
+                    {spell.name}
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                    {typeLabel}
+                </p>
             </div>
         );
     }
 
-    // Protecciones adicionales: aseguramos que campos esperados existan
-    const casting = meta.casting_time ? formatCastingTime(meta.casting_time) : "—";
-    const components = formatComponents(meta.components || [], meta.material);
-    const range = meta.range || "—";
-    const duration = meta.duration || "—";
-    const school = meta.school || "—";
-    const conc = meta.concentration ? "Sí" : "No";
-    const ritual = meta.ritual ? "Sí" : "No";
-
+    /* ---------------------------
+       CON METADATA
+    --------------------------- */
     return (
         <div className="border border-zinc-700 rounded-md p-3 bg-zinc-900/40">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-100">{meta.name}</p>
-                    <p className="text-[11px] text-zinc-400">{typeLabel} · {school}</p>
+                    <p className="text-sm font-semibold text-zinc-100">
+                        {meta.name}
+                    </p>
+                    <p className="text-[11px] text-zinc-400">
+                        {typeLabel}
+                        {meta.school ? ` · ${meta.school}` : ""}
+                    </p>
                 </div>
-                <div className="text-right text-xs text-zinc-400">
-                    <div>{range}</div>
-                    <div>{duration}</div>
+
+                <div className="text-right text-xs text-zinc-400 whitespace-nowrap">
+                    <div>{meta.range ?? "—"}</div>
+                    <div>{meta.duration ?? "—"}</div>
                 </div>
             </div>
 
             <div className="mt-2 text-xs text-zinc-300 space-y-1">
                 <p>
-                    <span className="font-semibold">Tiempo de lanzamiento:</span> {casting}
+                    <span className="font-semibold">
+                        Tiempo de lanzamiento:
+                    </span>{" "}
+                    {meta.casting_time ?? "—"}
                 </p>
+
                 <p>
-                    <span className="font-semibold">Componentes:</span> {components}
+                    <span className="font-semibold">
+                        Componentes:
+                    </span>{" "}
+                    {meta.components?.length
+                        ? meta.components.join(", ")
+                        : "—"}
                 </p>
+
+                {meta.material && (
+                    <p>
+                        <span className="font-semibold">
+                            Material:
+                        </span>{" "}
+                        {meta.material}
+                    </p>
+                )}
+
                 <p>
-                    <span className="font-semibold">Concentración:</span> {conc}
+                    <span className="font-semibold">
+                        Concentración:
+                    </span>{" "}
+                    {meta.concentration ? "Sí" : "No"}
                 </p>
+
                 <p>
-                    <span className="font-semibold">Ritual:</span> {ritual}
+                    <span className="font-semibold">
+                        Ritual:
+                    </span>{" "}
+                    {meta.ritual ? "Sí" : "No"}
                 </p>
             </div>
 
-            <details className="mt-2 text-xs text-zinc-300 whitespace-pre-wrap">
-                <summary className="cursor-pointer text-[11px] text-zinc-400">Ver descripción completa</summary>
-                <div className="mt-1">
-                    {meta.fullDesc ?? meta.shortDesc ?? "Sin descripción en la SRD."}
-                </div>
-            </details>
+            {(meta.fullDesc || meta.shortDesc) && (
+                <details className="mt-2 text-xs text-zinc-300 whitespace-pre-wrap">
+                    <summary className="cursor-pointer text-[11px] text-zinc-400">
+                        Ver descripción completa
+                    </summary>
+
+                    <div className="mt-1 space-y-2">
+                        {meta.fullDesc && <p>{meta.fullDesc}</p>}
+                        {!meta.fullDesc && meta.shortDesc && (
+                            <p>{meta.shortDesc}</p>
+                        )}
+                    </div>
+                </details>
+            )}
         </div>
     );
 }

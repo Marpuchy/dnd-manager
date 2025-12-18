@@ -14,7 +14,7 @@ import {
     Mode,
     Tab,
     normalizeClassForApi,
-    prettyClassLabel,
+    prettyClassLabel, LearnedSpellRef,
 } from "./playerShared";
 import ClickableRow from "../../../components/ClickableRow";
 import CharacterView from "./ui/CharacterView";
@@ -175,6 +175,18 @@ export default function CampaignPlayerPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.id, router]);
 
+    function spellsToText(
+        value: string | LearnedSpellRef[] | undefined
+    ): string {
+        if (!value) return "";
+
+        if (typeof value === "string") return value;
+
+        // nuevo formato → convertir a texto legacy
+        return value.map((s) => s.name).join("\n");
+    }
+
+
     function resetForm() {
         setEditingId(null);
         setCharName("");
@@ -281,16 +293,17 @@ export default function CampaignPlayerPage() {
         setCustomCastingAbility(d.customCastingAbility ?? "int");
 
         const sp = d.spells || {};
-        setSpellsL0(sp.level0 ?? "");
-        setSpellsL1(sp.level1 ?? "");
-        setSpellsL2(sp.level2 ?? "");
-        setSpellsL3(sp.level3 ?? "");
-        setSpellsL4(sp.level4 ?? "");
-        setSpellsL5(sp.level5 ?? "");
-        setSpellsL6(sp.level6 ?? "");
-        setSpellsL7(sp.level7 ?? "");
-        setSpellsL8(sp.level8 ?? "");
-        setSpellsL9(sp.level9 ?? "");
+        setSpellsL0(spellsToText(sp.level0));
+        setSpellsL1(spellsToText(sp.level1));
+        setSpellsL2(spellsToText(sp.level2));
+        setSpellsL3(spellsToText(sp.level3));
+        setSpellsL4(spellsToText(sp.level4));
+        setSpellsL5(spellsToText(sp.level5));
+        setSpellsL6(spellsToText(sp.level6));
+        setSpellsL7(spellsToText(sp.level7));
+        setSpellsL8(spellsToText(sp.level8));
+        setSpellsL9(spellsToText(sp.level9));
+
     }
 
     function cancelEditOrCreate() {

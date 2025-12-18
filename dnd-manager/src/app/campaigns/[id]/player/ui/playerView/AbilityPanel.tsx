@@ -5,59 +5,20 @@ import {
     Character,
     Details,
     Stats,
-    parseSpellLines,
-    getPreparedSpellsInfo,
-    getClassMagicExtras,
-    countPreparedSpells,
-    LearnedSpellLine,
     SpellMeta,
-    normalizeClassForApi,
+    Spells,
+    LearnedSpellRef,
+    migrateOldSpells,
+    countPreparedSpells,
 } from "../../playerShared";
-import { LearnedSpellLevelBlock } from "../../LearnedSpellBlocks";
+
+import { getPreparedSpellsInfo } from "../../playerShared";
+import { getClassMagicExtras } from "../../playerShared";
+import { getClassAbilities } from "@/lib/dnd/classAbilities";
+import { ClassAbility } from "@/lib/dnd/classAbilities/types";
+
+import AbilityPanelView from "../../sections/AbilityPanelView";
 import CreateCustomSpellModal from "../../modals/CreateCustomSpellModal";
-
-/* ---------------------------
-   Cache
---------------------------- */
-const CACHE_KEY = "dnd_spell_description_cache";
-
-function readCache(): Record<string, SpellMeta> {
-    try {
-        const raw = sessionStorage.getItem(CACHE_KEY);
-        if (!raw) return {};
-        return JSON.parse(raw);
-    } catch {
-        return {};
-    }
-}
-
-function writeCache(data: Record<string, SpellMeta>) {
-    try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    } catch {}
-}
-
-/* ---------------------------
-   Helpers
---------------------------- */
-function spellKeyFromLine(line: string) {
-    return line
-        .split(/—|–|\||:|\/|\\/)[0]
-        .replace(/\(.*\)$/g, "")
-        .toLowerCase()
-        .trim();
-}
-
-function abilityAllowed(
-    meta: SpellMeta | undefined,
-    charClass: string,
-    charLevel: number
-) {
-    if (!meta) return true;
-    if (typeof meta.level === "number" && meta.level > charLevel)
-        return false;
-    return true;
-}
 
 /* ---------------------------
    Props
@@ -70,9 +31,6 @@ type Props = {
     onOpenSpellManager: () => void;
 };
 
-/* ---------------------------
-   COMPONENT
---------------------------- */
 export default function AbilityPanel({
                                          character,
                                          stats,
@@ -80,193 +38,194 @@ export default function AbilityPanel({
                                          onDetailsChange,
                                          onOpenSpellManager,
                                      }: Props) {
-    const spells = details.spells || {};
+    /* ---------------------------
+       NORMALIZE SPELLS (MIGRATION)
+    --------------------------- */
+    const normalizedSpells: Spells = migrateOldSpells(details.spells);
+
     const preparedInfo = getPreparedSpellsInfo(
         character.class,
         stats,
         character.level,
-        details
+        { ...details, spells: normalizedSpells }
     );
-    const preparedCount = countPreparedSpells(spells);
+
+    const preparedCount = countPreparedSpells(normalizedSpells);
     const extras = getClassMagicExtras(character.class, character.level);
 
     const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
     const [showCustomSpell, setShowCustomSpell] = useState(false);
+
     const builtRef = useRef(false);
 
-    const levels = [
-        { lvl: 0, label: "Trucos", text: spells.level0 },
-        { lvl: 1, label: "Nivel 1", text: spells.level1 },
-        { lvl: 2, label: "Nivel 2", text: spells.level2 },
-        { lvl: 3, label: "Nivel 3", text: spells.level3 },
-        { lvl: 4, label: "Nivel 4", text: spells.level4 },
-        { lvl: 5, label: "Nivel 5", text: spells.level5 },
-        { lvl: 6, label: "Nivel 6", text: spells.level6 },
-        { lvl: 7, label: "Nivel 7", text: spells.level7 },
-        { lvl: 8, label: "Nivel 8", text: spells.level8 },
-        { lvl: 9, label: "Nivel 9", text: spells.level9 },
-    ];
-
     /* ---------------------------
-       Auto-fetch SRD
+       LOAD SRD METADATA (BY INDEX)
+       ⚠️ FIX: CLONE SPELLS TO AVOID MUTATION
     --------------------------- */
     useEffect(() => {
-        if (builtRef.current) return;
-        builtRef.current = true;
+        if (!details.spells) return;
 
-        const apiClass =
-            normalizeClassForApi(character.class) === "custom"
-                ? "wizard"
-                : normalizeClassForApi(character.class);
+        // ✅ CLONE to force new reference (React re-render)
+        const spellsByLevel: Spells = structuredClone(
+            migrateOldSpells(details.spells)
+        );
+        const refs: LearnedSpellRef[] = [];
 
-        if (!apiClass) return;
+        // 1️⃣ Collect all spells
+        Object.values(spellsByLevel).forEach((level) => {
+            if (Array.isArray(level)) {
+                level.forEach((s) => refs.push(s));
+            }
+        });
 
-        const cache = readCache();
-        const existing = (details as any).spellDetails || {};
-        const merged = { ...existing };
+        if (!refs.length) return;
+
+        const existing = details.spellDetails || {};
+        const merged: Record<string, SpellMeta> = { ...existing };
+
+        let changed = false;
+        let indexResolved = false;
 
         (async () => {
-            for (const { lvl, text } of levels) {
-                if (!text) continue;
-                for (const line of parseSpellLines(text)) {
-                    const name = typeof line === "string" ? line : line.name;
-                    const key = spellKeyFromLine(name);
-                    if (merged[key] || cache[key]) continue;
+            // 2️⃣ Resolve missing indexes (legacy)
+            for (const spell of refs) {
+                if (spell.index) continue;
 
-                    const res = await fetch(
-                        `/api/dnd/spells?class=${apiClass}&level=${lvl}`
-                    );
-                    if (!res.ok) continue;
+                const searchRes = await fetch(
+                    `https://www.dnd5eapi.co/api/spells?name=${encodeURIComponent(
+                        spell.name
+                    )}`
+                );
 
-                    const data = (await res.json()) as SpellMeta[];
-                    for (const s of data) {
-                        if (s?.index) {
-                            merged[s.index] = s;
-                            cache[s.index] = s;
-                        }
-                    }
+                if (!searchRes.ok) continue;
+
+                const searchData = await searchRes.json();
+                const match = searchData?.results?.[0];
+
+                if (match?.index) {
+                    spell.index = match.index;
+                    indexResolved = true;
                 }
             }
 
-            writeCache(cache);
-            onDetailsChange?.({
-                ...(details || {}),
-                spellDetails: merged,
-            });
-        })();
-    }, []);
+            // 3️⃣ Load SRD metadata by index
+            for (const spell of refs) {
+                if (!spell.index) continue;
+                if (merged[spell.index]) continue;
 
+                const res = await fetch(
+                    `https://www.dnd5eapi.co/api/spells/${spell.index}`
+                );
+                if (!res.ok) continue;
+
+                const apiData = await res.json();
+
+                /* 🔥 MAPEO CORRECTO A TU SpellMeta */
+                const mapped: SpellMeta = {
+                    index: apiData.index,
+                    name: apiData.name,
+                    level: apiData.level,
+                    range: apiData.range,
+                    casting_time: apiData.casting_time,
+                    duration: apiData.duration,
+                    school: apiData.school?.name,
+                    components: apiData.components,
+                    material: apiData.material,
+                    concentration: apiData.concentration,
+                    ritual: apiData.ritual,
+
+                    shortDesc: Array.isArray(apiData.desc)
+                        ? apiData.desc[0]
+                        : undefined,
+
+                    fullDesc: [
+                        ...(apiData.desc ?? []),
+                        ...(apiData.higher_level ?? []),
+                    ].join("\n\n"),
+                };
+
+                merged[spell.index] = mapped;
+                changed = true;
+
+            }
+
+            // 4️⃣ Save ONLY if something changed
+            if (changed || indexResolved) {
+                onDetailsChange?.({
+                    ...details,
+                    spells: spellsByLevel, // ✅ NEW reference
+                    spellDetails: merged,
+                });
+            }
+        })();
+    }, [details.spells]);
+
+    /* ---------------------------
+       ADD CUSTOM SPELL
+    --------------------------- */
     function addCustomSpell(spell: SpellMeta) {
-        const key = spellKeyFromLine(spell.name);
-        const levelKey = `level${spell.level}` as keyof typeof spells;
+        const levelKey = `level${spell.level}` as keyof Spells;
+        const current = normalizedSpells[levelKey];
+
+        const updatedLevel: LearnedSpellRef[] = Array.isArray(current)
+            ? [...current]
+            : [];
+
+        updatedLevel.push({
+            index: spell.index,
+            name: spell.name,
+        });
 
         onDetailsChange?.({
             ...details,
             spells: {
-                ...details.spells,
-                [levelKey]: details.spells?.[levelKey]
-                    ? `${details.spells[levelKey]}\n${spell.name}`
-                    : spell.name,
+                ...normalizedSpells,
+                [levelKey]: updatedLevel,
             },
             spellDetails: {
-                ...(details as any)?.spellDetails,
-                [key]: spell,
+                ...(details.spellDetails || {}),
+                [spell.index]: spell,
             },
         });
     }
 
-    function filtered(level: number, raw?: string | null): LearnedSpellLine[] {
-        if (!raw) return [];
-        const parsed = parseSpellLines(raw);
-        const sd: Record<string, SpellMeta> =
-            (details as any)?.spellDetails || {};
+    /* ---------------------------
+       BUILD LEVELS FOR VIEW
+    --------------------------- */
+    const levels = Array.from({ length: 10 }, (_, lvl) => {
+        const key = `level${lvl}` as keyof Spells;
+        const value = normalizedSpells[key];
 
-        return parsed
-            .map((l) => {
-                const name = typeof l === "string" ? l : l.name;
-                const meta = sd[spellKeyFromLine(name)];
-                if (
-                    !abilityAllowed(
-                        meta,
-                        character.class ?? "",
-                        character.level ?? 0
-                    )
-                )
-                    return null;
-                return typeof l === "string"
-                    ? { name, raw: l }
-                    : { ...l, name };
-            })
-            .filter(Boolean) as LearnedSpellLine[];
-    }
+        return {
+            lvl,
+            label: lvl === 0 ? "Trucos" : `Nivel ${lvl}`,
+            spells: Array.isArray(value) ? value : [],
+        };
+    });
 
+    const classAbilities: ClassAbility[] =
+        character.class && character.level != null
+            ? getClassAbilities(character.class, character.level)
+            : [];
+
+    /* ---------------------------
+       RENDER
+    --------------------------- */
     return (
-        <div className="space-y-4">
-            <div className="flex justify-between">
-                <div className="flex gap-2">
-                    <button
-                        className="text-xs border px-2 py-1 rounded"
-                        onClick={() => setCollapsed({})}
-                    >
-                        Expandir todo
-                    </button>
-                    <button
-                        className="text-xs border px-2 py-1 rounded"
-                        onClick={() =>
-                            setCollapsed(
-                                Object.fromEntries(
-                                    Array.from({ length: 10 }, (_, i) => [i, true])
-                                )
-                            )
-                        }
-                    >
-                        Plegar todo
-                    </button>
-                </div>
-
-                <div className="flex gap-2">
-                    <button
-                        className="text-xs border px-3 py-1 rounded"
-                        onClick={onOpenSpellManager}
-                    >
-                        Abrir gestor SRD
-                    </button>
-                    <button
-                        className="text-xs border px-3 py-1 rounded"
-                        onClick={() => setShowCustomSpell(true)}
-                    >
-                        Crear hechizo personalizado
-                    </button>
-                </div>
-            </div>
-
-            {levels.map(({ lvl, label, text }) => {
-                const lines = filtered(lvl, text);
-                if (!lines.length) return null;
-
-                return (
-                    <details
-                        key={lvl}
-                        open={!collapsed[lvl]}
-                        className="border border-zinc-800 rounded-lg"
-                    >
-                        <summary className="px-3 py-2 cursor-pointer bg-zinc-900/30 flex justify-between">
-                            <span>{label}</span>
-                            <span className="text-xs text-zinc-400">
-                ({lines.length})
-              </span>
-                        </summary>
-                        <div className="p-3">
-                            <LearnedSpellLevelBlock
-                                level={lvl}
-                                label=""
-                                lines={lines}
-                                spellDetails={(details as any)?.spellDetails || {}}
-                            />
-                        </div>
-                    </details>
-                );
-            })}
+        <>
+            <AbilityPanelView
+                character={character}
+                preparedInfo={preparedInfo}
+                preparedCount={preparedCount}
+                extras={extras}
+                classAbilities={classAbilities}
+                levels={levels}
+                collapsed={collapsed}
+                setCollapsed={setCollapsed}
+                spellDetails={details.spellDetails || {}}
+                onOpenSpellManager={onOpenSpellManager}
+                onCreateCustomSpell={() => setShowCustomSpell(true)}
+            />
 
             {showCustomSpell && (
                 <CreateCustomSpellModal
@@ -274,6 +233,6 @@ export default function AbilityPanel({
                     onCreate={addCustomSpell}
                 />
             )}
-        </div>
+        </>
     );
 }
