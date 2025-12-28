@@ -13,6 +13,43 @@ type SimpleMod = {
     ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
     modifier: number;
 };
+function SpellSlotOrb({ level }: { level: number }) {
+    const gradientByLevel: Record<number, string> = {
+        1: "from-sky-200 to-sky-400",
+        2: "from-sky-300 to-cyan-500",
+        3: "from-cyan-400 to-blue-600",
+        4: "from-blue-500 to-indigo-600",
+        5: "from-indigo-600 to-violet-700",
+        6: "from-violet-700 to-purple-800",
+        7: "from-purple-800 to-fuchsia-900",
+        8: "from-fuchsia-900 to-indigo-950",
+        9: "from-indigo-950 to-black",
+    };
+
+    return (
+        <div
+            className={`
+                relative w-5 h-5 rounded-full
+                bg-gradient-to-br ${gradientByLevel[level]}
+                border border-white/20
+                animate-[spellPulse_3.5s_ease-in-out_infinite]
+            `}
+            title={`Espacio de conjuro de nivel ${level}`}
+        >
+            {/* brillo interno */}
+            <div
+                className="absolute inset-1 rounded-full bg-white/30
+                           animate-[spellInnerGlow_2.5s_ease-in-out_infinite]"
+            />
+
+            {/* núcleo oscuro para niveles altos */}
+            {level >= 7 && (
+                <div className="absolute inset-2 rounded-full bg-black/50" />
+            )}
+        </div>
+    );
+}
+
 
 function extractModifiersFromItem(item: any): SimpleMod[] {
     const out: SimpleMod[] = [];
@@ -140,6 +177,30 @@ export default function StatsPanel({
 
     return (
         <div className="space-y-6">
+            <style jsx global>{`
+                @keyframes spellPulse {
+                    0%, 100% {
+                        box-shadow: 0 0 6px rgba(120, 180, 255, 0.35),
+                        0 0 12px rgba(120, 180, 255, 0.15);
+                        transform: scale(1);
+                    }
+                    50% {
+                        box-shadow: 0 0 10px rgba(140, 160, 255, 0.55),
+                        0 0 18px rgba(140, 160, 255, 0.35);
+                        transform: scale(1.05);
+                    }
+                }
+
+                @keyframes spellInnerGlow {
+                    0%, 100% {
+                        opacity: 0.35;
+                    }
+                    50% {
+                        opacity: 0.7;
+                    }
+                }
+            `}</style>
+
             {/* ───────── BLOQUE SUPERIOR ───────── */}
             <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
                 {/* Imagen personaje */}
@@ -247,7 +308,8 @@ export default function StatsPanel({
                                                 (CA {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus})
                                             </span>
                                             {armor.equipped && (
-                                                <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
+                                                <span
+                                                    className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
                                                     Equipada
                                                 </span>
                                             )}
@@ -332,18 +394,33 @@ export default function StatsPanel({
                                 Brujo: {(spellSlots as any).slots} espacios (nivel {(spellSlots as any).slotLevel})
                             </p>
                         ) : (
-                            <div className="flex flex-wrap gap-2">
+                            <div className="space-y-2">
                                 {Object.entries(spellSlots)
                                     .filter(([lvl, num]) => Number(lvl) > 0 && Number(num) > 0)
-                                    .map(([lvl, num]) => (
-                                        <span
-                                            key={lvl}
-                                            className="px-2 py-1 rounded-md border border-zinc-700 text-xs text-zinc-300"
-                                        >
-                                            Nivel {lvl}: {num}
-                                        </span>
-                                    ))}
+                                    .map(([lvl, num]) => {
+                                        const level = Number(lvl);
+
+                                        return (
+                                            <div key={lvl} className="flex items-center gap-3">
+                                                {/* Nivel */}
+                                                <span className="w-14 text-xs text-zinc-400">
+                        Nivel {lvl}
+                    </span>
+
+                                                {/* Orbes */}
+                                                <div className="flex gap-2">
+                                                    {Array.from({length: Number(num)}).map((_, i) => (
+                                                        <SpellSlotOrb
+                                                            key={i}
+                                                            level={level}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                             </div>
+
                         )}
                     </div>
                 </div>
