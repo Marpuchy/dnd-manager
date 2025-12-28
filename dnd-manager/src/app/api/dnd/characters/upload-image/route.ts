@@ -7,59 +7,95 @@ const supabase = createClient(
 );
 
 export async function POST(req: Request) {
-    const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const characterId = formData.get("characterId") as string;
+    try {
+        const formData = await req.formData();
+        const file = formData.get("file") as File | null;
+        const characterId = formData.get("characterId") as string | null;
 
-    if (!file || !characterId) {
-        return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
+        if (!file || !characterId) {
+            return NextResponse.json(
+                { error: "Datos incompletos" },
+                { status: 400 }
+            );
+        }
+
+        /* ────────────────
+           1️⃣ BORRAR imágenes antiguas
+        ──────────────── */
+
+        const { data: oldFiles } = await supabase.storage
+            .from("character-images")
+            .list(`characters/${characterId}`);
+
+        if (oldFiles && oldFiles.length > 0) {
+            const paths = oldFiles.map(
+                (f) => `characters/${characterId}/${f.name}`
+            );
+
+            await supabase.storage
+                .from("character-images")
+                .remove(paths);
+        }
+
+        /* ────────────────
+           2️⃣ Subir nueva imagen
+        ──────────────── */
+
+        const ext = file.name.split(".").pop() ?? "png";
+        const filePath = `characters/${characterId}/${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from("character-images")
+            .upload(filePath, file, {
+                contentType: file.type,
+                upsert: false,
+            });
+
+        if (uploadError) {
+            return NextResponse.json(
+                { error: uploadError.message },
+                { status: 500 }
+            );
+        }
+
+        /* ────────────────
+           3️⃣ Obtener URL pública
+        ──────────────── */
+
+        const { data } = supabase.storage
+            .from("character-images")
+            .getPublicUrl(filePath);
+
+        if (!data?.publicUrl) {
+            return NextResponse.json(
+                { error: "No se pudo obtener la URL pública" },
+                { status: 500 }
+            );
+        }
+
+        const imageUrl = data.publicUrl;
+
+        /* ────────────────
+           4️⃣ Guardar URL en BD
+        ──────────────── */
+
+        const { error: updateError } = await supabase
+            .from("characters")
+            .update({ profile_image: imageUrl })
+            .eq("id", characterId);
+
+        if (updateError) {
+            return NextResponse.json(
+                { error: updateError.message },
+                { status: 500 }
+            );
+        }
+
+        return NextResponse.json({ imageUrl });
+    } catch (err: any) {
+        return NextResponse.json(
+            { error: err?.message ?? "Error desconocido" },
+            { status: 500 }
+        );
     }
-
-    const ext = file.name.split(".").pop();
-    const filePath = `characters/${characterId}.${ext}`;
-
-    // 1️⃣ Subir archivo
-    const { error: uploadError } = await supabase.storage
-        .from("character-images")
-        .upload(filePath, file, { upsert: true });
-
-    if (uploadError) {
-        return NextResponse.json({ error: uploadError.message }, { status: 500 });
-    }
-
-    // 2️⃣ Obtener URL pública
-    const { data } = supabase.storage
-        .from("character-images")
-        .getPublicUrl(filePath);
-
-    const imageUrl = data.publicUrl;
-
-    // 3️⃣ Leer details actuales
-    const { data: character, error: readError } = await supabase
-        .from("characters")
-        .select("details")
-        .eq("id", characterId)
-        .single();
-
-    if (readError) {
-        return NextResponse.json({ error: readError.message }, { status: 500 });
-    }
-
-    // 4️⃣ Fusionar details (CLAVE)
-    const newDetails = {
-        ...(character?.details ?? {}),
-        profile_image: imageUrl,
-    };
-
-    // 5️⃣ Guardar details
-    const { error: updateError } = await supabase
-        .from("characters")
-        .update({ details: newDetails })
-        .eq("id", characterId);
-
-    if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ imageUrl });
 }

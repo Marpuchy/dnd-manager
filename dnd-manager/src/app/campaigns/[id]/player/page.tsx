@@ -114,7 +114,9 @@ export default function CampaignPlayerPage() {
 
             const { data: chars, error: charsError } = await supabase
                 .from("characters")
-                .select("id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details")
+                .select(
+                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image"
+                )
                 .eq("campaign_id", params.id)
                 .eq("user_id", session.user.id);
 
@@ -452,7 +454,9 @@ export default function CampaignPlayerPage() {
                         campaign_id: params.id,
                         user_id: (await supabase.auth.getSession()).data.session?.user?.id,
                     })
-                    .select("id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details")
+                    .select(
+                        "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image"
+                    )
                     .single();
 
                 if (insertError) {

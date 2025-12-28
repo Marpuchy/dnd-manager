@@ -186,7 +186,6 @@ export default function CharacterView({
                     totalInt={totalInt}
                     totalWis={totalWis}
                     totalCha={totalCha}
-                    onDetailsChange={onDetailsChange}
                 />
             )}
 

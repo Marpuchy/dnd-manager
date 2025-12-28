@@ -1,13 +1,12 @@
 "use client";
 
 import React from "react";
-import {Details, Armor, Weapon, Stats} from "../../playerShared";
-import {abilityModifier, formatModifier} from "./statsHelpers";
-import {getSpellSlotsFor} from "@/lib/spellSlots";
+import { Details, Armor, Weapon, Stats } from "../../playerShared";
+import { getSpellSlotsFor } from "@/lib/spellSlots";
 import StatsHexagon from "../../../../../components/StatsHexagon";
 
 /* ─────────────────────────────
-   Helpers internos
+   Tipos y helpers
 ───────────────────────────── */
 
 type SimpleMod = {
@@ -67,7 +66,7 @@ export default function StatsPanel({
                                        totalInt,
                                        totalWis,
                                        totalCha,
-                                       onDetailsChange,
+                                       onImageUpdated,
                                    }: {
     character: any;
     details: Details | null;
@@ -79,10 +78,10 @@ export default function StatsPanel({
     totalInt: number;
     totalWis: number;
     totalCha: number;
-    onDetailsChange?: (d: Details) => void;
+    onImageUpdated?: () => void;
 }) {
     const armors: Armor[] = Array.isArray(details?.armors)
-        ? details!.armors
+        ? details.armors
         : [];
 
     const weapon: Weapon | null =
@@ -93,15 +92,14 @@ export default function StatsPanel({
             ? getSpellSlotsFor(character.class, character.level)
             : null;
 
-    /* ────────────────
-       Subida de imagen
-    ──────────────── */
+    /* ───────── Imagen persistente ───────── */
+    const profileImage = character?.profile_image;
 
-    async function handleImageUpload(
-        e: React.ChangeEvent<HTMLInputElement>
-    ) {
+    /* ───────── Subida de imagen ───────── */
+
+    async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
-        if (!file || !character?.id || !onDetailsChange) return;
+        if (!file || !character?.id) return;
 
         const formData = new FormData();
         formData.append("file", file);
@@ -112,42 +110,55 @@ export default function StatsPanel({
             body: formData,
         });
 
-        if (!res.ok) return;
+        if (!res.ok) {
+            console.error("Error subiendo imagen");
+            return;
+        }
 
-        const {imageUrl} = await res.json();
-
-        onDetailsChange({
-            ...(details ?? {}),
-            profile_image: imageUrl,
-        });
+        // 🔁 Avisamos al padre para que recargue personajes
+        onImageUpdated?.();
     }
 
-    /* ───────────────────────── */
-    console.log("PROFILE IMAGE:", details?.profile_image);
+    /* ───────── Bonus por stat ───────── */
+
+    function getBonusDetails(stat: SimpleMod["ability"]) {
+        return armors.flatMap((armor) =>
+            extractModifiersFromItem(armor)
+                .filter((m) => m.ability === stat && m.modifier !== 0)
+                .map((m) => ({
+                    source: armor.name,
+                    value: m.modifier,
+                }))
+        );
+    }
+
+    function hasBonus(stat: SimpleMod["ability"]) {
+        return getBonusDetails(stat).length > 0;
+    }
+
+    /* ───────────────────────────── */
 
     return (
         <div className="space-y-6">
-            {/* Imagen + Stats base */}
-            {/* Imagen + Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4">
-                {/* Imagen de personaje */}
-                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3 flex flex-col items-center">
-                    <div className="w-28 h-28 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700 flex items-center justify-center">
-                        {details?.profile_image &&
-                        details.profile_image.startsWith("http") ? (
+            {/* ───────── BLOQUE SUPERIOR ───────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+                {/* Imagen personaje */}
+                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
+                    <div className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700">
+                        {profileImage?.startsWith("http") ? (
                             <img
-                                src={details.profile_image}
+                                src={profileImage}
                                 alt="Imagen del personaje"
                                 className="w-full h-full object-cover"
                             />
                         ) : (
-                            <span className="text-xs text-zinc-500 text-center px-2">
-                    Sin imagen
-                </span>
+                            <div className="w-full h-full flex items-center justify-center text-xs text-zinc-500">
+                                Sin imagen
+                            </div>
                         )}
                     </div>
 
-                    <label className="mt-3 text-xs cursor-pointer text-emerald-400 hover:underline">
+                    <label className="mt-3 block text-xs text-center cursor-pointer text-emerald-400 hover:underline">
                         Cambiar imagen
                         <input
                             type="file"
@@ -160,38 +171,22 @@ export default function StatsPanel({
 
                 {/* Stats */}
                 <div className="space-y-4">
-                    {/* Vida / CA / Velocidad */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                            <span className="text-[11px] text-zinc-400">Vida</span>
-                            <div className="mt-2 text-sm text-zinc-200">
-                                {character?.current_hp ?? details?.current_hp ?? "?"} /{" "}
-                                {character?.max_hp ?? details?.max_hp ?? "?"}
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        <StatBox label="Vida">
+                            {character?.current_hp ?? details?.current_hp ?? "?"} /{" "}
+                            {character?.max_hp ?? details?.max_hp ?? "?"}
+                        </StatBox>
 
-                        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                <span className="text-[11px] text-zinc-400">
-                    Clase de armadura
-                </span>
-                            <div className="mt-2 text-sm text-zinc-200">
-                                {totalAC}
-                            </div>
-                        </div>
+                        <StatBox label="CA">{totalAC}</StatBox>
 
-                        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                <span className="text-[11px] text-zinc-400">
-                    Velocidad
-                </span>
-                            <div className="mt-2 text-sm text-zinc-200">
-                                {character?.speed ?? 30} ft
-                            </div>
-                        </div>
+                        <StatBox label="Velocidad">
+                            {character?.speed ?? 30} ft
+                        </StatBox>
                     </div>
 
-                    {/* Atributos */}
                     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
                         <StatsHexagon
+                            characterClass={character?.class}
                             stats={{
                                 FUE: totalStr,
                                 DES: totalDex,
@@ -200,13 +195,28 @@ export default function StatsPanel({
                                 SAB: totalWis,
                                 CAR: totalCha,
                             }}
+                            bonuses={{
+                                FUE: hasBonus("STR"),
+                                DES: hasBonus("DEX"),
+                                CON: hasBonus("CON"),
+                                INT: hasBonus("INT"),
+                                SAB: hasBonus("WIS"),
+                                CAR: hasBonus("CHA"),
+                            }}
+                            bonusDetails={{
+                                FUE: getBonusDetails("STR"),
+                                DES: getBonusDetails("DEX"),
+                                CON: getBonusDetails("CON"),
+                                INT: getBonusDetails("INT"),
+                                SAB: getBonusDetails("WIS"),
+                                CAR: getBonusDetails("CHA"),
+                            }}
                         />
                     </div>
-
                 </div>
             </div>
 
-            {/* Armaduras / Arma */}
+            {/* ───────── ARMADURAS / ARMA ───────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Armaduras */}
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
@@ -221,10 +231,8 @@ export default function StatsPanel({
                     ) : (
                         <div className="space-y-3">
                             {armors.map((armor) => {
-                                const mods =
-                                    extractModifiersFromItem(armor);
-                                const desc =
-                                    resolveArmorDescription(armor);
+                                const mods = extractModifiersFromItem(armor);
+                                const desc = resolveArmorDescription(armor);
 
                                 return (
                                     <div
@@ -236,15 +244,10 @@ export default function StatsPanel({
                                                 {armor.name}
                                             </span>
                                             <span className="text-xs text-zinc-400">
-                                                (CA{" "}
-                                                {armor.bonus >= 0
-                                                    ? `+${armor.bonus}`
-                                                    : armor.bonus}
-                                                )
+                                                (CA {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus})
                                             </span>
                                             {armor.equipped && (
-                                                <span
-                                                    className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
                                                     Equipada
                                                 </span>
                                             )}
@@ -267,10 +270,7 @@ export default function StatsPanel({
                                                                 : "border-rose-600 text-rose-300"
                                                         }`}
                                                     >
-                                                        {m.ability}{" "}
-                                                        {m.modifier >= 0
-                                                            ? `+${m.modifier}`
-                                                            : m.modifier}
+                                                        {m.ability} {m.modifier >= 0 ? `+${m.modifier}` : m.modifier}
                                                     </span>
                                                 ))}
                                             </div>
@@ -315,7 +315,7 @@ export default function StatsPanel({
                 </div>
             </div>
 
-            {/* Espacios de conjuro / Dotes */}
+            {/* ───────── CONJUROS / DOTES ───────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
                     <h3 className="text-sm font-semibold text-zinc-200">
@@ -329,17 +329,12 @@ export default function StatsPanel({
                             </p>
                         ) : "slots" in spellSlots ? (
                             <p className="text-xs text-zinc-300">
-                                Brujo: {(spellSlots as any).slots} espacios
-                                (nivel {(spellSlots as any).slotLevel})
+                                Brujo: {(spellSlots as any).slots} espacios (nivel {(spellSlots as any).slotLevel})
                             </p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
                                 {Object.entries(spellSlots)
-                                    .filter(
-                                        ([lvl, num]) =>
-                                            Number(lvl) > 0 &&
-                                            Number(num) > 0
-                                    )
+                                    .filter(([lvl, num]) => Number(lvl) > 0 && Number(num) > 0)
                                     .map(([lvl, num]) => (
                                         <span
                                             key={lvl}
@@ -369,6 +364,23 @@ export default function StatsPanel({
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+/* ───────── Subcomponente ───────── */
+
+function StatBox({
+                     label,
+                     children,
+                 }: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
+            <span className="text-[11px] text-zinc-400">{label}</span>
+            <div className="mt-1 text-sm text-zinc-200">{children}</div>
         </div>
     );
 }
