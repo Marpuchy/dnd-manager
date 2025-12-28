@@ -4,6 +4,7 @@ import React from "react";
 import {Details, Armor, Weapon, Stats} from "../../playerShared";
 import {abilityModifier, formatModifier} from "./statsHelpers";
 import {getSpellSlotsFor} from "@/lib/spellSlots";
+import StatsHexagon from "../../../../../components/StatsHexagon";
 
 /* ─────────────────────────────
    Helpers internos
@@ -127,11 +128,11 @@ export default function StatsPanel({
     return (
         <div className="space-y-6">
             {/* Imagen + Stats base */}
+            {/* Imagen + Stats */}
             <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4">
                 {/* Imagen de personaje */}
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3 flex flex-col items-center">
-                    <div
-                        className="w-28 h-28 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+                    <div className="w-28 h-28 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700 flex items-center justify-center">
                         {details?.profile_image &&
                         details.profile_image.startsWith("http") ? (
                             <img
@@ -141,8 +142,8 @@ export default function StatsPanel({
                             />
                         ) : (
                             <span className="text-xs text-zinc-500 text-center px-2">
-                                Sin imagen
-                            </span>
+                    Sin imagen
+                </span>
                         )}
                     </div>
 
@@ -157,64 +158,52 @@ export default function StatsPanel({
                     </label>
                 </div>
 
-                {/* Vida / CA / Velocidad */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                        <span className="text-[11px] text-zinc-400">Vida</span>
-                        <div className="mt-2 text-sm text-zinc-200">
-                            {character?.current_hp ?? details?.current_hp ?? "?"} /{" "}
-                            {character?.max_hp ?? details?.max_hp ?? "?"}
+                {/* Stats */}
+                <div className="space-y-4">
+                    {/* Vida / CA / Velocidad */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
+                            <span className="text-[11px] text-zinc-400">Vida</span>
+                            <div className="mt-2 text-sm text-zinc-200">
+                                {character?.current_hp ?? details?.current_hp ?? "?"} /{" "}
+                                {character?.max_hp ?? details?.max_hp ?? "?"}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
+                <span className="text-[11px] text-zinc-400">
+                    Clase de armadura
+                </span>
+                            <div className="mt-2 text-sm text-zinc-200">
+                                {totalAC}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
+                <span className="text-[11px] text-zinc-400">
+                    Velocidad
+                </span>
+                            <div className="mt-2 text-sm text-zinc-200">
+                                {character?.speed ?? 30} ft
+                            </div>
                         </div>
                     </div>
 
-                    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                        <span className="text-[11px] text-zinc-400">
-                            Clase de armadura
-                        </span>
-                        <div className="mt-2 text-sm text-zinc-200">
-                            {totalAC}
-                        </div>
+                    {/* Atributos */}
+                    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
+                        <StatsHexagon
+                            stats={{
+                                FUE: totalStr,
+                                DES: totalDex,
+                                CON: totalCon,
+                                INT: totalInt,
+                                SAB: totalWis,
+                                CAR: totalCha,
+                            }}
+                        />
                     </div>
 
-                    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                        <span className="text-[11px] text-zinc-400">
-                            Velocidad
-                        </span>
-                        <div className="mt-2 text-sm text-zinc-200">
-                            {character?.speed ?? 30} ft
-                        </div>
-                    </div>
                 </div>
-            </div>
-
-            {/* Atributos */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                {[
-                    {key: "FUE", value: totalStr},
-                    {key: "DES", value: totalDex},
-                    {key: "CON", value: totalCon},
-                    {key: "INT", value: totalInt},
-                    {key: "SAB", value: totalWis},
-                    {key: "CAR", value: totalCha},
-                ].map((s) => {
-                    const mod = abilityModifier(Number(s.value));
-                    return (
-                        <div
-                            key={s.key}
-                            className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3 flex flex-col items-center"
-                        >
-                            <span className="text-[11px] text-zinc-400">
-                                {s.key}
-                            </span>
-                            <span className="text-2xl font-semibold text-zinc-100">
-                                {s.value}
-                            </span>
-                            <span className="text-[11px] text-zinc-500">
-                                ({formatModifier(mod)})
-                            </span>
-                        </div>
-                    );
-                })}
             </div>
 
             {/* Armaduras / Arma */}
