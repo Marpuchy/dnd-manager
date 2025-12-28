@@ -80,6 +80,7 @@ export type SpellMeta = {
 };
 
 export type Details = {
+    profile_image?: string | null; // 👈 AÑADIR ESTA LÍNEA
     armors?: Armor[];
     weaponEquipped?: {
         name: string;
@@ -96,12 +97,10 @@ export type Details = {
     hitDie?: HitDie;
     spells?: Spells;
     spellDetails?: Record<string, SpellMeta>;
-
-    /** Clase personalizada: nombre visible */
     customClassName?: string;
-    /** Clase personalizada: estadística de lanzamiento (STR/DEX/CON/INT/WIS/CHA) */
     customCastingAbility?: keyof Stats;
 };
+
 
 export type Character = {
     id: string;
