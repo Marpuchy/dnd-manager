@@ -144,7 +144,7 @@ export default function StatsPanel({
             <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
                 {/* Imagen personaje */}
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                    <div className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700">
+                    <div className="w-full aspect-[3/5] rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700">
                         {profileImage?.startsWith("http") ? (
                             <img
                                 src={profileImage}
