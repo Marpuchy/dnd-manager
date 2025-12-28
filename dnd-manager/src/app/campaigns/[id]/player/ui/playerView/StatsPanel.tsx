@@ -13,7 +13,110 @@ type SimpleMod = {
     ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
     modifier: number;
 };
-function SpellSlotOrb({ level }: { level: number }) {
+function StatOrb({
+                     value,
+                     subValue,
+                     label,
+                     gradient,
+                     shape,
+                     iconOnly,
+                 }: {
+    value: string | number;
+    subValue?: string | number;
+    label: string;
+    gradient?: string;
+    shape?: "heart" | "shield" | "boot";
+    iconOnly?: boolean;
+}) {
+    const isIconOnly = iconOnly || shape === "boot";
+
+    const shapeClass =
+        shape === "heart"
+            ? "stat-heart"
+            : shape === "shield"
+                ? "stat-shield"
+                : "rounded-full";
+
+    return (
+        <div className="flex flex-col items-center gap-1">
+            <div
+                className={`
+        relative w-14 h-14
+        ${!isIconOnly ? `bg-gradient-to-br ${gradient}` : ""}
+        ${!isIconOnly ? "border border-white/20" : ""}
+        ${!isIconOnly ? "animate-[spellPulse_4s_ease-in-out_infinite]" : ""}
+        flex flex-col items-center justify-center
+        text-zinc-100
+        ${shapeClass}
+    `}
+                title={label}
+            >
+
+                {shape === "boot" && (
+                    <div className="relative w-20 h-20 flex items-center justify-center">
+                        {/* Bota con máscara */}
+                        <div
+                            className="
+                w-14 h-14
+                bg-emerald-400
+                animate-[spellPulse_4s_ease-in-out_infinite]
+                shadow-[0_0_10px_rgba(52,211,153,0.7)]
+            "
+                            style={{
+                                WebkitMaskImage: "url(/boot.svg)",
+                                WebkitMaskRepeat: "no-repeat",
+                                WebkitMaskPosition: "center",
+                                WebkitMaskSize: "contain",
+                                maskImage: "url(/boot.svg)",
+                                maskRepeat: "no-repeat",
+                                maskPosition: "center",
+                                maskSize: "contain",
+                            }}
+                        />
+
+                        {/* Número + unidad DENTRO */}
+                        <span
+                            className="
+                absolute inset-0
+                flex items-center justify-center
+                gap-1
+                text-sm font-semibold
+                text-white
+                drop-shadow-[0_0_4px_rgba(0,0,0,0.8)]
+                pointer-events-none
+            "
+                        >
+            {value}
+                            <span className="text-[10px] opacity-80">ft</span>
+        </span>
+                    </div>
+                )}
+
+
+
+                {shape !== "boot" && (
+                    <span className="text-lg font-semibold leading-none">
+        {value}
+    </span>
+                )}
+
+
+                {subValue !== undefined && (
+                    <span className="text-[10px] opacity-80 leading-none">
+                        {subValue}
+                    </span>
+                )}
+            </div>
+
+            <span className="text-[11px] text-zinc-400">
+                {label}
+            </span>
+        </div>
+    );
+}
+
+
+function SpellSlotOrb({level}: { level: number }) {
     const gradientByLevel: Record<number, string> = {
         1: "from-sky-200 to-sky-400",
         2: "from-sky-300 to-cyan-500",
@@ -178,6 +281,48 @@ export default function StatsPanel({
     return (
         <div className="space-y-6">
             <style jsx global>{`
+                /* ❤️ CORAZÓN (polygon compatible) */
+                .stat-heart {
+                    clip-path: polygon(
+                            50% 15%,
+                            65% 0%,
+                            100% 15%,
+                            100% 45%,
+                            50% 100%,
+                            0% 45%,
+                            0% 15%,
+                            35% 0%
+                    );
+                }
+
+                /* 🛡️ ESCUDO */
+                .stat-shield {
+                    clip-path: polygon(
+                            50% 0%,
+                            90% 15%,
+                            90% 55%,
+                            50% 100%,
+                            10% 55%,
+                            10% 15%
+                    );
+                }
+
+                /* 👢 BOTA (estable, no buguea) */
+                .stat-boot {
+                    clip-path: polygon(
+                            25% 0%,
+                            60% 0%,
+                            60% 45%,
+                            85% 45%,
+                            85% 65%,
+                            60% 65%,
+                            60% 100%,
+                            25% 100%
+                    );
+                }
+            `}</style>
+
+            <style jsx global>{`
                 @keyframes spellPulse {
                     0%, 100% {
                         box-shadow: 0 0 6px rgba(120, 180, 255, 0.35),
@@ -232,18 +377,30 @@ export default function StatsPanel({
 
                 {/* Stats */}
                 <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                        <StatBox label="Vida">
-                            {character?.current_hp ?? details?.current_hp ?? "?"} /{" "}
-                            {character?.max_hp ?? details?.max_hp ?? "?"}
-                        </StatBox>
+                    <div className="flex justify-between px-2">
+                        <StatOrb
+                            label="Vida"
+                            value={character?.current_hp ?? details?.current_hp ?? "?"}
+                            subValue={`/ ${character?.max_hp ?? details?.max_hp ?? "?"}`}
+                            gradient="from-rose-400 to-rose-700"
+                            shape="heart"
+                        />
 
-                        <StatBox label="CA">{totalAC}</StatBox>
+                        <StatOrb
+                            label="CA"
+                            value={totalAC}
+                            gradient="from-sky-400 to-sky-700"
+                            shape="shield"
+                        />
 
-                        <StatBox label="Velocidad">
-                            {character?.speed ?? 30} ft
-                        </StatBox>
+                        <StatOrb
+                            label="Velocidad"
+                            value={character?.speed ?? 30}
+                            gradient="from-emerald-400 to-emerald-700"
+                            shape="boot"
+                        />
                     </div>
+
 
                     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
                         <StatsHexagon
@@ -277,7 +434,8 @@ export default function StatsPanel({
                 </div>
             </div>
 
-            {/* ───────── ARMADURAS / ARMA ───────── */}
+            {/* ───────── ARMADURAS / ARMA ───────── */
+            }
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Armaduras */}
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
@@ -451,7 +609,7 @@ function StatBox({
                      label,
                      children,
                  }: {
-    label: string;
+    label: React.ReactNode;
     children: React.ReactNode;
 }) {
     return (
