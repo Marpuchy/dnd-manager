@@ -1,132 +1,35 @@
 // src/app/campaigns/[id]/player/playerShared.ts
 import { abilityMod } from "@/lib/dndMath";
 
-export type Member = {
-    role: "PLAYER" | "DM";
-};
+export type Member = import("@/lib/types/ui").Member;
 
 // Hechizo aprendido por el personaje
-export type LearnedSpellRef = {
-    index: string;   // ← VERDAD ÚNICA
-    name: string;
-};
+export type LearnedSpellRef = import("@/lib/types/dnd").LearnedSpellRef;
 
 // Ahora los spells del personaje pueden ser:
-export type Spells = {
-    level0?: string | LearnedSpellRef[];
-    level1?: string | LearnedSpellRef[];
-    level2?: string | LearnedSpellRef[];
-    level3?: string | LearnedSpellRef[];
-    level4?: string | LearnedSpellRef[];
-    level5?: string | LearnedSpellRef[];
-    level6?: string | LearnedSpellRef[];
-    level7?: string | LearnedSpellRef[];
-    level8?: string | LearnedSpellRef[];
-    level9?: string | LearnedSpellRef[];
-};
+export type Spells = import("@/lib/types/dnd").Spells;
 
 
-export type Stats = {
-    str: number;
-    dex: number;
-    con: number;
-    int: number;
-    wis: number;
-    cha: number;
-};
+export type Stats = import("@/lib/types/dnd").Stats;
 
-export type Armor = {
-    id?: string | null;
-    name: string;
-    bonus: number;
-    ability?: string | null;
-    stat_ability?: string | null;
-    stat_modifier?: number | null;
-    equipped?: boolean | null;
-    description?: string | null; // añadido para persistir/mostrar descripciones
-    modifiers?: { ability: keyof Stats | string; modifier: number; note?: string }[] | null; // añadidos modificadores extra
-};
+export type Armor = import("@/lib/types/dnd").Armor;
 
-export type Weapon = {
-    id?: string | null;
-    name: string;
-    damage?: string | null;
-    stat_ability?: string | null;
-    modifier?: number | null;
-    is_proficient?: boolean | null;
-    description?: string | null;
-    equipped?: boolean | null;
-    meta?: any;
-};
+export type Weapon = import("@/lib/types/dnd").Weapon;
 
-export type HitDie = {
-    sides: number; // 6, 8, 10, 12...
-};
+export type HitDie = import("@/lib/types/dnd").HitDie;
 
-export type SpellMeta = {
-    index: string;
-    name: string;
-    level: number;
-    range?: string;
-    casting_time?: string;
-    duration?: string;
-    school?: string;
-    components?: string[];
-    material?: string;
-    concentration?: boolean;
-    ritual?: boolean;
-    shortDesc?: string;
-    fullDesc?: string;
-};
+export type SpellMeta = import("@/lib/types/dnd").SpellMeta;
 
-export type Details = {
-    profile_image?: string | null; // 👈 AÑADIR ESTA LÍNEA
-    armors?: Armor[];
-    weaponEquipped?: {
-        name: string;
-        damage?: string;
-        description?: string;
-    };
-    current_hp?: number | null;
-    max_hp?: number | null;
-    inventory?: string;
-    equipment?: string;
-    abilities?: string;
-    weaponsExtra?: string;
-    notes?: string;
-    hitDie?: HitDie;
-    spells?: Spells;
-    spellDetails?: Record<string, SpellMeta>;
-    customClassName?: string;
-    customCastingAbility?: keyof Stats;
-};
+export type Details = import("@/lib/types/dnd").Details;
 
+export type Character = import("@/lib/types/dnd").Character;
 
-export type Character = {
-    id: string;
-    name: string;
-    class: string | null;
-    level: number | null;
-    race: string | null;
-    experience: number | null;
-    max_hp: number | null;
-    current_hp: number | null;
-    armor_class: number | null;
-    speed: number | null;
-    stats: Stats | null;
-    details: Details | null;
-};
+export type Mode = import("@/lib/types/ui").Mode;
+export type Tab = import("@/lib/types/ui").Tab;
 
-export type Mode = "view" | "create" | "edit";
-export type Tab = "stats" | "spells" | "inventory";
+export type LearnedSpellLine = import("@/lib/types/dnd").LearnedSpellLine;
 
-export type LearnedSpellLine = {
-    raw: string;
-    name: string;
-    note?: string;
-};
-
-export type SpellSummary = SpellMeta;
+export type SpellSummary = import("@/lib/types/dnd").SpellSummary;
 
 /* ─────────────────────────────────────────────
    Configuración de clases
@@ -263,13 +166,7 @@ export function getPreparedSpellsInfo(
 }
 
 // en src/app/campaigns/[id]/player/playerShared.ts (añadelo en la sección de tipos)
-export type PassiveModifier = {
-    id: string; // uuid o cualquier id único (puedes generarlo cliente-side)
-    ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
-    value: number; // +1, -1, etc.
-    note?: string;
-    source?: string; // "arma", "armadura", etc.
-};
+export type PassiveModifier = import("@/lib/types/dnd").PassiveModifier;
 
 export function getClassMagicExtras(
     charClass: string | null,
@@ -390,4 +287,5 @@ export function migrateOldSpells(spells?: Spells): Spells {
 
     return out;
 }
+
 

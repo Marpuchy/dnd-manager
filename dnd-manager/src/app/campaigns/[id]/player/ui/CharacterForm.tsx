@@ -1,22 +1,22 @@
-// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
+﻿// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
 "use client";
 
 import React, { FormEvent } from "react";
 import { useParams } from "next/navigation";
-import { abilityMod, computeMaxHp, sumArmorBonus } from "@/lib/dndMath";
-import { Armor, Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
+import { abilityMod, computeMaxHp } from "@/lib/dndMath";
+import { Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
 import { InfoBox } from "./InfoBox";
 import { StatInput } from "./StatInput";
-import { TextField, NumberField, TextareaField } from "./FormFields";
+import { TextField, NumberField, MarkdownField } from "./FormFields";
 
-import { ArmorAndWeaponSection } from "../sections/ArmorAndWeaponSection";
-import { InventorySections } from "../sections/InventorySections";
 import { SpellSection } from "../sections/SpellSection";
+import ItemManagerSection from "../sections/ItemManagerSection";
+import CustomContentManager from "../sections/CustomContentManager";
+import type { CharacterFormFields } from "../hooks/useCharacterForm";
+import { getClientLocale } from "@/lib/i18n/getClientLocale";
 
 import {
     upsertStats,
-    createOrUpdateWeapon,
-    createOrUpdateArmor,
     createOrUpdateCharacterRow,
     updateCharacterDetails,
 } from "../services/characters.api";
@@ -27,15 +27,16 @@ type CharacterFormProps = {
     mode: Mode;
     onSubmit?: (e: FormEvent) => void;
     onCancel: () => void;
-    fields: any;
+    fields: CharacterFormFields;
 };
 
 export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFormProps) {
     const params = useParams();
     const routeCampaignId = (params as any)?.id ?? null;
+    const locale = getClientLocale();
 
     const {
-        // Datos básicos
+        // Datos bÃ¡sicos
         charName,
         setCharName,
         charClass,
@@ -77,7 +78,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         removeArmor,
         updateArmor,
 
-        // Arma equipada (datos básicos; los modificadores se gestionan en la sección)
+        // Arma equipada (datos bÃ¡sicos; los modificadores se gestionan en la secciÃ³n)
         weaponId,
         setWeaponId,
         weaponName,
@@ -94,6 +95,8 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         setWeaponProficient,
         weaponEquipped,
         setWeaponEquipped,
+        weaponPassiveModifiers,
+        setWeaponPassiveModifiers,
 
         // Texto libre
         inventory,
@@ -106,6 +109,72 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         setWeaponsExtra,
         notes,
         setNotes,
+        background,
+        setBackground,
+        alignment,
+        setAlignment,
+        personalityTraits,
+        setPersonalityTraits,
+        ideals,
+        setIdeals,
+        bonds,
+        setBonds,
+        flaws,
+        setFlaws,
+        appearance,
+        setAppearance,
+        backstory,
+        setBackstory,
+        languages,
+        setLanguages,
+        proficiencies,
+        setProficiencies,
+        customSections,
+        setCustomSections,
+        companionEnabled,
+        setCompanionEnabled,
+        companionName,
+        setCompanionName,
+        companionKind,
+        setCompanionKind,
+        companionSize,
+        setCompanionSize,
+        companionArmorClass,
+        setCompanionArmorClass,
+        companionSpeed,
+        setCompanionSpeed,
+        companionCurrentHp,
+        setCompanionCurrentHp,
+        companionMaxHp,
+        setCompanionMaxHp,
+        companionStr,
+        setCompanionStr,
+        companionDex,
+        setCompanionDex,
+        companionCon,
+        setCompanionCon,
+        companionInt,
+        setCompanionInt,
+        companionWis,
+        setCompanionWis,
+        companionCha,
+        setCompanionCha,
+        companionAbilities,
+        setCompanionAbilities,
+        companionSpells,
+        setCompanionSpells,
+        companionNotes,
+        setCompanionNotes,
+        items,
+        setItems,
+        customSpells,
+        setCustomSpells,
+        customCantrips,
+        setCustomCantrips,
+        customTraits,
+        setCustomTraits,
+        customClassAbilities,
+        setCustomClassAbilities,
 
         // Hechizos por nivel
         spellsL0,
@@ -151,7 +220,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     // Retenemos localmente el id para siguientes guardados
     const [localCharacterId, setLocalCharacterId] = React.useState<string | null | undefined>(incomingCharacterId ?? undefined);
 
-    // Bloqueo de envío para evitar dobles llamadas
+    // Bloqueo de envÃ­o para evitar dobles llamadas
     const [saving, setSaving] = React.useState(false);
 
     // Resolver campaign id (prioridad: fields -> nested -> route)
@@ -166,11 +235,37 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     console.debug("CharacterForm init:", { incomingCharacterId, localCharacterId, campaignId });
 
     const conMod = abilityMod(con);
-    const baseAC = armorClass ?? 10;
-    const armorBonus = sumArmorBonus(armors as Armor[]);
-    const previewTotalAC = baseAC + armorBonus;
     const previewMaxHp = computeMaxHp(charLevel, con, hitDieSides);
     const isCustomClass = charClass === "custom";
+
+    const customSectionsSafe = Array.isArray(customSections) ? customSections : [];
+
+    function updateCustomSection(index: number, patch: Partial<{ title: string; content: string }>) {
+        if (!setCustomSections) return;
+        const next = [...customSectionsSafe];
+        const current = next[index];
+        if (!current) return;
+        next[index] = { ...current, ...patch };
+        setCustomSections(next);
+    }
+
+    function addCustomSection() {
+        if (!setCustomSections) return;
+        const next = [
+            ...customSectionsSafe,
+            {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                title: "Nueva secciÃ³n",
+                content: "",
+            },
+        ];
+        setCustomSections(next);
+    }
+
+    function removeCustomSection(id: string) {
+        if (!setCustomSections) return;
+        setCustomSections(customSectionsSafe.filter((section) => section.id !== id));
+    }
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -187,7 +282,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         }
 
         if (saving) {
-            console.debug("handleSubmit: already saving — ignoring duplicate submit");
+            console.debug("handleSubmit: already saving â€” ignoring duplicate submit");
             return;
         }
         setSaving(true);
@@ -196,21 +291,21 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             // session / user
             const { data: sessData, error: sessErr } = await supabase.auth.getSession();
             if (sessErr) {
-                console.error("Error obteniendo sesión:", inspectError(sessErr));
-                alert("Error obteniendo sesión: " + inspectError(sessErr));
+                console.error("Error obteniendo sesiÃ³n:", inspectError(sessErr));
+                alert("Error obteniendo sesiÃ³n: " + inspectError(sessErr));
                 setSaving(false);
                 return;
             }
             const session = (sessData as any)?.session ?? null;
             const userId = session?.user?.id ?? null;
             if (!userId) {
-                alert("No estás autenticado. Ve al login antes de guardar un personaje.");
+                alert("No estÃ¡s autenticado. Ve al login antes de guardar un personaje.");
                 setSaving(false);
                 return;
             }
 
             if (!campaignId) {
-                const msg = "No se resolvió campaign_id. Pasa campaignId en fields o usa la ruta /campaigns/[id]/player.";
+                const msg = "No se resolviÃ³ campaign_id. Pasa campaignId en fields o usa la ruta /campaigns/[id]/player.";
                 console.error(msg);
                 alert(msg);
                 setSaving(false);
@@ -230,7 +325,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                 speed: speed !== undefined && speed !== null ? Number(speed) : null,
                 max_hp: previewMaxHp !== undefined && previewMaxHp !== null ? Number(previewMaxHp) : null,
                 current_hp: currentHp !== undefined && currentHp !== null ? Number(currentHp) : null,
-                details: {} // actualizaremos después
+                details: {} // actualizaremos despuÃ©s
             };
 
             try {
@@ -253,7 +348,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                 if (!cid && (localCharacterId || incomingCharacterId)) cid = localCharacterId ?? incomingCharacterId ?? null;
 
                 if (!cid) {
-                    console.error("createOrUpdateCharacterRow no devolvió id y no tenemos fallback. Respuesta:", charRes);
+                    console.error("createOrUpdateCharacterRow no devolviÃ³ id y no tenemos fallback. Respuesta:", charRes);
                     alert("Error: no se obtuvo id del personaje. Revisa consola (posible RLS).");
                     setSaving(false);
                     return;
@@ -268,7 +363,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     const maybeSetter = (fields as unknown as { setCharacterId?: (id: string) => void }).setCharacterId;
                     maybeSetter?.(cid);
                 } catch (err) {
-                    console.debug("No se pudo notificar setCharacterId al padre (no existe o falló).", err);
+                    console.debug("No se pudo notificar setCharacterId al padre (no existe o fallÃ³).", err);
                 }
 
                 // 2) upsert stats
@@ -287,76 +382,53 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     return;
                 }
 
-                // 3) weapon
-                if (weaponName && weaponName.trim().length > 0) {
-                    const wRes = await createOrUpdateWeapon(cid, {
-                        id: weaponId ?? undefined,
-                        name: weaponName,
-                        damage: weaponDamage ?? null,
-                        stat_ability: weaponStatAbility ?? null,
-                        modifier: Number(weaponStatModifier ?? 0),
-                        is_proficient: !!weaponProficient,
-                        description: weaponDescription ?? null,
-                        equipped: !!weaponEquipped
-                    });
-                    if ((wRes as any).error) {
-                        console.error("Error en createOrUpdateWeapon:", inspectError((wRes as any).error));
-                        alert("Error al guardar arma: " + inspectError((wRes as any).error));
-                        setSaving(false);
-                        return;
-                    }
-                    try {
-                        const inserted = Array.isArray((wRes as any).data) ? (wRes as any).data[0] : (wRes as any).data;
-                        if (inserted && inserted.id) {
-                            // call setter safely
-                            (setWeaponId as unknown as ((id: string) => void) | undefined)?.(inserted.id);
+                // 3) update details JSON (items + contenido personalizado)
+                const companionPayload =
+                    companionEnabled || (companionName && companionName.trim())
+                        ? {
+                            name: companionName?.trim() || "Compañero",
+                            kind: companionKind?.trim() || undefined,
+                            size: companionSize?.trim() || undefined,
+                            armorClass: typeof companionArmorClass === "number" ? companionArmorClass : undefined,
+                            speed: typeof companionSpeed === "number" ? companionSpeed : undefined,
+                            currentHp: typeof companionCurrentHp === "number" ? companionCurrentHp : undefined,
+                            maxHp: typeof companionMaxHp === "number" ? companionMaxHp : undefined,
+                            stats: {
+                                str: companionStr ?? 10,
+                                dex: companionDex ?? 10,
+                                con: companionCon ?? 10,
+                                int: companionInt ?? 10,
+                                wis: companionWis ?? 10,
+                                cha: companionCha ?? 10,
+                            },
+                            abilities: companionAbilities?.trim() || undefined,
+                            spells: companionSpells?.trim() || undefined,
+                            notes: companionNotes?.trim() || undefined,
                         }
-                    } catch {}
-                }
+                        : null;
 
-                // 4) armors (ACTUALIZADO: enviar description y modifiers si existen)
-                if (Array.isArray(armors)) {
-                    for (const a of armors) {
-                        const aRes = await createOrUpdateArmor(cid, {
-                            id: a.id ?? undefined,
-                            name: a.name ?? (a.armorName ?? "Armadura"),
-                            bonus: Number(a.bonus ?? 0),
-                            stat_ability: a.statAbility ?? a.ability ?? null,
-                            stat_modifier: Number(a.statModifier ?? a.stat_modifier ?? 0),
-                            equipped: !!a.equipped,
-                            // <-- NUEVO: enviar descripción si existe (varias claves posibles)
-                            description:
-                                (a as any).description ??
-                                (a as any).desc ??
-                                (a as any).text ??
-                                (a as any).info ??
-                                (a as any).notes ??
-                                null,
-                            // <-- NUEVO: enviar modifiers extra si existen (ajusta si tu API no los soporta)
-                            modifiers: Array.isArray((a as any).modifiers)
-                                ? (a as any).modifiers.map((m: any) => ({
-                                    ability: m.ability ?? m.statAbility ?? m.stat_ability ?? null,
-                                    modifier: Number(m.modifier ?? m.value ?? m.amount ?? 0),
-                                    note: m.note ?? null
-                                }))
-                                : undefined
-                        });
-                        if ((aRes as any).error) {
-                            console.error("Error guardando armadura:", inspectError((aRes as any).error), "armor:", a);
-                            alert("Error al guardar armadura: " + inspectError((aRes as any).error));
-                            setSaving(false);
-                            return;
-                        }
-                    }
-                }
-
-                // 5) update details JSON
                 const detailsPatch: any = {
-                    inventory: inventory ?? null,
-                    equipment: equipment ?? null,
                     abilities: abilities ?? null,
-                    weaponsExtra: weaponsExtra ?? null,
                     notes: notes ?? null,
+                    background: background ?? null,
+                    alignment: alignment ?? null,
+                    personalityTraits: personalityTraits ?? null,
+                    ideals: ideals ?? null,
+                    bonds: bonds ?? null,
+                    flaws: flaws ?? null,
+                    appearance: appearance ?? null,
+                    backstory: backstory ?? null,
+                    languages: languages ?? null,
+                    proficiencies: proficiencies ?? null,
+                    customSections: customSectionsSafe ?? null,
+                    companion: companionPayload,
+                    items: Array.isArray(items) ? items : [],
+                    customSpells: Array.isArray(customSpells) ? customSpells : [],
+                    customCantrips: Array.isArray(customCantrips) ? customCantrips : [],
+                    customTraits: Array.isArray(customTraits) ? customTraits : [],
+                    customClassAbilities: Array.isArray(customClassAbilities)
+                        ? customClassAbilities
+                        : [],
                     spells: {
                         level0: spellsL0 ?? null,
                         level1: spellsL1 ?? null,
@@ -406,22 +478,22 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     --------------------------- */
 
     return (
-        <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-4 space-y-4">
+        <div className="border border-ring bg-panel/80 rounded-xl p-[var(--panel-pad)] space-y-[var(--panel-gap)]">
             {/* Header */}
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold text-purple-300">
+                    <h2 className="text-lg font-semibold text-ink">
                         {mode === "create" ? "Nuevo personaje" : "Editar personaje"}
                     </h2>
-                    <p className="text-xs text-zinc-500">
-                        Gestiona stats base, equipo, arma principal, inventario y conjuros.
+                    <p className="text-xs text-ink-muted">
+                        Gestiona stats base, inventario, objetos equipados y conjuros.
                     </p>
                 </div>
                 <div className="flex gap-2">
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="text-xs px-3 py-1 rounded-md border border-zinc-700 hover:bg-zinc-900"
+                        className="text-xs px-3 py-1 rounded-md border border-ring hover:bg-white/80"
                     >
                         Cancelar
                     </button>
@@ -429,7 +501,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                         type="submit"
                         form="character-form"
                         disabled={saving}
-                        className="text-xs px-3 py-1 rounded-md border border-purple-600/70 bg-purple-700/30 hover:bg-purple-700/50 disabled:opacity-50"
+                        className="text-xs px-3 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 disabled:opacity-50"
                     >
                         {mode === "edit" ? (saving ? "Guardando..." : "Guardar cambios") : (saving ? "Creando..." : "Crear personaje")}
                     </button>
@@ -437,19 +509,19 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             </header>
 
             <form id="character-form" onSubmit={handleSubmit} className="space-y-6">
-                {/* Datos básicos / clase / vida */}
+                {/* Datos bÃ¡sicos / clase / vida */}
                 <section className="space-y-3">
-                    <h3 className="text-sm font-semibold text-purple-200">Datos básicos</h3>
+                    <h3 className="text-sm font-semibold text-ink">Datos bÃ¡sicos</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <TextField label="Nombre" value={charName} onChange={setCharName} required />
 
                         {/* Clase */}
                         <div className="flex flex-col gap-1 text-sm">
-                            <label className="text-sm text-purple-200">Clase</label>
+                            <label className="text-sm text-ink">Clase</label>
                             <select
                                 value={charClass}
                                 onChange={(e) => setCharClass(e.target.value)}
-                                className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                                className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                             >
                                 <option value="">Sin clase</option>
                                 {DND_CLASS_OPTIONS.map((c: any) => (
@@ -457,9 +529,9 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                                         {c.label}
                                     </option>
                                 ))}
-                                <option value="custom">Clase personalizada…</option>
+                                <option value="custom">Clase personalizadaâ€¦</option>
                             </select>
-                            <p className="text-[11px] text-zinc-500">
+                            <p className="text-[11px] text-ink-muted">
                                 Se usa para calcular espacios de conjuro y cargar habilidades.
                             </p>
                         </div>
@@ -469,21 +541,21 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
 
                     {/* Clase personalizada */}
                     {isCustomClass && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border border-purple-800/60 rounded-lg p-3 bg-zinc-900/60">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border border-ring rounded-lg p-3 bg-panel/80">
                             <TextField label="Nombre de la clase personalizada" value={customClassName} onChange={setCustomClassName} />
                             <div className="space-y-1">
-                                <label className="text-sm text-purple-200">Característica de conjuro</label>
+                                <label className="text-sm text-ink">CaracterÃ­stica de conjuro</label>
                                 <select
                                     value={customCastingAbility}
                                     onChange={(e) => setCustomCastingAbility(e.target.value as keyof Stats)}
-                                    className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                                 >
                                     <option value="int">Inteligencia (INT)</option>
-                                    <option value="wis">Sabiduría (SAB)</option>
+                                    <option value="wis">SabidurÃ­a (SAB)</option>
                                     <option value="cha">Carisma (CAR)</option>
                                     <option value="str">Fuerza (FUE)</option>
                                     <option value="dex">Destreza (DES)</option>
-                                    <option value="con">Constitución (CON)</option>
+                                    <option value="con">ConstituciÃ³n (CON)</option>
                                 </select>
                             </div>
                         </div>
@@ -500,11 +572,11 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     {/* Vida / dado de golpe */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                            <label className="text-sm text-purple-200">Dado de golpe por nivel</label>
+                            <label className="text-sm text-ink">Dado de golpe por nivel</label>
                             <select
                                 value={hitDieSides}
                                 onChange={(e) => setHitDieSides(Number(e.target.value) || 8)}
-                                className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                                className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                             >
                                 <option value={6}>d6</option>
                                 <option value={8}>d8</option>
@@ -516,16 +588,16 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                         <NumberField label="Vida actual" value={currentHp} onChange={setCurrentHp} min={0} />
 
                         <InfoBox
-                            label="Vida máxima (calculada)"
+                            label="Vida mÃ¡xima (calculada)"
                             value={previewMaxHp}
-                            sub={`(${hitDieSides} × nivel) + ${conMod >= 0 ? `+${conMod}` : conMod}`}
+                            sub={`(${hitDieSides} Ã— nivel) + ${conMod >= 0 ? `+${conMod}` : conMod}`}
                         />
                     </div>
                 </section>
 
                 {/* Stats base */}
                 <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-purple-200">Atributos (stats)</h3>
+                    <h3 className="text-sm font-semibold text-ink">Atributos (stats)</h3>
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                         <StatInput label="FUE (STR)" value={str} onChange={setStr} />
                         <StatInput label="DES (DEX)" value={dex} onChange={setDex} />
@@ -536,31 +608,19 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     </div>
                 </section>
 
-                {/* Armaduras + arma principal (sección separada) */}
-                <ArmorAndWeaponSection
-                    armors={armors}
-                    addArmor={addArmor}
-                    removeArmor={removeArmor}
-                    updateArmor={updateArmor}
-                    baseAC={baseAC}
-                    armorBonus={armorBonus}
-                    previewTotalAC={previewTotalAC}
-                    weaponId={weaponId}
-                    setWeaponId={setWeaponId}
-                    weaponName={weaponName}
-                    setWeaponName={setWeaponName}
-                    weaponDamage={weaponDamage}
-                    setWeaponDamage={setWeaponDamage}
-                    weaponDescription={weaponDescription}
-                    setWeaponDescription={setWeaponDescription}
-                    weaponStatAbility={weaponStatAbility}
-                    setWeaponStatAbility={setWeaponStatAbility}
-                    weaponStatModifier={weaponStatModifier}
-                    setWeaponStatModifier={setWeaponStatModifier}
-                    weaponProficient={weaponProficient}
-                    setWeaponProficient={setWeaponProficient}
-                    weaponEquipped={weaponEquipped}
-                    setWeaponEquipped={setWeaponEquipped}
+                {/* Inventario y equipamiento */}
+                <ItemManagerSection items={items} setItems={setItems} />
+
+                <CustomContentManager
+                    locale={locale}
+                    customSpells={customSpells}
+                    setCustomSpells={setCustomSpells}
+                    customCantrips={customCantrips}
+                    setCustomCantrips={setCustomCantrips}
+                    customTraits={customTraits}
+                    setCustomTraits={setCustomTraits}
+                    customClassAbilities={customClassAbilities}
+                    setCustomClassAbilities={setCustomClassAbilities}
                 />
 
                 {/* Conjuros (chips + buscador) */}
@@ -589,22 +649,239 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     setSpellsL9={setSpellsL9}
                 />
 
-                {/* Inventario / equipamiento / notas */}
-                <InventorySections
-                    inventory={inventory}
-                    setInventory={setInventory}
-                    equipment={equipment}
-                    setEquipment={setEquipment}
-                    weaponsExtra={weaponsExtra}
-                    setWeaponsExtra={setWeaponsExtra}
-                    abilities={abilities}
-                    setAbilities={setAbilities}
-                    notes={notes}
-                    setNotes={setNotes}
-                />
+                {/* Perfil rápido y notas */}
+                <section className="space-y-3">
+                    <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-ink">
+                            Perfil rápido
+                        </summary>
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <TextField
+                                label="Trasfondo"
+                                value={background}
+                                onChange={setBackground}
+                            />
+                            <TextField
+                                label="Alineamiento"
+                                value={alignment}
+                                onChange={setAlignment}
+                            />
+                            <MarkdownField
+                                label="Rasgos de personalidad"
+                                value={personalityTraits}
+                                onChange={setPersonalityTraits}
+                            />
+                            <MarkdownField
+                                label="Ideales"
+                                value={ideals}
+                                onChange={setIdeals}
+                            />
+                            <MarkdownField
+                                label="Vínculos"
+                                value={bonds}
+                                onChange={setBonds}
+                            />
+                            <MarkdownField
+                                label="Defectos"
+                                value={flaws}
+                                onChange={setFlaws}
+                            />
+                        </div>
+                    </details>
+
+                    <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-ink">
+                            Notas y rasgos libres
+                        </summary>
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <MarkdownField
+                                label="Rasgos adicionales"
+                                value={abilities}
+                                onChange={setAbilities}
+                                helper="Markdown soportado."
+                            />
+                            <MarkdownField
+                                label="Notas generales"
+                                value={notes}
+                                onChange={setNotes}
+                                helper="Anotaciones libres del personaje."
+                            />
+                        </div>
+                    </details>
+                </section>
+
+                <section className="space-y-3">
+                    <h3 className="text-sm font-semibold text-ink">Perfil y trasfondo</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <MarkdownField
+                            label="Apariencia"
+                            value={appearance}
+                            onChange={setAppearance}
+                            helper="DescripciÃ³n fÃ­sica, rasgos visibles, marcas, etc."
+                        />
+                        <MarkdownField
+                            label="Historia / Backstory"
+                            value={backstory}
+                            onChange={setBackstory}
+                            helper="Contexto del personaje, motivaciones, eventos clave."
+                            rows={6}
+                        />
+                        <MarkdownField
+                            label="Idiomas"
+                            value={languages}
+                            onChange={setLanguages}
+                            helper="Lista de idiomas conocidos."
+                        />
+                        <MarkdownField
+                            label="Competencias"
+                            value={proficiencies}
+                            onChange={setProficiencies}
+                            helper="Armas, herramientas, armaduras, etc."
+                        />
+                    </div>
+                </section>
+
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-ink">Compañero / Mascota</h3>
+                        <label className="flex items-center gap-2 text-xs text-ink-muted">
+                            <input
+                                type="checkbox"
+                                checked={!!companionEnabled}
+                                onChange={(e) => setCompanionEnabled?.(e.target.checked)}
+                            />
+                            Activar compañero
+                        </label>
+                    </div>
+
+                    {companionEnabled && (
+                        <div className="space-y-4 rounded-lg border border-ring bg-panel/80 p-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <TextField
+                                    label="Nombre"
+                                    value={companionName ?? ""}
+                                    onChange={(value) => setCompanionName?.(value)}
+                                />
+                                <TextField
+                                    label="Tipo / Especie"
+                                    value={companionKind ?? ""}
+                                    onChange={(value) => setCompanionKind?.(value)}
+                                />
+                                <TextField
+                                    label="Tamaño"
+                                    value={companionSize ?? ""}
+                                    onChange={(value) => setCompanionSize?.(value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <NumberField
+                                    label="CA"
+                                    value={companionArmorClass ?? 10}
+                                    onChange={(value) => setCompanionArmorClass?.(value)}
+                                    min={0}
+                                />
+                                <NumberField
+                                    label="Velocidad (ft)"
+                                    value={companionSpeed ?? 30}
+                                    onChange={(value) => setCompanionSpeed?.(value)}
+                                    min={0}
+                                />
+                                <NumberField
+                                    label="Vida actual"
+                                    value={companionCurrentHp ?? 0}
+                                    onChange={(value) => setCompanionCurrentHp?.(value)}
+                                    min={0}
+                                />
+                                <NumberField
+                                    label="Vida máxima"
+                                    value={companionMaxHp ?? 0}
+                                    onChange={(value) => setCompanionMaxHp?.(value)}
+                                    min={0}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                                <StatInput label="FUE" value={companionStr ?? 10} onChange={(v) => setCompanionStr?.(v)} />
+                                <StatInput label="DES" value={companionDex ?? 10} onChange={(v) => setCompanionDex?.(v)} />
+                                <StatInput label="CON" value={companionCon ?? 10} onChange={(v) => setCompanionCon?.(v)} />
+                                <StatInput label="INT" value={companionInt ?? 10} onChange={(v) => setCompanionInt?.(v)} />
+                                <StatInput label="SAB" value={companionWis ?? 10} onChange={(v) => setCompanionWis?.(v)} />
+                                <StatInput label="CAR" value={companionCha ?? 10} onChange={(v) => setCompanionCha?.(v)} />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <MarkdownField
+                                    label="Habilidades y rasgos"
+                                    value={companionAbilities ?? ""}
+                                    onChange={(value) => setCompanionAbilities?.(value)}
+                                    helper="Describe habilidades, sentidos, resistencias, etc."
+                                />
+                                <MarkdownField
+                                    label="Hechizos / magia"
+                                    value={companionSpells ?? ""}
+                                    onChange={(value) => setCompanionSpells?.(value)}
+                                    helper="Hechizos, efectos pasivos o poderes especiales."
+                                />
+                            </div>
+
+                            <MarkdownField
+                                label="Notas del compañero"
+                                value={companionNotes ?? ""}
+                                onChange={(value) => setCompanionNotes?.(value)}
+                                helper="Personalidad, comportamiento, equipo, etc."
+                            />
+                        </div>
+                    )}
+                </section>
+
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-ink">Secciones personalizadas</h3>
+                        <button
+                            type="button"
+                            onClick={addCustomSection}
+                            className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                        >
+                            AÃ±adir secciÃ³n
+                        </button>
+                    </div>
+
+                    {customSectionsSafe.length === 0 ? (
+                        <p className="text-xs text-ink-muted">AÃºn no has creado secciones personalizadas.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {customSectionsSafe.map((section, index) => (
+                                <div key={section.id} className="rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <TextField
+                                            label="TÃ­tulo"
+                                            value={section.title}
+                                            onChange={(value) => updateCustomSection(index, { title: value })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeCustomSection(section.id)}
+                                            className="text-[11px] px-3 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                    <MarkdownField
+                                        label="Contenido"
+                                        value={section.content}
+                                        onChange={(value) => updateCustomSection(index, { content: value })}
+                                        helper="Markdown soportado."
+                                        rows={5}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
 
                 <div className="flex justify-end pt-1">
-                    <button type="submit" className="rounded-md bg-purple-700 hover:bg-purple-600 px-4 py-2 text-sm font-medium" disabled={saving}>
+                    <button type="submit" className="rounded-md bg-accent hover:bg-accent-strong px-4 py-2 text-sm font-medium" disabled={saving}>
                         {saving ? (mode === "edit" ? "Guardando..." : "Creando...") : (mode === "edit" ? "Guardar personaje" : "Crear personaje")}
                     </button>
                 </div>
@@ -614,3 +891,5 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
 }
 
 export default CharacterForm;
+
+

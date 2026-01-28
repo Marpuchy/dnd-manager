@@ -12,16 +12,16 @@ export function StatInput({ label, value, onChange }: StatInputProps) {
     const signed = mod >= 0 ? `+${mod}` : mod;
     return (
         <div className="space-y-1 text-center">
-            <div className="text-[11px] text-zinc-400">{label}</div>
+            <div className="text-[11px] text-ink-muted">{label}</div>
             <input
                 type="number"
                 min={1}
                 max={30}
                 value={value}
                 onChange={(e) => onChange(Number(e.target.value) || 1)}
-                className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-2 py-1 text-sm text-center outline-none focus:border-purple-500"
+                className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-sm text-center text-ink outline-none focus:border-accent"
             />
-            <div className="text-[11px] text-zinc-500">mod {signed}</div>
+            <div className="text-[11px] text-ink-muted">mod {signed}</div>
         </div>
     );
 }

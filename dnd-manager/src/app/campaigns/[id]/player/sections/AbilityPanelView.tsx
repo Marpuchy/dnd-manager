@@ -9,6 +9,9 @@ import {
 
 import { LearnedSpellLevelBlock } from "../LearnedSpellBlocks";
 import { ClassAbility } from "@/lib/dnd/classAbilities/types";
+import Markdown from "@/app/components/Markdown";
+import CustomContentManager from "./CustomContentManager";
+import { CustomFeatureEntry, CustomSpellEntry } from "@/lib/types/dnd";
 
 type Props = {
     character: Character;
@@ -25,7 +28,15 @@ type Props = {
     setCollapsed: (v: Record<number, boolean>) => void;
     spellDetails: Record<string, SpellMeta>;
     onOpenSpellManager: () => void;
-    onCreateCustomSpell: () => void;
+    locale: string;
+    customSpells: CustomSpellEntry[];
+    setCustomSpells: (v: CustomSpellEntry[]) => void;
+    customCantrips: CustomSpellEntry[];
+    setCustomCantrips: (v: CustomSpellEntry[]) => void;
+    customTraits: CustomFeatureEntry[];
+    setCustomTraits: (v: CustomFeatureEntry[]) => void;
+    customClassAbilities: CustomFeatureEntry[];
+    setCustomClassAbilities: (v: CustomFeatureEntry[]) => void;
 };
 
 export default function AbilityPanelView({
@@ -39,29 +50,49 @@ export default function AbilityPanelView({
                                              setCollapsed,
                                              spellDetails,
                                              onOpenSpellManager,
-                                             onCreateCustomSpell,
+                                             locale,
+                                             customSpells,
+                                             setCustomSpells,
+                                             customCantrips,
+                                             setCustomCantrips,
+                                             customTraits,
+                                             setCustomTraits,
+                                             customClassAbilities,
+                                             setCustomClassAbilities,
                                          }: Props) {
     return (
         <div className="space-y-4">
+            <CustomContentManager
+                locale={locale}
+                customSpells={customSpells}
+                setCustomSpells={setCustomSpells}
+                customCantrips={customCantrips}
+                setCustomCantrips={setCustomCantrips}
+                customTraits={customTraits}
+                setCustomTraits={setCustomTraits}
+                customClassAbilities={customClassAbilities}
+                setCustomClassAbilities={setCustomClassAbilities}
+            />
+
             {preparedInfo && (
-                <div className="border border-zinc-800 rounded-lg p-3 text-xs">
-                    <h4 className="font-semibold text-zinc-200 mb-1">
+                <div className="border border-ring rounded-2xl bg-panel/80 p-3 text-xs">
+                    <h4 className="font-semibold text-ink mb-1">
                         Hechizos preparados
                     </h4>
 
-                    <p className="text-zinc-300">
+                    <p className="text-ink">
                         Preparados:{" "}
                         <strong>{preparedCount}</strong> /{" "}
                         <strong>{preparedInfo.total}</strong>
                     </p>
 
-                    <p className="text-zinc-400 mt-1">
+                    <p className="text-ink-muted mt-1">
                         Característica de lanzamiento:{" "}
                         <strong>{preparedInfo.abilityName}</strong>
                     </p>
 
                     {Array.isArray(extras?.lines) && extras.lines.length > 0 && (
-                        <div className="text-zinc-500 mt-1 space-y-1">
+                        <div className="text-ink-muted mt-1 space-y-1">
                             {extras.lines.map((l: string, i: number) => (
                                 <p key={i}>{l}</p>
                             ))}
@@ -71,42 +102,47 @@ export default function AbilityPanelView({
             )}
 
             {classAbilities.length > 0 && (
-                <details className="border border-zinc-800 rounded-lg">
-                    <summary className="px-3 py-2 cursor-pointer bg-zinc-900/30">
+                <details className="border border-ring rounded-2xl bg-panel/80">
+                    <summary className="px-3 py-2 cursor-pointer bg-white/70 text-ink">
                         Habilidades de clase ({classAbilities.length})
                     </summary>
 
                     <div className="p-3 space-y-3 text-xs">
                         {classAbilities.map((a) => (
-                            <div
+                            <details
                                 key={a.id}
-                                className="border-b border-zinc-800 pb-2"
+                                className="border border-ring rounded-xl bg-white/70 p-3"
                             >
-                                <p className="font-semibold text-zinc-100">
+                                <summary className="cursor-pointer font-semibold text-ink">
                                     {a.name} (Nivel {a.level})
-                                </p>
+                                </summary>
 
-                                {a.description && (
-                                    <p className="text-zinc-300 mt-1">
-                                        {a.description}
+                                {a.description ? (
+                                    <Markdown
+                                        content={a.description}
+                                        className="text-ink-muted mt-2"
+                                    />
+                                ) : (
+                                    <p className="text-[11px] text-ink-muted mt-2">
+                                        Sin descripción.
                                     </p>
                                 )}
-                            </div>
+                            </details>
                         ))}
                     </div>
                 </details>
             )}
 
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-2">
                 <div className="flex gap-2">
                     <button
-                        className="text-xs border px-2 py-1 rounded"
+                        className="text-xs border border-ring px-2 py-1 rounded bg-white/70 text-ink hover:bg-white"
                         onClick={() => setCollapsed({})}
                     >
                         Expandir todo
                     </button>
                     <button
-                        className="text-xs border px-2 py-1 rounded"
+                        className="text-xs border border-ring px-2 py-1 rounded bg-white/70 text-ink hover:bg-white"
                         onClick={() =>
                             setCollapsed(
                                 Object.fromEntries(
@@ -124,16 +160,10 @@ export default function AbilityPanelView({
 
                 <div className="flex gap-2">
                     <button
-                        className="text-xs border px-3 py-1 rounded"
+                        className="text-xs border border-ring px-3 py-1 rounded bg-white/70 text-ink hover:bg-white"
                         onClick={onOpenSpellManager}
                     >
                         Abrir gestor SRD
-                    </button>
-                    <button
-                        className="text-xs border px-3 py-1 rounded"
-                        onClick={onCreateCustomSpell}
-                    >
-                        Crear hechizo personalizado
                     </button>
                 </div>
             </div>
@@ -145,11 +175,11 @@ export default function AbilityPanelView({
                     <details
                         key={lvl}
                         open={!collapsed[lvl]}
-                        className="border border-zinc-800 rounded-lg"
+                        className="border border-ring rounded-2xl bg-panel/80"
                     >
-                        <summary className="px-3 py-2 cursor-pointer bg-zinc-900/30 flex justify-between">
+                        <summary className="px-3 py-2 cursor-pointer bg-white/70 flex justify-between text-ink">
                             <span>{label}</span>
-                            <span className="text-xs text-zinc-400">
+                            <span className="text-xs text-ink-muted">
                                 ({spells.length})
                             </span>
                         </summary>

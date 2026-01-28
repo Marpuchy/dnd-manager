@@ -1,7 +1,10 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { LearnedSpellRef, SpellMeta } from "./playerShared";
+import Markdown from "@/app/components/Markdown";
+import { getLocalizedText } from "@/lib/character/items";
+import { getClientLocale } from "@/lib/i18n/getClientLocale";
 
 /* ---------------------------
    TYPES
@@ -27,9 +30,9 @@ export function LearnedSpellLevelBlock({
     if (!lines.length) return null;
 
     return (
-        <div className="border border-zinc-800 rounded-lg p-3">
+        <div className="border border-ring rounded-lg p-3">
             {label && (
-                <h4 className="text-sm font-semibold text-zinc-200 mb-2">
+                <h4 className="text-sm font-semibold text-ink mb-2">
                     {label}
                 </h4>
             )}
@@ -68,17 +71,18 @@ type CardProps = {
 function LearnedSpellCard({ level, spell, meta }: CardProps) {
     const typeLabel =
         level === 0 ? "Truco (cantrip)" : `Hechizo de nivel ${level}`;
+    const locale = getClientLocale();
 
     /* ---------------------------
        SIN METADATA
     --------------------------- */
     if (!meta) {
         return (
-            <div className="border border-zinc-700 rounded-md p-2">
-                <p className="text-sm font-semibold text-zinc-100">
+            <div className="border border-ring rounded-md p-2">
+                <p className="text-sm font-semibold text-ink">
                     {spell.name}
                 </p>
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-[11px] text-ink-muted">
                     {typeLabel}
                 </p>
             </div>
@@ -88,31 +92,34 @@ function LearnedSpellCard({ level, spell, meta }: CardProps) {
     /* ---------------------------
        CON METADATA
     --------------------------- */
+    const shortDesc = getLocalizedText(meta.shortDesc, locale);
+    const fullDesc = getLocalizedText(meta.fullDesc, locale);
+
     return (
-        <div className="border border-zinc-700 rounded-md p-3 bg-zinc-900/40">
+        <div className="border border-ring rounded-md p-3 bg-white/80">
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-100">
+                    <p className="text-sm font-semibold text-ink">
                         {meta.name}
                     </p>
-                    <p className="text-[11px] text-zinc-400">
+                    <p className="text-[11px] text-ink-muted">
                         {typeLabel}
-                        {meta.school ? ` · ${meta.school}` : ""}
+                        {meta.school ? ` Â· ${meta.school}` : ""}
                     </p>
                 </div>
 
-                <div className="text-right text-xs text-zinc-400 whitespace-nowrap">
-                    <div>{meta.range ?? "—"}</div>
-                    <div>{meta.duration ?? "—"}</div>
+                <div className="text-right text-xs text-ink-muted whitespace-nowrap">
+                    <div>{meta.range ?? "â€”"}</div>
+                    <div>{meta.duration ?? "â€”"}</div>
                 </div>
             </div>
 
-            <div className="mt-2 text-xs text-zinc-300 space-y-1">
+            <div className="mt-2 text-xs text-ink-muted space-y-1">
                 <p>
                     <span className="font-semibold">
                         Tiempo de lanzamiento:
                     </span>{" "}
-                    {meta.casting_time ?? "—"}
+                    {meta.casting_time ?? "â€”"}
                 </p>
 
                 <p>
@@ -121,7 +128,7 @@ function LearnedSpellCard({ level, spell, meta }: CardProps) {
                     </span>{" "}
                     {meta.components?.length
                         ? meta.components.join(", ")
-                        : "—"}
+                        : "â€”"}
                 </p>
 
                 {meta.material && (
@@ -135,30 +142,30 @@ function LearnedSpellCard({ level, spell, meta }: CardProps) {
 
                 <p>
                     <span className="font-semibold">
-                        Concentración:
+                        ConcentraciÃ³n:
                     </span>{" "}
-                    {meta.concentration ? "Sí" : "No"}
+                    {meta.concentration ? "SÃ­" : "No"}
                 </p>
 
                 <p>
                     <span className="font-semibold">
                         Ritual:
                     </span>{" "}
-                    {meta.ritual ? "Sí" : "No"}
+                    {meta.ritual ? "SÃ­" : "No"}
                 </p>
             </div>
 
-            {(meta.fullDesc || meta.shortDesc) && (
-                <details className="mt-2 text-xs text-zinc-300 whitespace-pre-wrap">
-                    <summary className="cursor-pointer text-[11px] text-zinc-400">
-                        Ver descripción completa
+            {(fullDesc || shortDesc) && (
+                <details className="mt-2 text-xs text-ink-muted">
+                    <summary className="cursor-pointer text-[11px] text-ink-muted">
+                        Ver descripciÃ³n completa
                     </summary>
 
-                    <div className="mt-1 space-y-2">
-                        {meta.fullDesc && <p>{meta.fullDesc}</p>}
-                        {!meta.fullDesc && meta.shortDesc && (
-                            <p>{meta.shortDesc}</p>
-                        )}
+                    <div className="mt-2">
+                        <Markdown
+                            content={fullDesc || shortDesc || ""}
+                            className="text-ink-muted"
+                        />
                     </div>
                 </details>
             )}
@@ -167,3 +174,4 @@ function LearnedSpellCard({ level, spell, meta }: CardProps) {
 }
 
 export default LearnedSpellLevelBlock;
+

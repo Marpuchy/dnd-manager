@@ -18,7 +18,7 @@ export default function ClickableRow({ onClick, children, className }: Props) {
                 }
             }}
             className={
-                "cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-600 " +
+                "cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/40 " +
                 (className ?? "")
             }
         >

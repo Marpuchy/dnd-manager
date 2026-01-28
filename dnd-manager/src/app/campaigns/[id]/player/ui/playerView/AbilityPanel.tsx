@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Character,
     Details,
@@ -16,9 +16,11 @@ import { getPreparedSpellsInfo } from "../../playerShared";
 import { getClassMagicExtras } from "../../playerShared";
 import { getClassAbilities } from "@/lib/dnd/classAbilities";
 import { ClassAbility } from "@/lib/dnd/classAbilities/types";
+import { getClientLocale } from "@/lib/i18n/getClientLocale";
+import { normalizeLocalizedText } from "@/lib/character/items";
 
 import AbilityPanelView from "../../sections/AbilityPanelView";
-import CreateCustomSpellModal from "../../modals/CreateCustomSpellModal";
+import type { CustomFeatureEntry, CustomSpellEntry } from "@/lib/types/dnd";
 
 /* ---------------------------
    Props
@@ -52,11 +54,31 @@ export default function AbilityPanel({
 
     const preparedCount = countPreparedSpells(normalizedSpells);
     const extras = getClassMagicExtras(character.class, character.level);
+    const locale = getClientLocale();
 
     const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
-    const [showCustomSpell, setShowCustomSpell] = useState(false);
 
-    const builtRef = useRef(false);
+    const customSpells: CustomSpellEntry[] = Array.isArray(details.customSpells)
+        ? details.customSpells
+        : [];
+    const customCantrips: CustomSpellEntry[] = Array.isArray(details.customCantrips)
+        ? details.customCantrips
+        : [];
+    const customTraits: CustomFeatureEntry[] = Array.isArray(details.customTraits)
+        ? details.customTraits
+        : [];
+    const customClassAbilities: CustomFeatureEntry[] = Array.isArray(
+        details.customClassAbilities
+    )
+        ? details.customClassAbilities
+        : [];
+
+    function patchDetails(patch: Partial<Details>) {
+        onDetailsChange?.({
+            ...details,
+            ...patch,
+        });
+    }
 
     /* ---------------------------
        LOAD SRD METADATA (BY INDEX)
@@ -114,7 +136,7 @@ export default function AbilityPanel({
                 if (merged[spell.index]) continue;
 
                 const res = await fetch(
-                    `https://www.dnd5eapi.co/api/spells/${spell.index}`
+                    `/api/dnd/spells/${encodeURIComponent(spell.index)}?locale=${locale}`
                 );
                 if (!res.ok) continue;
 
@@ -134,14 +156,17 @@ export default function AbilityPanel({
                     concentration: apiData.concentration,
                     ritual: apiData.ritual,
 
-                    shortDesc: Array.isArray(apiData.desc)
-                        ? apiData.desc[0]
-                        : undefined,
+                    shortDesc: normalizeLocalizedText(
+                        Array.isArray(apiData.desc) ? apiData.desc[0] : undefined,
+                        locale
+                    ),
 
-                    fullDesc: [
-                        ...(apiData.desc ?? []),
-                        ...(apiData.higher_level ?? []),
-                    ].join("\n\n"),
+                    fullDesc: normalizeLocalizedText(
+                        [...(apiData.desc ?? []), ...(apiData.higher_level ?? [])].join(
+                            "\n\n"
+                        ),
+                        locale
+                    ),
                 };
 
                 merged[spell.index] = mapped;
@@ -158,36 +183,7 @@ export default function AbilityPanel({
                 });
             }
         })();
-    }, [details.spells]);
-
-    /* ---------------------------
-       ADD CUSTOM SPELL
-    --------------------------- */
-    function addCustomSpell(spell: SpellMeta) {
-        const levelKey = `level${spell.level}` as keyof Spells;
-        const current = normalizedSpells[levelKey];
-
-        const updatedLevel: LearnedSpellRef[] = Array.isArray(current)
-            ? [...current]
-            : [];
-
-        updatedLevel.push({
-            index: spell.index,
-            name: spell.name,
-        });
-
-        onDetailsChange?.({
-            ...details,
-            spells: {
-                ...normalizedSpells,
-                [levelKey]: updatedLevel,
-            },
-            spellDetails: {
-                ...(details.spellDetails || {}),
-                [spell.index]: spell,
-            },
-        });
-    }
+    }, [details.spells, locale]);
 
     /* ---------------------------
        BUILD LEVELS FOR VIEW
@@ -224,15 +220,18 @@ export default function AbilityPanel({
                 setCollapsed={setCollapsed}
                 spellDetails={details.spellDetails || {}}
                 onOpenSpellManager={onOpenSpellManager}
-                onCreateCustomSpell={() => setShowCustomSpell(true)}
+                locale={locale}
+                customSpells={customSpells}
+                setCustomSpells={(next) => patchDetails({ customSpells: next })}
+                customCantrips={customCantrips}
+                setCustomCantrips={(next) => patchDetails({ customCantrips: next })}
+                customTraits={customTraits}
+                setCustomTraits={(next) => patchDetails({ customTraits: next })}
+                customClassAbilities={customClassAbilities}
+                setCustomClassAbilities={(next) =>
+                    patchDetails({ customClassAbilities: next })
+                }
             />
-
-            {showCustomSpell && (
-                <CreateCustomSpellModal
-                    onClose={() => setShowCustomSpell(false)}
-                    onCreate={addCustomSpell}
-                />
-            )}
         </>
     );
 }

@@ -151,26 +151,26 @@ export default function CampaignDMPage() {
 
     if (loading || !allowed) {
         return (
-            <main className="min-h-screen bg-black text-zinc-100 flex items-center justify-center">
-                <p className="text-zinc-400">Cargando panel del DM...</p>
+            <main className="min-h-screen bg-surface text-ink flex items-center justify-center">
+                <p className="text-ink-muted">Cargando panel del DM...</p>
             </main>
         );
     }
 
     return (
-        <main className="min-h-screen bg-black text-zinc-100 flex">
+        <main className="min-h-screen bg-surface text-ink flex">
             {/* SIDEBAR */}
-            <aside className="w-64 border-r border-zinc-800 bg-zinc-950/80 p-4 flex flex-col gap-4">
+            <aside className="w-64 border-r border-ring bg-panel/80 p-4 flex flex-col gap-4">
                 <div className="space-y-1">
                     <h2 className="text-xl font-semibold text-emerald-300">Panel del DM</h2>
-                    <p className="text-xs text-zinc-500">Campaña ID: {String(params.id)}</p>
+                    <p className="text-xs text-ink-muted">Campaña ID: {String(params.id)}</p>
                 </div>
 
                 {/* Copy invite code */}
                 {inviteCode && (
                     <button
                         onClick={() => navigator.clipboard.writeText(inviteCode)}
-                        className="px-2 py-1 rounded hover:bg-zinc-900 text-left flex items-center gap-2"
+                        className="px-2 py-1 rounded hover:bg-white/80 text-left flex items-center gap-2"
                     >
                         🔗 Copiar código:{" "}
                         <span className="font-mono text-emerald-300">{inviteCode}</span>
@@ -182,12 +182,12 @@ export default function CampaignDMPage() {
                         href={`/campaigns/${params.id}/player`}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2 py-1 rounded hover:bg-zinc-900"
+                        className="px-2 py-1 rounded hover:bg-white/80"
                     >
                         👁 Ver vista de jugador
                     </a>
 
-                    <div className="pt-4 text-xs text-zinc-500 uppercase">
+                    <div className="pt-4 text-xs text-ink-muted uppercase">
                         Próximamente
                     </div>
 
@@ -209,7 +209,7 @@ export default function CampaignDMPage() {
                     <h1 className="text-2xl font-bold text-emerald-300">
                         Gestión de personajes
                     </h1>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm text-ink-muted">
                         Puedes modificar cualquier personaje que creen tus jugadores.
                     </p>
                 </header>
@@ -222,47 +222,47 @@ export default function CampaignDMPage() {
 
                 {/* CHARACTER EDIT FORM */}
                 {editingId && (
-                    <div className="max-w-lg border border-zinc-800 bg-zinc-950/80 rounded-xl p-4 space-y-3">
-                        <h2 className="text-lg font-semibold text-purple-300">Editar personaje</h2>
+                    <div className="max-w-lg border border-ring bg-panel/80 rounded-xl p-4 space-y-3">
+                        <h2 className="text-lg font-semibold text-ink">Editar personaje</h2>
 
                         <form onSubmit={handleSaveCharacter} className="space-y-3">
                             <div className="space-y-1">
-                                <label className="text-sm text-zinc-300">Nombre</label>
+                                <label className="text-sm text-ink-muted">Nombre</label>
                                 <input
                                     type="text"
                                     value={charName}
                                     onChange={(e) => setCharName(e.target.value)}
                                     required
-                                    className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                                 />
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-sm text-zinc-300">Clase</label>
+                                <label className="text-sm text-ink-muted">Clase</label>
                                 <input
                                     type="text"
                                     value={charClass}
                                     onChange={(e) => setCharClass(e.target.value)}
-                                    className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                                 />
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-sm text-zinc-300">Nivel</label>
+                                <label className="text-sm text-ink-muted">Nivel</label>
                                 <input
                                     type="number"
                                     min={1}
                                     max={20}
                                     value={charLevel}
                                     onChange={(e) => setCharLevel(Number(e.target.value))}
-                                    className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                                 />
                             </div>
 
                             <div className="flex gap-2">
                                 <button
                                     type="submit"
-                                    className="rounded-md bg-purple-700 hover:bg-purple-600 px-4 py-2 text-sm font-medium"
+                                    className="rounded-md bg-accent hover:bg-accent-strong px-4 py-2 text-sm font-medium"
                                 >
                                     Guardar cambios
                                 </button>
@@ -270,7 +270,7 @@ export default function CampaignDMPage() {
                                 <button
                                     type="button"
                                     onClick={cancelEdit}
-                                    className="rounded-md bg-zinc-700 hover:bg-zinc-600 px-4 py-2 text-sm font-medium"
+                                    className="rounded-md bg-accent hover:bg-accent-strong px-4 py-2 text-sm font-medium"
                                 >
                                     Cancelar
                                 </button>
@@ -281,31 +281,31 @@ export default function CampaignDMPage() {
 
                 {/* CHARACTER LIST */}
                 <div className="space-y-2">
-                    <h2 className="text-lg font-semibold text-zinc-200">
+                    <h2 className="text-lg font-semibold text-ink">
                         Personajes de la campaña
                     </h2>
 
                     {characters.length === 0 ? (
-                        <p className="text-sm text-zinc-500">No hay personajes todavía.</p>
+                        <p className="text-sm text-ink-muted">No hay personajes todavía.</p>
                     ) : (
                         <ul className="space-y-2">
                             {characters.map((char) => (
                                 <li
                                     key={char.id}
-                                    className="flex items-center justify-between border border-zinc-800 bg-zinc-950/80 rounded-lg px-3 py-2"
+                                    className="flex items-center justify-between border border-ring bg-panel/80 rounded-lg px-3 py-2"
                                 >
                                     <div>
-                                        <p className="font-medium text-zinc-100">
+                                        <p className="font-medium text-ink">
                                             {char.name}{" "}
-                                            <span className="text-xs text-zinc-500">
+                                            <span className="text-xs text-ink-muted">
                         (Nivel {char.level ?? 1})
                       </span>
                                         </p>
-                                        <p className="text-xs text-zinc-500">{char.class ?? "—"}</p>
+                                        <p className="text-xs text-ink-muted">{char.class ?? "—"}</p>
                                     </div>
 
                                     <button
-                                        className="text-xs px-3 py-1 border border-purple-600/70 rounded-md hover:bg-purple-900/40"
+                                        className="text-xs px-3 py-1 border border-accent/60 rounded-md hover:bg-accent/10"
                                         onClick={() => startEdit(char)}
                                     >
                                         Editar

@@ -6,9 +6,9 @@ export function StatDisplay({ label, value }: { label: string; value: number }) 
     const signed = mod >= 0 ? `+${mod}` : mod;
     return (
         <div className="space-y-1 text-center">
-            <div className="text-[11px] text-zinc-400">{label}</div>
-            <div className="text-lg font-semibold text-zinc-100">
-                {value} <span className="text-xs text-zinc-400">({signed})</span>
+            <div className="text-[11px] text-ink-muted">{label}</div>
+            <div className="text-lg font-semibold text-ink">
+                {value} <span className="text-xs text-ink-muted">({signed})</span>
             </div>
         </div>
     );

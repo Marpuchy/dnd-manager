@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import {
@@ -6,9 +6,9 @@ import {
     formatModifier,
 } from "@/app/campaigns/[id]/player/ui/playerView/statsHelpers";
 
-/* ─────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Tipos
-───────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 type StatKey = "FUE" | "DES" | "CON" | "INT" | "SAB" | "CAR";
 
@@ -17,28 +17,18 @@ type BonusDetail = {
     value: number;
 };
 
-/* ─────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Constantes de escala
-───────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const MAX_STAT = 30;
-
-const SIZE = 260;
-const PADDING = 50;
-const VIEWBOX_SIZE = SIZE + PADDING * 2;
-const CENTER = VIEWBOX_SIZE / 2;
-
-const isMobile =
-    typeof window !== "undefined" && window.innerWidth < 640;
-
-const RADIUS = isMobile ? 70 : 90;
-const LABEL_RADIUS = isMobile ? 110 : 135;
+const DEFAULT_SIZE = 260;
 
 const ORDER: StatKey[] = ["FUE", "DES", "CON", "INT", "SAB", "CAR"];
 
-/* ─────────────────────────────
-   🎨 Colores por clase (TODAS)
-───────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   ðŸŽ¨ Colores por clase (TODAS)
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const CLASS_COLORS: Record<
     string,
@@ -106,14 +96,14 @@ const CLASS_COLORS: Record<
     },
 };
 
-/* ─────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Helpers
-───────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
-function polar(angle: number, radius: number) {
+function polar(angle: number, radius: number, center: number) {
     return {
-        x: CENTER + radius * Math.cos(angle),
-        y: CENTER + radius * Math.sin(angle),
+        x: center + radius * Math.cos(angle),
+        y: center + radius * Math.sin(angle),
     };
 }
 
@@ -121,21 +111,30 @@ function normalizeClass(cls?: string) {
     return cls?.toLowerCase().replace(/\s+/g, "") ?? "";
 }
 
-/* ─────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Componente principal
-───────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 export default function StatsHexagon({
                                          stats,
                                          bonuses,
                                          bonusDetails,
                                          characterClass,
+                                         size,
                                      }: {
     stats: Record<StatKey, number>;
     bonuses?: Record<StatKey, boolean>;
     bonusDetails?: Record<StatKey, BonusDetail[]>;
     characterClass?: string;
+    size?: number;
 }) {
+    const baseSize = Math.max(220, Math.min(size ?? DEFAULT_SIZE, 520));
+    const padding = Math.round(baseSize * 0.2);
+    const viewBoxSize = baseSize + padding * 2;
+    const center = viewBoxSize / 2;
+    const radius = Math.round(baseSize * 0.35);
+    const labelRadius = Math.round(baseSize * 0.52);
+
     const [hovered, setHovered] = useState<StatKey | null>(null);
 
     /* Valores seguros para TS */
@@ -174,7 +173,8 @@ export default function StatsHexagon({
             );
             const { x, y } = polar(
                 angle,
-                (value / MAX_STAT) * RADIUS
+                (value / MAX_STAT) * radius,
+                center
             );
             return `${x},${y}`;
         })
@@ -183,9 +183,11 @@ export default function StatsHexagon({
     return (
         <div className="relative flex justify-center">
             <svg
-                width={SIZE}
-                height={SIZE}
-                viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
+                width="100%"
+                height="100%"
+                viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
+                preserveAspectRatio="xMidYMid meet"
+                className="w-full h-auto"
             >
                 {/* Fondo */}
                 {[0.25, 0.5, 0.75, 1].map((scale, i) => (
@@ -195,13 +197,14 @@ export default function StatsHexagon({
                             .map((a) => {
                                 const { x, y } = polar(
                                     a,
-                                    RADIUS * scale
+                                    radius * scale,
+                                    center
                                 );
                                 return `${x},${y}`;
                             })
                             .join(" ")}
                         fill="none"
-                        stroke="#3f3f46"
+                        stroke="var(--ring)"
                         strokeWidth="1"
                     />
                 ))}
@@ -209,20 +212,20 @@ export default function StatsHexagon({
                 {/* Radiales */}
                 {angles.map((a, i) => {
                     const stat = ORDER[i];
-                    const { x, y } = polar(a, RADIUS);
+                    const { x, y } = polar(a, radius, center);
                     const active = hovered === stat;
 
                     return (
                         <line
                             key={i}
-                            x1={CENTER}
-                            y1={CENTER}
+                            x1={center}
+                            y1={center}
                             x2={x}
                             y2={y}
                             stroke={
                                 active
                                     ? hexColor.stroke
-                                    : "#3f3f46"
+                                    : "var(--ring)"
                             }
                             strokeWidth={active ? 2 : 1}
                             opacity={
@@ -233,23 +236,23 @@ export default function StatsHexagon({
                     );
                 })}
 
-                {/* Núcleo */}
+                {/* NÃºcleo */}
                 <circle
-                    cx={CENTER}
-                    cy={CENTER}
+                    cx={center}
+                    cy={center}
                     r={6}
                     fill={hexColor.stroke}
                     opacity={0.6}
                 />
                 <circle
-                    cx={CENTER}
-                    cy={CENTER}
+                    cx={center}
+                    cy={center}
                     r={14}
                     fill={hexColor.stroke}
                     opacity={0.15}
                 />
 
-                {/* Polígono */}
+                {/* PolÃ­gono */}
                 <polygon
                     points={statPoints}
                     fill={hexColor.fill}
@@ -264,7 +267,7 @@ export default function StatsHexagon({
                     const value = stats[stat];
                     const mod = abilityModifier(value);
                     const buffed = safeBonuses[stat];
-                    const { x, y } = polar(a, LABEL_RADIUS);
+                    const { x, y } = polar(a, labelRadius, center);
 
                     return (
                         <g
@@ -280,7 +283,7 @@ export default function StatsHexagon({
                                 fill={
                                     buffed
                                         ? hexColor.stroke
-                                        : "#e4e4e7"
+                                        : "var(--ink)"
                                 }
                                 fontWeight="700"
                             >
@@ -295,7 +298,7 @@ export default function StatsHexagon({
                                 fill={
                                     buffed
                                         ? hexColor.stroke
-                                        : "#fafafa"
+                                        : "var(--ink)"
                                 }
                                 fontWeight="800"
                                 className={
@@ -312,7 +315,7 @@ export default function StatsHexagon({
                                 y={y + 26}
                                 textAnchor="middle"
                                 fontSize="13"
-                                fill="#a1a1aa"
+                                fill="var(--ink-muted)"
                                 fontWeight="600"
                             >
                                 ({formatModifier(mod)})
@@ -325,7 +328,7 @@ export default function StatsHexagon({
             {/* Tooltip */}
             {hovered &&
                 safeBonusDetails[hovered].length > 0 && (
-                    <div className="absolute bottom-0 translate-y-full mt-2 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-200 shadow-xl">
+                    <div className="absolute bottom-0 translate-y-full mt-2 px-3 py-2 rounded-lg bg-panel/90 border border-ring text-xs text-ink shadow-xl">
                         {safeBonusDetails[hovered].map(
                             (b, i) => (
                                 <div key={i}>
@@ -341,3 +344,5 @@ export default function StatsHexagon({
         </div>
     );
 }
+
+

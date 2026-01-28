@@ -1,621 +1,589 @@
-"use client";
+﻿"use client";
 
-import React from "react";
-import { Details, Armor, Weapon, Stats } from "../../playerShared";
+import React, { useMemo, useState } from "react";
+import { Details, Stats } from "../../playerShared";
 import { getSpellSlotsFor } from "@/lib/spellSlots";
+import { Award, Eye, Heart, HeartPulse, Shield, Wind, Zap, Dice5 } from "lucide-react";
 import StatsHexagon from "../../../../../components/StatsHexagon";
+import Markdown from "@/app/components/Markdown";
+import { abilityModifier, formatModifier } from "./statsHelpers";
+import ImageCropModal from "@/app/components/ImageCropModal";
+import {
+  MODIFIER_TARGETS,
+  getLocalizedText,
+  getModifierSources,
+  normalizeTarget,
+} from "@/lib/character/items";
+import { getClientLocale } from "@/lib/i18n/getClientLocale";
 
-/* ─────────────────────────────
-   Tipos y helpers
-───────────────────────────── */
-
-type SimpleMod = {
-    ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
-    modifier: number;
+type MetricCardProps = {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  icon?: React.ReactNode;
 };
-function StatOrb({
-                     value,
-                     subValue,
-                     label,
-                     gradient,
-                     shape,
-                     iconOnly,
-                 }: {
-    value: string | number;
-    subValue?: string | number;
-    label: string;
-    gradient?: string;
-    shape?: "heart" | "shield" | "boot";
-    iconOnly?: boolean;
-}) {
-    const isIconOnly = iconOnly || shape === "boot";
 
-    const shapeClass =
-        shape === "heart"
-            ? "stat-heart"
-            : shape === "shield"
-                ? "stat-shield"
-                : "rounded-full";
-
-    return (
-        <div className="flex flex-col items-center gap-1">
-            <div
-                className={`
-        relative w-14 h-14
-        ${!isIconOnly ? `bg-gradient-to-br ${gradient}` : ""}
-        ${!isIconOnly ? "border border-white/20" : ""}
-        ${!isIconOnly ? "animate-[spellPulse_4s_ease-in-out_infinite]" : ""}
-        flex flex-col items-center justify-center
-        text-zinc-100
-        ${shapeClass}
-    `}
-                title={label}
-            >
-
-                {shape === "boot" && (
-                    <div className="relative w-20 h-20 flex items-center justify-center">
-                        {/* Bota con máscara */}
-                        <div
-                            className="
-                w-14 h-14
-                bg-emerald-400
-                animate-[spellPulse_4s_ease-in-out_infinite]
-                shadow-[0_0_10px_rgba(52,211,153,0.7)]
-            "
-                            style={{
-                                WebkitMaskImage: "url(/boot.svg)",
-                                WebkitMaskRepeat: "no-repeat",
-                                WebkitMaskPosition: "center",
-                                WebkitMaskSize: "contain",
-                                maskImage: "url(/boot.svg)",
-                                maskRepeat: "no-repeat",
-                                maskPosition: "center",
-                                maskSize: "contain",
-                            }}
-                        />
-
-                        {/* Número + unidad DENTRO */}
-                        <span
-                            className="
-                absolute inset-0
-                flex items-center justify-center
-                gap-1
-                text-sm font-semibold
-                text-white
-                drop-shadow-[0_0_4px_rgba(0,0,0,0.8)]
-                pointer-events-none
-            "
-                        >
-            {value}
-                            <span className="text-[10px] opacity-80">ft</span>
-        </span>
-                    </div>
-                )}
-
-
-
-                {shape !== "boot" && (
-                    <span className="text-lg font-semibold leading-none">
-        {value}
-    </span>
-                )}
-
-
-                {subValue !== undefined && (
-                    <span className="text-[10px] opacity-80 leading-none">
-                        {subValue}
-                    </span>
-                )}
-            </div>
-
-            <span className="text-[11px] text-zinc-400">
-                {label}
-            </span>
+function MetricCard({ label, value, sub, icon }: MetricCardProps) {
+  return (
+    <div className="rounded-2xl border border-ring bg-panel/80 px-3 py-2 flex items-center gap-3">
+      {icon ? (
+        <div className="h-9 w-9 rounded-full border border-accent/20 bg-accent/10 text-accent-strong flex items-center justify-center">
+          {icon}
         </div>
-    );
-}
-
-
-function SpellSlotOrb({level}: { level: number }) {
-    const gradientByLevel: Record<number, string> = {
-        1: "from-sky-200 to-sky-400",
-        2: "from-sky-300 to-cyan-500",
-        3: "from-cyan-400 to-blue-600",
-        4: "from-blue-500 to-indigo-600",
-        5: "from-indigo-600 to-violet-700",
-        6: "from-violet-700 to-purple-800",
-        7: "from-purple-800 to-fuchsia-900",
-        8: "from-fuchsia-900 to-indigo-950",
-        9: "from-indigo-950 to-black",
-    };
-
-    return (
-        <div
-            className={`
-                relative w-5 h-5 rounded-full
-                bg-gradient-to-br ${gradientByLevel[level]}
-                border border-white/20
-                animate-[spellPulse_3.5s_ease-in-out_infinite]
-            `}
-            title={`Espacio de conjuro de nivel ${level}`}
-        >
-            {/* brillo interno */}
-            <div
-                className="absolute inset-1 rounded-full bg-white/30
-                           animate-[spellInnerGlow_2.5s_ease-in-out_infinite]"
-            />
-
-            {/* núcleo oscuro para niveles altos */}
-            {level >= 7 && (
-                <div className="absolute inset-2 rounded-full bg-black/50" />
-            )}
+      ) : null}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.25em] text-ink-muted">
+          {label}
         </div>
-    );
+        <div className="mt-1 text-lg font-semibold text-ink">{value}</div>
+        {sub ? (
+          <div className="text-[11px] text-ink-muted mt-1">{sub}</div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
+function SpellSlotOrb({ level }: { level: number }) {
+  const tones: Record<number, string> = {
+    1: "bg-amber-100 border-amber-300",
+    2: "bg-amber-200 border-amber-400",
+    3: "bg-amber-300 border-amber-500",
+    4: "bg-orange-200 border-orange-400",
+    5: "bg-orange-300 border-orange-500",
+    6: "bg-rose-200 border-rose-400",
+    7: "bg-rose-300 border-rose-500",
+    8: "bg-red-200 border-red-400",
+    9: "bg-red-300 border-red-500",
+  };
 
-function extractModifiersFromItem(item: any): SimpleMod[] {
-    const out: SimpleMod[] = [];
-    if (!item) return out;
-
-    if (Array.isArray(item.modifiers)) {
-        for (const m of item.modifiers) {
-            if (!m) continue;
-            const ability = (m.ability || m.statAbility || m.stat_ability) as any;
-            const modifier = Number(m.modifier ?? m.value);
-            if (!ability || Number.isNaN(modifier)) continue;
-            out.push({
-                ability: String(ability).toUpperCase() as SimpleMod["ability"],
-                modifier,
-            });
-        }
-    }
-
-    if (item.stat_ability && typeof item.stat_modifier === "number") {
-        out.push({
-            ability: String(item.stat_ability).toUpperCase() as SimpleMod["ability"],
-            modifier: item.stat_modifier,
-        });
-    }
-
-    return out;
+  return (
+    <div
+      className={`h-4 w-4 rounded-full border ${tones[level] ?? "bg-amber-100 border-amber-300"}`}
+      title={`Espacio de conjuro de nivel ${level}`}
+    />
+  );
 }
 
-function resolveArmorDescription(armor: any): string | null {
-    if (!armor) return null;
-    const d =
-        armor.description ??
-        armor.meta?.description ??
-        armor.meta?.desc ??
-        null;
-    return typeof d === "string" && d.trim() ? d : null;
-}
+const targetLabelMap = new Map(
+  MODIFIER_TARGETS.map((entry) => [entry.key, entry.label])
+);
 
-/* ─────────────────────────────
-   Componente principal
-───────────────────────────── */
+function getTargetLabel(target: string) {
+  const normalized = normalizeTarget(target);
+  return targetLabelMap.get(normalized) ?? target;
+}
 
 export default function StatsPanel({
-                                       character,
-                                       details,
-                                       statsRow,
-                                       totalAC,
-                                       totalStr,
-                                       totalDex,
-                                       totalCon,
-                                       totalInt,
-                                       totalWis,
-                                       totalCha,
-                                       onImageUpdated,
-                                   }: {
-    character: any;
-    details: Details | null;
-    statsRow: Partial<Stats> | Record<string, number>;
-    totalAC: number;
-    totalStr: number;
-    totalDex: number;
-    totalCon: number;
-    totalInt: number;
-    totalWis: number;
-    totalCha: number;
-    onImageUpdated?: () => void;
+  character,
+  details,
+  statsRow,
+  totalAC,
+  totalSpeed,
+  totalCurrentHp,
+  totalMaxHp,
+  proficiencyBonus,
+  initiative,
+  passivePerception,
+  totalStr,
+  totalDex,
+  totalCon,
+  totalInt,
+  totalWis,
+  totalCha,
+  onImageUpdated,
+}: {
+  character: any;
+  details: Details | null;
+  statsRow: Partial<Stats> | Record<string, number>;
+  totalAC: number;
+  totalSpeed: number;
+  totalCurrentHp: number;
+  totalMaxHp: number;
+  proficiencyBonus: number;
+  initiative: number;
+  passivePerception: number;
+  totalStr: number;
+  totalDex: number;
+  totalCon: number;
+  totalInt: number;
+  totalWis: number;
+  totalCha: number;
+  onImageUpdated?: () => void;
 }) {
-    const armors: Armor[] = Array.isArray(details?.armors)
-        ? details.armors
-        : [];
+  const items = Array.isArray(details?.items) ? details.items : [];
+  const equippedItems = items.filter((item) => item.equipped);
+  const locale = getClientLocale();
+  const customTraits = Array.isArray(details?.customTraits) ? details.customTraits : [];
+  const customClassAbilities = Array.isArray(details?.customClassAbilities)
+    ? details.customClassAbilities
+    : [];
 
-    const weapon: Weapon | null =
-        (details?.weaponEquipped as Weapon) ?? null;
+  const spellSlots =
+    character?.class && character?.level
+      ? getSpellSlotsFor(character.class, character.level)
+      : null;
 
-    const spellSlots =
-        character?.class && character?.level
-            ? getSpellSlotsFor(character.class, character.level)
-            : null;
+  const profileImage = character?.profile_image;
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState<string>("personaje.jpg");
 
-    /* ───────── Imagen persistente ───────── */
-    const profileImage = character?.profile_image;
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    /* ───────── Subida de imagen ───────── */
+    setCropFileName(file.name || "personaje.jpg");
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropSrc(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
-    async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file || !character?.id) return;
+  async function handleSaveCroppedImage(blob: Blob) {
+    if (!character?.id) return;
+    const formData = new FormData();
+    formData.append("file", blob, cropFileName);
+    formData.append("characterId", character.id);
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("characterId", character.id);
+    const res = await fetch("/api/dnd/characters/upload-image", {
+      method: "POST",
+      body: formData,
+    });
 
-        const res = await fetch("/api/dnd/characters/upload-image", {
-            method: "POST",
-            body: formData,
-        });
-
-        if (!res.ok) {
-            console.error("Error subiendo imagen");
-            return;
-        }
-
-        // 🔁 Avisamos al padre para que recargue personajes
-        onImageUpdated?.();
+    if (!res.ok) {
+      console.error("Error subiendo imagen");
+      return;
     }
 
-    /* ───────── Bonus por stat ───────── */
+    setCropSrc(null);
+    onImageUpdated?.();
+  }
 
-    function getBonusDetails(stat: SimpleMod["ability"]) {
-        return armors.flatMap((armor) =>
-            extractModifiersFromItem(armor)
-                .filter((m) => m.ability === stat && m.modifier !== 0)
-                .map((m) => ({
-                    source: armor.name,
-                    value: m.modifier,
-                }))
-        );
-    }
+  const bonusSources = useMemo(() => {
+    const keys = ["STR", "DEX", "CON", "INT", "WIS", "CHA"] as const;
+    return Object.fromEntries(
+      keys.map((key) => [key, getModifierSources(details ?? undefined, key)])
+    ) as Record<
+      (typeof keys)[number],
+      { total: number; sources: { source: string; value: number }[] }
+    >;
+  }, [details]);
 
-    function hasBonus(stat: SimpleMod["ability"]) {
-        return getBonusDetails(stat).length > 0;
-    }
+  function getBonusDetails(stat: keyof typeof bonusSources) {
+    return bonusSources[stat]?.sources ?? [];
+  }
 
-    /* ───────────────────────────── */
+  function hasBonus(stat: keyof typeof bonusSources) {
+    return getBonusDetails(stat).length > 0;
+  }
 
-    return (
-        <div className="space-y-6">
-            <style jsx global>{`
-                /* ❤️ CORAZÓN (polygon compatible) */
-                .stat-heart {
-                    clip-path: polygon(
-                            50% 15%,
-                            65% 0%,
-                            100% 15%,
-                            100% 45%,
-                            50% 100%,
-                            0% 45%,
-                            0% 15%,
-                            35% 0%
-                    );
-                }
+  const statEntries = [
+    { key: "FUE", value: totalStr, raw: "STR" },
+    { key: "DES", value: totalDex, raw: "DEX" },
+    { key: "CON", value: totalCon, raw: "CON" },
+    { key: "INT", value: totalInt, raw: "INT" },
+    { key: "SAB", value: totalWis, raw: "WIS" },
+    { key: "CAR", value: totalCha, raw: "CHA" },
+  ] as const;
 
-                /* 🛡️ ESCUDO */
-                .stat-shield {
-                    clip-path: polygon(
-                            50% 0%,
-                            90% 15%,
-                            90% 55%,
-                            50% 100%,
-                            10% 55%,
-                            10% 15%
-                    );
-                }
+  return (
+    <div className="space-y-6">
+      {cropSrc && (
+        <ImageCropModal
+          src={cropSrc}
+          aspect={3 / 5}
+          onClose={() => setCropSrc(null)}
+          onSave={handleSaveCroppedImage}
+        />
+      )}
+      <section className="grid gap-4 lg:grid-cols-[220px_1fr]">
+        <div className="rounded-3xl border border-ring bg-panel/90 p-3">
+          <div className="w-full aspect-[3/5] rounded-2xl overflow-hidden bg-white/70 border border-ring">
+            {profileImage?.startsWith("http") ? (
+              <img
+                src={profileImage}
+                alt="Imagen del personaje"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-xs text-ink-muted">
+                Sin imagen
+              </div>
+            )}
+          </div>
 
-                /* 👢 BOTA (estable, no buguea) */
-                .stat-boot {
-                    clip-path: polygon(
-                            25% 0%,
-                            60% 0%,
-                            60% 45%,
-                            85% 45%,
-                            85% 65%,
-                            60% 65%,
-                            60% 100%,
-                            25% 100%
-                    );
-                }
-            `}</style>
-
-            <style jsx global>{`
-                @keyframes spellPulse {
-                    0%, 100% {
-                        box-shadow: 0 0 6px rgba(120, 180, 255, 0.35),
-                        0 0 12px rgba(120, 180, 255, 0.15);
-                        transform: scale(1);
-                    }
-                    50% {
-                        box-shadow: 0 0 10px rgba(140, 160, 255, 0.55),
-                        0 0 18px rgba(140, 160, 255, 0.35);
-                        transform: scale(1.05);
-                    }
-                }
-
-                @keyframes spellInnerGlow {
-                    0%, 100% {
-                        opacity: 0.35;
-                    }
-                    50% {
-                        opacity: 0.7;
-                    }
-                }
-            `}</style>
-
-            {/* ───────── BLOQUE SUPERIOR ───────── */}
-            <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
-                {/* Imagen personaje */}
-                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                    <div className="w-full aspect-[3/5] rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700">
-                        {profileImage?.startsWith("http") ? (
-                            <img
-                                src={profileImage}
-                                alt="Imagen del personaje"
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-zinc-500">
-                                Sin imagen
-                            </div>
-                        )}
-                    </div>
-
-                    <label className="mt-3 block text-xs text-center cursor-pointer text-emerald-400 hover:underline">
-                        Cambiar imagen
-                        <input
-                            type="file"
-                            accept="image/*"
-                            hidden
-                            onChange={handleImageUpload}
-                        />
-                    </label>
-                </div>
-
-                {/* Stats */}
-                <div className="space-y-4">
-                    <div className="flex justify-between px-2">
-                        <StatOrb
-                            label="Vida"
-                            value={character?.current_hp ?? details?.current_hp ?? "?"}
-                            subValue={`/ ${character?.max_hp ?? details?.max_hp ?? "?"}`}
-                            gradient="from-rose-400 to-rose-700"
-                            shape="heart"
-                        />
-
-                        <StatOrb
-                            label="CA"
-                            value={totalAC}
-                            gradient="from-sky-400 to-sky-700"
-                            shape="shield"
-                        />
-
-                        <StatOrb
-                            label="Velocidad"
-                            value={character?.speed ?? 30}
-                            gradient="from-emerald-400 to-emerald-700"
-                            shape="boot"
-                        />
-                    </div>
-
-
-                    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
-                        <StatsHexagon
-                            characterClass={character?.class}
-                            stats={{
-                                FUE: totalStr,
-                                DES: totalDex,
-                                CON: totalCon,
-                                INT: totalInt,
-                                SAB: totalWis,
-                                CAR: totalCha,
-                            }}
-                            bonuses={{
-                                FUE: hasBonus("STR"),
-                                DES: hasBonus("DEX"),
-                                CON: hasBonus("CON"),
-                                INT: hasBonus("INT"),
-                                SAB: hasBonus("WIS"),
-                                CAR: hasBonus("CHA"),
-                            }}
-                            bonusDetails={{
-                                FUE: getBonusDetails("STR"),
-                                DES: getBonusDetails("DEX"),
-                                CON: getBonusDetails("CON"),
-                                INT: getBonusDetails("INT"),
-                                SAB: getBonusDetails("WIS"),
-                                CAR: getBonusDetails("CHA"),
-                            }}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* ───────── ARMADURAS / ARMA ───────── */
-            }
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Armaduras */}
-                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                    <h3 className="text-sm font-semibold text-zinc-200 mb-2">
-                        Armaduras
-                    </h3>
-
-                    {armors.length === 0 ? (
-                        <p className="text-xs text-zinc-500">
-                            No tienes armaduras registradas.
-                        </p>
-                    ) : (
-                        <div className="space-y-3">
-                            {armors.map((armor) => {
-                                const mods = extractModifiersFromItem(armor);
-                                const desc = resolveArmorDescription(armor);
-
-                                return (
-                                    <div
-                                        key={armor.id ?? armor.name}
-                                        className="rounded-lg bg-zinc-900 px-3 py-3 border border-zinc-700"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-sm font-semibold text-zinc-200">
-                                                {armor.name}
-                                            </span>
-                                            <span className="text-xs text-zinc-400">
-                                                (CA {armor.bonus >= 0 ? `+${armor.bonus}` : armor.bonus})
-                                            </span>
-                                            {armor.equipped && (
-                                                <span
-                                                    className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-600 text-emerald-300">
-                                                    Equipada
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {desc && (
-                                            <p className="text-[11px] text-zinc-400 mt-2 whitespace-pre-wrap">
-                                                {desc}
-                                            </p>
-                                        )}
-
-                                        {mods.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {mods.map((m, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className={`text-[10px] px-1.5 py-0.5 rounded-md border ${
-                                                            m.modifier >= 0
-                                                                ? "border-emerald-700 text-emerald-300"
-                                                                : "border-rose-600 text-rose-300"
-                                                        }`}
-                                                    >
-                                                        {m.ability} {m.modifier >= 0 ? `+${m.modifier}` : m.modifier}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {/* Arma */}
-                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                    <h3 className="text-sm font-semibold text-zinc-200 mb-2">
-                        Arma equipada
-                    </h3>
-
-                    {!weapon ? (
-                        <p className="text-sm text-zinc-500">
-                            Sin arma equipada
-                        </p>
-                    ) : (
-                        <div className="rounded-lg bg-zinc-900 px-3 py-3 border border-zinc-700">
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium text-zinc-200">
-                                    {weapon.name}
-                                </span>
-                                {weapon.damage && (
-                                    <span className="text-xs text-zinc-400">
-                                        ({weapon.damage})
-                                    </span>
-                                )}
-                            </div>
-
-                            {weapon.description && (
-                                <p className="text-[11px] text-zinc-400 mt-2 whitespace-pre-wrap">
-                                    {weapon.description}
-                                </p>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ───────── CONJUROS / DOTES ───────── */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                    <h3 className="text-sm font-semibold text-zinc-200">
-                        Espacios de conjuro
-                    </h3>
-
-                    <div className="mt-3">
-                        {!spellSlots ? (
-                            <p className="text-xs text-zinc-500">
-                                Esta clase no tiene espacios de conjuro.
-                            </p>
-                        ) : "slots" in spellSlots ? (
-                            <p className="text-xs text-zinc-300">
-                                Brujo: {(spellSlots as any).slots} espacios (nivel {(spellSlots as any).slotLevel})
-                            </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {Object.entries(spellSlots)
-                                    .filter(([lvl, num]) => Number(lvl) > 0 && Number(num) > 0)
-                                    .map(([lvl, num]) => {
-                                        const level = Number(lvl);
-
-                                        return (
-                                            <div key={lvl} className="flex items-center gap-3">
-                                                {/* Nivel */}
-                                                <span className="w-14 text-xs text-zinc-400">
-                        Nivel {lvl}
-                    </span>
-
-                                                {/* Orbes */}
-                                                <div className="flex gap-2">
-                                                    {Array.from({length: Number(num)}).map((_, i) => (
-                                                        <SpellSlotOrb
-                                                            key={i}
-                                                            level={level}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-
-                        )}
-                    </div>
-                </div>
-
-                <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-                    <h3 className="text-sm font-semibold text-zinc-200">
-                        Dotes y rasgos
-                    </h3>
-
-                    {details?.abilities ? (
-                        <pre className="whitespace-pre-wrap text-sm text-zinc-300 mt-2">
-                            {details.abilities}
-                        </pre>
-                    ) : (
-                        <p className="text-xs text-zinc-500 mt-2">
-                            No se han registrado dotes o rasgos.
-                        </p>
-                    )}
-                </div>
-            </div>
+          <label className="mt-3 block text-xs text-center cursor-pointer text-accent-strong hover:underline">
+            Cambiar imagen
+            <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
+          </label>
         </div>
-    );
-}
 
-/* ───────── Subcomponente ───────── */
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.35em] text-ink-muted">
+                  Hoja de personaje
+                </div>
+                <h2 className="text-2xl font-display font-semibold text-ink">
+                  {character?.name ?? "Personaje"}
+                </h2>
+                <p className="text-sm text-ink-muted">
+                  {character?.race ?? "Sin raza"} · {character?.class ?? "Sin clase"} · Nivel {character?.level ?? "?"}
+                </p>
+              </div>
+              <div className="grid gap-3 text-xs text-ink-muted sm:grid-cols-2">
+                {details?.background && (
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.2em]">Trasfondo</span>
+                    <div className="text-ink">{details.background}</div>
+                  </div>
+                )}
+                {details?.alignment && (
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.2em]">Alineamiento</span>
+                    <div className="text-ink">{details.alignment}</div>
+                  </div>
+                )}
+                {character?.experience != null && (
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.2em]">XP</span>
+                    <div className="text-ink">{character.experience}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-function StatBox({
-                     label,
-                     children,
-                 }: {
-    label: React.ReactNode;
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-3">
-            <span className="text-[11px] text-zinc-400">{label}</span>
-            <div className="mt-1 text-sm text-zinc-200">{children}</div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <MetricCard
+              label="Clase de armadura"
+              value={totalAC}
+              icon={<Shield className="h-4 w-4" />}
+            />
+            <MetricCard
+              label="Iniciativa"
+              value={formatModifier(initiative)}
+              icon={<Zap className="h-4 w-4" />}
+            />
+            <MetricCard
+              label="Velocidad"
+              value={`${totalSpeed} ft`}
+              icon={<Wind className="h-4 w-4" />}
+            />
+            <MetricCard
+              label="Competencia"
+              value={`+${proficiencyBonus}`}
+              icon={<Award className="h-4 w-4" />}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <MetricCard
+              label="Vida actual"
+              value={totalCurrentHp ?? "?"}
+              icon={<HeartPulse className="h-4 w-4" />}
+            />
+            <MetricCard
+              label="Vida máxima"
+              value={totalMaxHp ?? "?"}
+              icon={<Heart className="h-4 w-4" />}
+            />
+            <MetricCard
+              label="Percepción pasiva"
+              value={passivePerception}
+              icon={<Eye className="h-4 w-4" />}
+            />
+            <MetricCard
+              label="Dado de golpe"
+              value={`d${details?.hitDie?.sides ?? 8}`}
+              icon={<Dice5 className="h-4 w-4" />}
+            />
+          </div>
         </div>
-    );
+      </section>
+
+      <section className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-display font-semibold text-ink">Atributos</h3>
+          <p className="text-xs text-ink-muted">Vista hexagonal estilo videojuego</p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] items-start">
+          <div className="flex flex-col items-center gap-2 w-full">
+            <div className="w-full max-w-[320px] sm:max-w-[360px] md:max-w-[420px]">
+              <StatsHexagon
+                characterClass={character?.class}
+                stats={{
+                  FUE: totalStr,
+                  DES: totalDex,
+                  CON: totalCon,
+                  INT: totalInt,
+                  SAB: totalWis,
+                  CAR: totalCha,
+                }}
+                bonuses={{
+                  FUE: hasBonus("STR"),
+                  DES: hasBonus("DEX"),
+                  CON: hasBonus("CON"),
+                  INT: hasBonus("INT"),
+                  SAB: hasBonus("WIS"),
+                  CAR: hasBonus("CHA"),
+                }}
+                bonusDetails={{
+                  FUE: getBonusDetails("STR"),
+                  DES: getBonusDetails("DEX"),
+                  CON: getBonusDetails("CON"),
+                  INT: getBonusDetails("INT"),
+                  SAB: getBonusDetails("WIS"),
+                  CAR: getBonusDetails("CHA"),
+                }}
+              />
+            </div>
+            <p className="text-[11px] text-ink-muted">
+              Pasa el ratón por cada atributo para ver los bonus activos.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {statEntries.map((stat) => {
+              const mod = abilityModifier(stat.value);
+              const bonuses = getBonusDetails(stat.raw as keyof typeof bonusSources);
+              return (
+                <div
+                  key={stat.key}
+                  className="rounded-2xl border border-ring bg-white/80 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-ink">{stat.key}</span>
+                    <span className="text-xs text-ink-muted">{formatModifier(mod)}</span>
+                  </div>
+                  <div className="text-lg font-semibold text-ink">{stat.value}</div>
+                  {bonuses.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {bonuses.map((bonus, i) => (
+                        <span
+                          key={`${bonus.source}-${i}`}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                            bonus.value >= 0
+                              ? "border-emerald-500/40 text-emerald-700 bg-emerald-50"
+                              : "border-rose-500/40 text-rose-700 bg-rose-50"
+                          }`}
+                        >
+                          {bonus.source}: {bonus.value >= 0 ? `+${bonus.value}` : bonus.value}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-ink-muted mt-1">Sin bonus activos</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-display font-semibold text-ink">Equipados</h3>
+          <span className="text-[11px] text-ink-muted">
+            {equippedItems.length} objeto{equippedItems.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {equippedItems.length === 0 ? (
+          <p className="text-xs text-ink-muted">No hay objetos equipados.</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {equippedItems.map((item) => {
+              const description = getLocalizedText(item.description, locale);
+              const modifiers = Array.isArray(item.modifiers) ? item.modifiers : [];
+              const tags = [
+                item.category ? item.category : null,
+                item.rarity ? item.rarity : null,
+                ...(item.tags ?? []),
+              ].filter(Boolean) as string[];
+
+              return (
+                <details
+                  key={item.id}
+                  className="rounded-2xl border border-ring bg-white/80 p-3"
+                >
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-ink">{item.name}</p>
+                        <p className="text-[11px] text-ink-muted capitalize">
+                          {item.category === "weapon"
+                            ? "Arma"
+                            : item.category === "armor"
+                              ? "Armadura"
+                              : item.category === "accessory"
+                                ? "Accesorio"
+                                : item.category === "consumable"
+                                  ? "Consumible"
+                                  : item.category === "tool"
+                                    ? "Herramienta"
+                                    : "Misceláneo"}
+                        </p>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700 bg-emerald-50">
+                        Equipado
+                      </span>
+                    </div>
+                  </summary>
+
+                  <div className="mt-3 space-y-2 text-xs text-ink-muted">
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-2 py-0.5 rounded-full border border-ring text-[10px] text-ink-muted"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {modifiers.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {modifiers.map((mod, i) => (
+                          <span
+                            key={`${mod.target}-${i}`}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                              mod.value >= 0
+                                ? "border-emerald-500/50 text-emerald-700 bg-emerald-50"
+                                : "border-rose-500/50 text-rose-700 bg-rose-50"
+                            }`}
+                          >
+                            {getTargetLabel(mod.target)}{" "}
+                            {mod.value >= 0 ? `+${mod.value}` : mod.value}
+                            {mod.note ? ` · ${mod.note}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {description && (
+                      <Markdown content={description} className="text-ink-muted text-xs" />
+                    )}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
+          <h3 className="text-sm font-display font-semibold text-ink">Espacios de conjuro</h3>
+
+          <div className="mt-3">
+            {!spellSlots ? (
+              <p className="text-xs text-ink-muted">Esta clase no tiene espacios de conjuro.</p>
+            ) : "slots" in spellSlots ? (
+              <p className="text-xs text-ink-muted">
+                Brujo: {(spellSlots as any).slots} espacios (nivel {(spellSlots as any).slotLevel})
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(spellSlots)
+                  .filter(([lvl, num]) => Number(lvl) > 0 && Number(num) > 0)
+                  .map(([lvl, num]) => {
+                    const levelNum = Number(lvl);
+                    return (
+                      <div key={lvl} className="flex items-center gap-3">
+                        <span className="w-16 text-xs text-ink-muted">Nivel {lvl}</span>
+                        <div className="flex gap-2">
+                          {Array.from({ length: Number(num) }).map((_, i) => (
+                            <SpellSlotOrb key={i} level={levelNum} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
+          <h3 className="text-sm font-display font-semibold text-ink">Dotes y rasgos</h3>
+
+          <div className="mt-3 space-y-2">
+            {customTraits.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
+                  Rasgos personalizados
+                </p>
+                {customTraits.map((trait) => {
+                  const desc = getLocalizedText(trait.description, locale);
+                  return (
+                    <details
+                      key={trait.id}
+                      className="rounded-xl border border-ring bg-white/80 p-3"
+                    >
+                      <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {trait.name}
+                      </summary>
+                      {desc ? (
+                        <Markdown content={desc} className="text-ink-muted text-xs mt-2" />
+                      ) : (
+                        <p className="text-[11px] text-ink-muted mt-2">
+                          Sin descripción.
+                        </p>
+                      )}
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+
+            {customClassAbilities.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
+                  Habilidades personalizadas
+                </p>
+                {customClassAbilities.map((ability) => {
+                  const desc = getLocalizedText(ability.description, locale);
+                  return (
+                    <details
+                      key={ability.id}
+                      className="rounded-xl border border-ring bg-white/80 p-3"
+                    >
+                      <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {ability.name}
+                        {ability.level != null ? ` · Nivel ${ability.level}` : ""}
+                      </summary>
+                      {desc ? (
+                        <Markdown content={desc} className="text-ink-muted text-xs mt-2" />
+                      ) : (
+                        <p className="text-[11px] text-ink-muted mt-2">
+                          Sin descripción.
+                        </p>
+                      )}
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+
+            {details?.abilities ? (
+              <Markdown content={details.abilities} className="text-ink-muted" />
+            ) : null}
+
+            {!details?.abilities && customTraits.length === 0 && customClassAbilities.length === 0 && (
+              <p className="text-xs text-ink-muted">No se han registrado dotes o rasgos.</p>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }

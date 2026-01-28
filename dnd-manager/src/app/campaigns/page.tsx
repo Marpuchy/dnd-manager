@@ -97,7 +97,7 @@ export default function CampaignsPage() {
 
     if (loading) {
         return (
-            <main className="min-h-screen bg-black text-zinc-100 flex items-center justify-center">
+            <main className="min-h-screen bg-surface text-ink flex items-center justify-center">
                 <p>Cargando tus campañas...</p>
             </main>
         );
@@ -107,8 +107,8 @@ export default function CampaignsPage() {
     const playerCampaigns = campaigns.filter((c) => c.role === "PLAYER");
 
     return (
-        <main className="min-h-screen bg-black text-zinc-100 p-6 space-y-6 max-w-3xl mx-auto">
-            <h1 className="text-3xl font-bold text-purple-300">Tus campañas</h1>
+        <main className="min-h-screen bg-surface text-ink p-6 space-y-6 max-w-3xl mx-auto">
+            <h1 className="text-3xl font-bold text-ink">Tus campañas</h1>
 
             {error && (
                 <p className="text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2">
@@ -118,22 +118,22 @@ export default function CampaignsPage() {
 
             {/* CAMPAÑAS COMO DM */}
             <section className="space-y-2">
-                <h2 className="text-xl font-semibold text-emerald-300">Como DM</h2>
+                <h2 className="text-xl font-semibold text-ink">Como DM</h2>
                 {dmCampaigns.length === 0 ? (
-                    <p className="text-sm text-zinc-500">No eres DM en ninguna campaña.</p>
+                    <p className="text-sm text-ink-muted">No eres DM en ninguna campaña.</p>
                 ) : (
                     <ul className="space-y-2">
                         {dmCampaigns.map((c) => (
                             <li
                                 key={c.id}
-                                className="flex justify-between border border-zinc-800 bg-zinc-950/70 rounded-lg p-3"
+                                className="flex justify-between border border-ring bg-panel/80 rounded-lg p-3"
                             >
                                 <div>
-                                    <p className="font-medium text-zinc-200">{c.name}</p>
+                                    <p className="font-medium text-ink">{c.name}</p>
                                 </div>
                                 <Link
                                     href={`/campaigns/${c.id}/dm`}
-                                    className="text-xs border border-emerald-600/70 px-3 py-1 rounded hover:bg-emerald-900/40"
+                                    className="text-xs border border-accent/60 px-3 py-1 rounded hover:bg-accent/10"
                                 >
                                     Entrar
                                 </Link>
@@ -145,9 +145,9 @@ export default function CampaignsPage() {
 
             {/* CAMPAÑAS COMO JUGADOR */}
             <section className="space-y-2">
-                <h2 className="text-xl font-semibold text-purple-300">Como jugador</h2>
+                <h2 className="text-xl font-semibold text-ink">Como jugador</h2>
                 {playerCampaigns.length === 0 ? (
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm text-ink-muted">
                         No participas en ninguna campaña como jugador.
                     </p>
                 ) : (
@@ -155,14 +155,14 @@ export default function CampaignsPage() {
                         {playerCampaigns.map((c) => (
                             <li
                                 key={c.id}
-                                className="flex justify-between border border-zinc-800 bg-zinc-950/70 rounded-lg p-3"
+                                className="flex justify-between border border-ring bg-panel/80 rounded-lg p-3"
                             >
                                 <div>
-                                    <p className="font-medium text-zinc-200">{c.name}</p>
+                                    <p className="font-medium text-ink">{c.name}</p>
                                 </div>
                                 <Link
                                     href={`/campaigns/${c.id}/player`}
-                                    className="text-xs border border-purple-600/70 px-3 py-1 rounded hover:bg-purple-900/40"
+                                    className="text-xs border border-accent/60 px-3 py-1 rounded hover:bg-accent/10"
                                 >
                                     Entrar
                                 </Link>
@@ -176,13 +176,13 @@ export default function CampaignsPage() {
             <div className="flex gap-3 pt-4">
                 <Link
                     href="/campaigns/create"
-                    className="border border-emerald-600/70 rounded-lg px-4 py-2 hover:bg-emerald-900/40"
+                    className="border border-accent/60 rounded-lg px-4 py-2 hover:bg-accent/10"
                 >
                     Crear campaña (DM)
                 </Link>
                 <Link
                     href="/campaigns/join"
-                    className="border border-purple-600/70 rounded-lg px-4 py-2 hover:bg-purple-900/40"
+                    className="border border-accent/60 rounded-lg px-4 py-2 hover:bg-accent/10"
                 >
                     Unirme a una campaña
                 </Link>

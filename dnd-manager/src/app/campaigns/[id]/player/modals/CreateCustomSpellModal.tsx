@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import { SpellMeta } from "../playerShared";
@@ -9,18 +9,18 @@ type Props = {
 };
 
 const SCHOOLS = [
-    "Abjuración",
-    "Adivinación",
-    "Conjuración",
+    "AbjuraciÃ³n",
+    "AdivinaciÃ³n",
+    "ConjuraciÃ³n",
     "Encantamiento",
-    "Evocación",
-    "Ilusión",
+    "EvocaciÃ³n",
+    "IlusiÃ³n",
     "Nigromancia",
-    "Transmutación",
+    "TransmutaciÃ³n",
 ];
 
 const inputClass =
-    "w-full border border-zinc-700 px-2 py-1 rounded bg-zinc-900 text-zinc-100 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-500";
+    "w-full border border-ring px-2 py-1 rounded bg-white/80 text-ink text-xs focus:outline-none focus:ring-1 focus:ring-accent/40";
 
 export default function CreateCustomSpellModal({
                                                    onClose,
@@ -29,7 +29,7 @@ export default function CreateCustomSpellModal({
     const [form, setForm] = useState({
         name: "",
         level: 0,
-        school: "Evocación",
+        school: "EvocaciÃ³n",
         casting_time: "",
         rangeFeet: "",
         duration: "",
@@ -79,14 +79,14 @@ export default function CreateCustomSpellModal({
 
     return (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-lg w-full max-w-xl p-4 space-y-4">
-                <h3 className="text-sm font-semibold text-zinc-100">
+            <div className="bg-panel/90 border border-ring rounded-lg w-full max-w-xl p-4 space-y-4">
+                <h3 className="text-sm font-semibold text-ink">
                     Crear hechizo personalizado
                 </h3>
 
                 {/* Nombre */}
                 <div>
-                    <label className="text-[11px] text-zinc-400">Nombre</label>
+                    <label className="text-[11px] text-ink-muted">Nombre</label>
                     <input
                         className={inputClass}
                         value={form.name}
@@ -99,7 +99,7 @@ export default function CreateCustomSpellModal({
                 {/* Nivel y escuela */}
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="text-[11px] text-zinc-400">Nivel</label>
+                        <label className="text-[11px] text-ink-muted">Nivel</label>
                         <input
                             type="number"
                             min={0}
@@ -116,7 +116,7 @@ export default function CreateCustomSpellModal({
                     </div>
 
                     <div>
-                        <label className="text-[11px] text-zinc-400">Escuela</label>
+                        <label className="text-[11px] text-ink-muted">Escuela</label>
                         <select
                             className={inputClass}
                             value={form.school}
@@ -128,7 +128,7 @@ export default function CreateCustomSpellModal({
                                 <option
                                     key={s}
                                     value={s}
-                                    className="bg-zinc-900 text-zinc-100"
+                                    className="bg-white/80 text-ink"
                                 >
                                     {s}
                                 </option>
@@ -140,12 +140,12 @@ export default function CreateCustomSpellModal({
                 {/* Casting / Range / Duration */}
                 <div className="grid grid-cols-3 gap-3">
                     <div>
-                        <label className="text-[11px] text-zinc-400">
+                        <label className="text-[11px] text-ink-muted">
                             Tiempo de lanzamiento
                         </label>
                         <input
                             className={inputClass}
-                            placeholder="Acción, Acción adicional, Reacción…"
+                            placeholder="AcciÃ³n, AcciÃ³n adicional, ReacciÃ³nâ€¦"
                             value={form.casting_time}
                             onChange={(e) =>
                                 setForm({
@@ -157,7 +157,7 @@ export default function CreateCustomSpellModal({
                     </div>
 
                     <div>
-                        <label className="text-[11px] text-zinc-400">
+                        <label className="text-[11px] text-ink-muted">
                             Alcance (0 = Touch)
                         </label>
                         <div className="flex">
@@ -185,19 +185,19 @@ export default function CreateCustomSpellModal({
                                     });
                                 }}
                             />
-                            <div className="border border-zinc-700 border-l-0 px-2 py-1 rounded-r text-xs text-zinc-400 flex items-center bg-zinc-900">
+                            <div className="border border-ring border-l-0 px-2 py-1 rounded-r text-xs text-ink-muted flex items-center bg-white/80">
                                 ft
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-[11px] text-zinc-400">
-                            Duración
+                        <label className="text-[11px] text-ink-muted">
+                            DuraciÃ³n
                         </label>
                         <input
                             className={inputClass}
-                            placeholder="Concentración, hasta 1 minuto…"
+                            placeholder="ConcentraciÃ³n, hasta 1 minutoâ€¦"
                             value={form.duration}
                             onChange={(e) =>
                                 setForm({ ...form, duration: e.target.value })
@@ -207,7 +207,7 @@ export default function CreateCustomSpellModal({
                 </div>
 
                 {/* Componentes + Ritual */}
-                <div className="flex flex-wrap gap-4 text-xs text-zinc-100">
+                <div className="flex flex-wrap gap-4 text-xs text-ink">
                     {["V", "S", "M"].map((c) => (
                         <label key={c} className="flex gap-1 items-center">
                             <input
@@ -234,15 +234,15 @@ export default function CreateCustomSpellModal({
                     </label>
                 </div>
 
-                {/* Descripción */}
+                {/* DescripciÃ³n */}
                 <div>
-                    <label className="text-[11px] text-zinc-400">
-                        Descripción
+                    <label className="text-[11px] text-ink-muted">
+                        DescripciÃ³n
                     </label>
                     <textarea
                         className={inputClass}
                         rows={5}
-                        placeholder="Descripción completa del hechizo…"
+                        placeholder="DescripciÃ³n completa del hechizoâ€¦"
                         value={form.description}
                         onChange={(e) =>
                             setForm({ ...form, description: e.target.value })
@@ -253,13 +253,13 @@ export default function CreateCustomSpellModal({
                 {/* Acciones */}
                 <div className="flex justify-end gap-2 pt-2">
                     <button
-                        className="text-xs border border-zinc-700 px-3 py-1 rounded text-zinc-100 hover:bg-zinc-800"
+                        className="text-xs border border-ring px-3 py-1 rounded text-ink hover:bg-ink/5"
                         onClick={onClose}
                     >
                         Cancelar
                     </button>
                     <button
-                        className="text-xs border border-zinc-700 px-3 py-1 rounded text-zinc-100 hover:bg-zinc-800"
+                        className="text-xs border border-ring px-3 py-1 rounded text-ink hover:bg-ink/5"
                         onClick={submit}
                     >
                         Crear
@@ -269,3 +269,4 @@ export default function CreateCustomSpellModal({
         </div>
     );
 }
+

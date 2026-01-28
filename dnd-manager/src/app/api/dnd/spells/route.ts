@@ -1,5 +1,6 @@
 // src/app/api/dnd/spells/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { translateText } from "@/lib/translation/translator";
 
 const BASE_URL = "https://www.dnd5eapi.co/api";
 
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const classIndex = searchParams.get("class");
     const levelStr = searchParams.get("level");
+    const locale = searchParams.get("locale") ?? "en";
 
     if (!classIndex || !levelStr) {
         return NextResponse.json(
@@ -74,20 +76,47 @@ export async function GET(req: NextRequest) {
                     );
                 }
 
+                const shouldTranslate = locale === "es";
+                const translate = (text?: string) =>
+                    text && shouldTranslate
+                        ? translateText({ text, target: "es", source: "en" })
+                        : Promise.resolve(text);
+
+                const [
+                    name,
+                    range,
+                    casting_time,
+                    duration,
+                    school,
+                    material,
+                    shortDescTranslated,
+                    fullDescTranslated,
+                ] = await Promise.all([
+                    translate(data.name),
+                    translate(data.range),
+                    translate(data.casting_time),
+                    translate(data.duration),
+                    translate(data.school?.name),
+                    translate(data.material),
+                    translate(shortDesc),
+                    translate(fullDescParts.join("\n")),
+                ]);
+
                 return {
                     index: data.index,
-                    name: data.name,
+                    name,
                     level: data.level,
-                    range: data.range,
-                    casting_time: data.casting_time,
-                    duration: data.duration,
-                    school: data.school?.name,
+                    range,
+                    casting_time,
+                    duration,
+                    school,
                     components: data.components,
-                    material: data.material,
+                    material,
                     concentration: data.concentration,
                     ritual: data.ritual,
-                    shortDesc,
-                    fullDesc: fullDescParts.join("\n"),
+                    shortDesc: shortDescTranslated,
+                    fullDesc: fullDescTranslated,
+                    locale,
                 };
             })
         );

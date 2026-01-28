@@ -1,4 +1,4 @@
-// src/app/campaigns/[id]/player/page.tsx
+﻿// src/app/campaigns/[id]/player/page.tsx
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
@@ -13,17 +13,17 @@ import {
     Spells,
     Mode,
     Tab,
-    normalizeClassForApi,
-    prettyClassLabel, LearnedSpellRef,
+    prettyClassLabel,
 } from "./playerShared";
 import ClickableRow from "../../../components/ClickableRow";
 import CharacterView from "./ui/CharacterView";
 import { CharacterForm } from "./ui/CharacterForm";
 import { SpellManagerPanel } from "./srd/SpellManagerPanel";
-import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu } from "lucide-react";
+import { useCharacterForm } from "./hooks/useCharacterForm";
+import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide-react";
+import SettingsPanel from "./ui/SettingsPanel";
 
 type RightPanelMode = "character" | "spellManager";
-type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
 
 export default function CampaignPlayerPage() {
     const params = useParams<{ id: string }>();
@@ -47,57 +47,95 @@ export default function CampaignPlayerPage() {
     }, []);
 
     // Panel personajes abierto/cerrado
-    const [charsOpen, setCharsOpen] = useState<boolean>(true);
+    const [charsOpen, setCharsOpen] = useState<boolean>(false);
+    const [isOverTrash, setIsOverTrash] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
-    // Edición / creación
+    // EdiciÃ³n / creaciÃ³n
     const [editingId, setEditingId] = useState<string | null>(null);
 
-    // Form fields (resumidos — los mantienes igual que antes)
-    const [charName, setCharName] = useState("");
-    const [charClass, setCharClass] = useState("");
-    const [charLevel, setCharLevel] = useState<number>(1);
-    const [race, setRace] = useState("");
-    const [experience, setExperience] = useState<number>(0);
-    const [armorClass, setArmorClass] = useState<number>(10);
-    const [speed, setSpeed] = useState<number>(30);
-    const [currentHp, setCurrentHp] = useState<number>(10);
-    const [hitDieSides, setHitDieSides] = useState<number>(8);
-    const [str, setStr] = useState<number>(10);
-    const [dex, setDex] = useState<number>(10);
-    const [con, setCon] = useState<number>(10);
-    const [intStat, setIntStat] = useState<number>(10);
-    const [wis, setWis] = useState<number>(10);
-    const [cha, setCha] = useState<number>(10);
+    const { fields, resetForm, loadFromCharacter } = useCharacterForm();
+    const {
+        charName,
+        charClass,
+        charLevel,
+        race,
+        experience,
+        armorClass,
+        speed,
+        currentHp,
+        hitDieSides,
+        str,
+        dex,
+        con,
+        intStat,
+        wis,
+        cha,
+        armors,
+        weaponName,
+        weaponDamage,
+        weaponDescription,
+        weaponStatAbility,
+        weaponStatModifier,
+        weaponProficient,
+        weaponEquipped: weaponEquippedFlag,
+        weaponPassiveModifiers,
+        inventory,
+        equipment,
+        abilities,
+        weaponsExtra,
+        notes,
+        background,
+        alignment,
+        personalityTraits,
+        ideals,
+        bonds,
+        flaws,
+        appearance,
+        backstory,
+        languages,
+        proficiencies,
+        customSections,
+        companionEnabled,
+        companionName,
+        companionKind,
+        companionSize,
+        companionArmorClass,
+        companionSpeed,
+        companionCurrentHp,
+        companionMaxHp,
+        companionStr,
+        companionDex,
+        companionCon,
+        companionInt,
+        companionWis,
+        companionCha,
+        companionAbilities,
+        companionSpells,
+        companionNotes,
+        customClassName,
+        customCastingAbility,
+        items,
+        customSpells,
+        customCantrips,
+        customTraits,
+        customClassAbilities,
+        spellsL0,
+        spellsL1,
+        spellsL2,
+        spellsL3,
+        spellsL4,
+        spellsL5,
+        spellsL6,
+        spellsL7,
+        spellsL8,
+        spellsL9,
+    } = fields;
 
+    // Form fields (resumidos â€” los mantienes igual que antes)
     // details
-    const [armors, setArmors] = useState<any[]>([]);
-    const [weaponName, setWeaponName] = useState("");
-    const [weaponDamage, setWeaponDamage] = useState("");
-    const [weaponDescription, setWeaponDescription] = useState("");
-    const [weaponStatAbility, setWeaponStatAbility] = useState<AbilityKey | "none">("none");
-    const [weaponStatModifier, setWeaponStatModifier] = useState<number | null>(null);
-    const [inventory, setInventory] = useState("");
-    const [equipment, setEquipment] = useState("");
-    const [abilities, setAbilities] = useState("");
-    const [weaponsExtra, setWeaponsExtra] = useState("");
-    const [notes, setNotes] = useState("");
-
     // Clase personalizada
-    const [customClassName, setCustomClassName] = useState("");
-    const [customCastingAbility, setCustomCastingAbility] = useState<keyof Stats>("int");
-
     // Hechizos en formulario
-    const [spellsL0, setSpellsL0] = useState("");
-    const [spellsL1, setSpellsL1] = useState("");
-    const [spellsL2, setSpellsL2] = useState("");
-    const [spellsL3, setSpellsL3] = useState("");
-    const [spellsL4, setSpellsL4] = useState("");
-    const [spellsL5, setSpellsL5] = useState("");
-    const [spellsL6, setSpellsL6] = useState("");
-    const [spellsL7, setSpellsL7] = useState("");
-    const [spellsL8, setSpellsL8] = useState("");
-    const [spellsL9, setSpellsL9] = useState("");
-
     // --- Helper: carga personajes desde DB (reutilizable)
     async function loadCharacters() {
         setLoading(true);
@@ -177,64 +215,10 @@ export default function CampaignPlayerPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.id, router]);
 
-    function spellsToText(
-        value: string | LearnedSpellRef[] | undefined
-    ): string {
-        if (!value) return "";
-
-        if (typeof value === "string") return value;
-
-        // nuevo formato → convertir a texto legacy
-        return value.map((s) => s.name).join("\n");
-    }
-
-
-    function resetForm() {
-        setEditingId(null);
-        setCharName("");
-        setCharClass("");
-        setCharLevel(1);
-        setRace("");
-        setExperience(0);
-        setArmorClass(10);
-        setSpeed(30);
-        setCurrentHp(10);
-        setHitDieSides(8);
-        setStr(10);
-        setDex(10);
-        setCon(10);
-        setIntStat(10);
-        setWis(10);
-        setCha(10);
-        setArmors([]);
-        setWeaponName("");
-        setWeaponDamage("");
-        setWeaponDescription("");
-        setWeaponStatAbility("none");
-        setWeaponStatModifier(null);
-        setInventory("");
-        setEquipment("");
-        setAbilities("");
-        setWeaponsExtra("");
-        setNotes("");
-        setSpellsL0("");
-        setSpellsL1("");
-        setSpellsL2("");
-        setSpellsL3("");
-        setSpellsL4("");
-        setSpellsL5("");
-        setSpellsL6("");
-        setSpellsL7("");
-        setSpellsL8("");
-        setSpellsL9("");
-
-        // Clase personalizada
-        setCustomClassName("");
-        setCustomCastingAbility("int");
-    }
 
     function startCreate() {
         resetForm();
+        setEditingId(null);
         setMode("create");
         setActiveTab("stats");
         setRightPanelMode("character");
@@ -245,66 +229,7 @@ export default function CampaignPlayerPage() {
         setMode("edit");
         setActiveTab("stats");
         setRightPanelMode("character");
-
-        setCharName(char.name);
-        setCharClass(normalizeClassForApi(char.class ?? "") || char.class || "");
-        setCharLevel(char.level ?? 1);
-        setRace(char.race ?? "");
-        setExperience(char.experience ?? 0);
-        setArmorClass(char.armor_class ?? 10);
-        setSpeed(char.speed ?? 30);
-        setCurrentHp(char.current_hp ?? char.max_hp ?? 10);
-
-        const s: Stats =
-            char.stats ??
-            (({
-                str: 10,
-                dex: 10,
-                con: 10,
-                int: 10,
-                wis: 10,
-                cha: 10,
-            } as Stats));
-
-        setStr(s.str ?? 10);
-        setDex(s.dex ?? 10);
-        setCon(s.con ?? 10);
-        setIntStat(s.int ?? 10);
-        setWis(s.wis ?? 10);
-        setCha(s.cha ?? 10);
-
-        const d: Details = char.details || {};
-        setArmors(Array.isArray(d.armors) ? d.armors : []);
-        setWeaponName(d.weaponEquipped?.name ?? "");
-        setWeaponDamage(d.weaponEquipped?.damage ?? "");
-        setWeaponDescription(d.weaponEquipped?.description ?? "");
-
-        const weapon: any = (d as any).weaponEquipped;
-        setWeaponStatAbility((weapon?.statAbility as AbilityKey | undefined) ?? "none");
-        setWeaponStatModifier(typeof weapon?.statModifier === "number" ? weapon.statModifier : null);
-
-        setInventory(d.inventory ?? "");
-        setEquipment(d.equipment ?? "");
-        setAbilities(d.abilities ?? "");
-        setWeaponsExtra(d.weaponsExtra ?? "");
-        setNotes(d.notes ?? "");
-        setHitDieSides(d.hitDie?.sides ?? 8);
-
-        // Clase personalizada guardada en details
-        setCustomClassName(d.customClassName ?? "");
-        setCustomCastingAbility(d.customCastingAbility ?? "int");
-
-        const sp = d.spells || {};
-        setSpellsL0(spellsToText(sp.level0));
-        setSpellsL1(spellsToText(sp.level1));
-        setSpellsL2(spellsToText(sp.level2));
-        setSpellsL3(spellsToText(sp.level3));
-        setSpellsL4(spellsToText(sp.level4));
-        setSpellsL5(spellsToText(sp.level5));
-        setSpellsL6(spellsToText(sp.level6));
-        setSpellsL7(spellsToText(sp.level7));
-        setSpellsL8(spellsToText(sp.level8));
-        setSpellsL9(spellsToText(sp.level9));
+        loadFromCharacter(char);
 
     }
 
@@ -319,29 +244,6 @@ export default function CampaignPlayerPage() {
         setRightPanelMode("character");
     }
 
-    // Armaduras (para el formulario)
-    type Armor = {
-        name: string;
-        bonus?: number | null;
-        ability?: AbilityKey | null;
-        modifier?: number | null;
-        statAbility?: AbilityKey | null;
-        statModifier?: number | null;
-        modifiers?: { ability: AbilityKey; modifier: number }[];
-    };
-
-    function addArmor(armor: Armor) {
-        setArmors((prev) => [...prev, armor]);
-    }
-
-    function removeArmor(index: number) {
-        setArmors((prev) => prev.filter((_, i) => i !== index));
-    }
-
-    function updateArmor(index: number, field: keyof Armor, value: string | number | null) {
-        setArmors((prev) => prev.map((armor, i) => (i === index ? { ...armor, [field]: value } : armor)));
-    }
-
     async function handleSaveCharacter(e: FormEvent) {
         e.preventDefault();
         setError(null);
@@ -352,7 +254,7 @@ export default function CampaignPlayerPage() {
             } = await supabase.auth.getSession();
 
             if (!session?.user) {
-                throw new Error("No hay sesión activa.");
+                throw new Error("No hay sesiÃ³n activa.");
             }
 
             if (!charName.trim()) {
@@ -383,39 +285,69 @@ export default function CampaignPlayerPage() {
                 level9: spellsL9.trim() || undefined,
             };
 
-            // Construir arma equipada con modificador de stat
-            let weaponEquipped: any | undefined;
-            if (weaponName.trim()) {
-                const numericWeaponMod =
-                    typeof weaponStatModifier === "number" && !Number.isNaN(weaponStatModifier)
-                        ? weaponStatModifier
-                        : null;
-
-                weaponEquipped = {
-                    name: weaponName.trim(),
-                    damage: weaponDamage.trim() || undefined,
-                    description: weaponDescription.trim() || undefined,
-                    ...(weaponStatAbility !== "none" && numericWeaponMod !== null
-                        ? {
-                            statAbility: weaponStatAbility,
-                            statModifier: numericWeaponMod,
-                        }
-                        : {}),
-                };
-            }
-
             const detailsObj: Details = {
-                armors: armors.filter((a) => a.name?.trim() !== ""),
-                weaponEquipped,
-                inventory: inventory.trim() || undefined,
-                equipment: equipment.trim() || undefined,
                 abilities: abilities.trim() || undefined,
-                weaponsExtra: weaponsExtra.trim() || undefined,
                 notes: notes.trim() || undefined,
+                background: background?.trim() || undefined,
+                alignment: alignment?.trim() || undefined,
+                personalityTraits: personalityTraits?.trim() || undefined,
+                ideals: ideals?.trim() || undefined,
+                bonds: bonds?.trim() || undefined,
+                flaws: flaws?.trim() || undefined,
+                appearance: appearance?.trim() || undefined,
+                backstory: backstory?.trim() || undefined,
+                languages: languages?.trim() || undefined,
+                proficiencies: proficiencies?.trim() || undefined,
+                customSections:
+                    Array.isArray(customSections) && customSections.length > 0
+                        ? customSections
+                        : undefined,
+                companion:
+                    companionEnabled || (companionName && companionName.trim())
+                        ? {
+                            name: companionName?.trim() || "Compañero",
+                            kind: companionKind?.trim() || undefined,
+                            size: companionSize?.trim() || undefined,
+                            armorClass:
+                                typeof companionArmorClass === "number"
+                                    ? companionArmorClass
+                                    : undefined,
+                            speed:
+                                typeof companionSpeed === "number"
+                                    ? companionSpeed
+                                    : undefined,
+                            currentHp:
+                                typeof companionCurrentHp === "number"
+                                    ? companionCurrentHp
+                                    : undefined,
+                            maxHp:
+                                typeof companionMaxHp === "number"
+                                    ? companionMaxHp
+                                    : undefined,
+                            stats: {
+                                str: companionStr ?? 10,
+                                dex: companionDex ?? 10,
+                                con: companionCon ?? 10,
+                                int: companionInt ?? 10,
+                                wis: companionWis ?? 10,
+                                cha: companionCha ?? 10,
+                            },
+                            abilities: companionAbilities?.trim() || undefined,
+                            spells: companionSpells?.trim() || undefined,
+                            notes: companionNotes?.trim() || undefined,
+                        }
+                        : undefined,
                 hitDie: { sides: hitDieSides },
                 spells,
                 customClassName: customClassName.trim() || undefined,
                 customCastingAbility,
+                items: Array.isArray(items) ? items : [],
+                customSpells: Array.isArray(customSpells) ? customSpells : [],
+                customCantrips: Array.isArray(customCantrips) ? customCantrips : [],
+                customTraits: Array.isArray(customTraits) ? customTraits : [],
+                customClassAbilities: Array.isArray(customClassAbilities)
+                    ? customClassAbilities
+                    : [],
             };
 
             const payload = {
@@ -480,7 +412,7 @@ export default function CampaignPlayerPage() {
 
     // BORRAR personaje: BORRADO REAL en la BD + recarga de la lista
     async function handleDeleteCharacter(id: string) {
-        const confirmDelete = window.confirm("¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer.");
+        const confirmDelete = window.confirm("Â¿Seguro que quieres eliminar este personaje? Esta acciÃ³n no se puede deshacer.");
         if (!confirmDelete) return;
 
         setError(null);
@@ -490,7 +422,7 @@ export default function CampaignPlayerPage() {
             } = await supabase.auth.getSession();
 
             if (!session?.user) {
-                throw new Error("No hay sesión activa.");
+                throw new Error("No hay sesiÃ³n activa.");
             }
 
             const { error: deleteError } = await supabase
@@ -508,7 +440,7 @@ export default function CampaignPlayerPage() {
             // recargamos la lista desde DB para garantizar persistencia y evitar inconsistencias por RLS
             await loadCharacters();
 
-            // limpiar selección si era el personaje borrado
+            // limpiar selecciÃ³n si era el personaje borrado
             if (selectedId === id) {
                 setSelectedId(null);
             }
@@ -522,14 +454,11 @@ export default function CampaignPlayerPage() {
 
     if (!allowed && !loading) {
         return (
-            <main className="p-6 text-sm text-zinc-300">
-                No tienes acceso a esta campaña o no se han podido cargar los datos.
+            <main className="p-6 text-sm text-ink-muted">
+                No tienes acceso a esta campaÃ±a o no se han podido cargar los datos.
             </main>
         );
     }
-
-    // estado para hover de dropzone
-    const [isOverTrash, setIsOverTrash] = useState(false);
 
     // Drag handlers para las filas -> asignados en el render del listado
     function handleDragStartCharacter(event: DragEvent, charId: string) {
@@ -561,9 +490,9 @@ export default function CampaignPlayerPage() {
             if (parsed?.type === "character" && parsed.id) {
                 const char = characters.find((c) => c.id === parsed.id);
                 if (!char) return;
-                const confirmDelete = window.confirm(`¿Eliminar personaje "${char.name}" arrastrándolo a la papelera? Esta acción no se puede deshacer.`);
+                const confirmDelete = window.confirm(`Â¿Eliminar personaje "${char.name}" arrastrÃ¡ndolo a la papelera? Esta acciÃ³n no se puede deshacer.`);
                 if (!confirmDelete) return;
-                // usa la función centralizada para borrar + recargar
+                // usa la funciÃ³n centralizada para borrar + recargar
                 handleDeleteCharacter(parsed.id);
             }
         } catch {
@@ -579,26 +508,26 @@ export default function CampaignPlayerPage() {
     // === mounted guard: si no estamos montados en cliente, devolvemos placeholder neutro
     if (!mounted) {
         return (
-            <main className="flex min-h-screen bg-zinc-950 text-zinc-100">
-                <aside className="w-72 border-r border-zinc-800 bg-zinc-950/90 p-4 space-y-4">
-                    <div className="h-8 bg-zinc-900/30 rounded w-2/3" />
-                    <div className="h-6 bg-zinc-900/20 rounded w-1/2 mt-2" />
+            <main className="flex min-h-screen bg-surface text-ink">
+                <aside className="w-72 border-r border-ring bg-panel/90 p-4 space-y-4">
+                    <div className="h-8 bg-ink/5 rounded w-2/3" />
+                    <div className="h-6 bg-ink/10 rounded w-1/2 mt-2" />
                 </aside>
 
                 <section className="flex-1 p-6">
-                    <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 p-4 h-24" />
+                    <div className="rounded-xl bg-panel/80 border border-ring p-4 h-24" />
                 </section>
             </main>
         );
     }
 
     return (
-        <main className="flex min-h-screen bg-zinc-950 text-zinc-100">
+        <main className="flex min-h-screen bg-surface text-ink">
             {/* PANEL personajes en la IZQUIERDA */}
             <aside
-                className={`relative flex flex-col border-r border-zinc-800 ${asideTransition} ${charsOpen ? asideWidthOpen : asideWidthClosed}
-          rounded-r-2xl overflow-visible
-          bg-gradient-to-b from-[#120826] via-[#0e0720] to-[#0b0420] shadow-[0_8px_30px_rgba(4,6,35,0.6)]`}
+                className={`relative flex flex-col border-r border-ring ${asideTransition} ${charsOpen ? asideWidthOpen : asideWidthClosed}
+          rounded-r-3xl overflow-visible
+          bg-panel/90 shadow-[0_18px_50px_rgba(45,29,12,0.18)]`}
                 aria-hidden={!charsOpen}
             >
                 <div
@@ -606,21 +535,21 @@ export default function CampaignPlayerPage() {
             ${charsOpen ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 -translate-x-2 pointer-events-none"}
             transition-all duration-300 ease-in-out`}
                 >
-                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-zinc-800">
+                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-ring">
                         <div className="flex items-center gap-3">
-                            <div className="p-1 rounded bg-zinc-900/30 border border-zinc-800">
-                                <Menu className="h-4 w-4 text-purple-200" />
+                            <div className="p-1.5 rounded bg-ink/5 border border-ring">
+                                <Menu className="h-4 w-4 text-ink" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-semibold text-purple-300 leading-tight">Tus personajes</h2>
-                                <p className="text-[11px] text-zinc-500 mt-0.5">Gestiona tus personajes de campaña</p>
+                                <h2 className="text-lg font-semibold text-ink leading-tight">Tus personajes</h2>
+                                <p className="text-[11px] text-ink-muted mt-0.5">Gestiona tus personajes de campaÃ±a</p>
                             </div>
                         </div>
 
                         <button
                             type="button"
                             onClick={startCreate}
-                            className="text-xs px-3 py-1 rounded-md border border-purple-600/70 hover:bg-purple-900/30 text-purple-100"
+                            className="text-xs px-3 py-1 rounded-md border border-accent/60 text-accent-strong hover:bg-accent/10"
                         >
                             Nuevo
                         </button>
@@ -628,9 +557,9 @@ export default function CampaignPlayerPage() {
 
                     <div className="flex-1 overflow-auto styled-scrollbar">
                         {loading ? (
-                            <p className="text-xs text-zinc-500">Cargando...</p>
+                            <p className="text-xs text-ink-muted">Cargando...</p>
                         ) : characters.length === 0 ? (
-                            <p className="text-xs text-zinc-500">Todavía no tienes personajes en esta campaña.</p>
+                            <p className="text-xs text-ink-muted">TodavÃ­a no tienes personajes en esta campaÃ±a.</p>
                         ) : (
                             <ul className="space-y-2 text-sm">
                                 {characters.map((ch) => (
@@ -639,19 +568,19 @@ export default function CampaignPlayerPage() {
                                             <ClickableRow
                                                 onClick={() => selectCharacter(ch.id)}
                                                 className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 ${
-                                                    selectedId === ch.id ? "border-purple-500 bg-purple-900/20" : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900"
+                                                    selectedId === ch.id ? "border-accent bg-accent/10" : "border-ring bg-white/80 hover:bg-white"
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div className="min-w-0">
-                                                        <p className="font-medium text-sm text-zinc-100 truncate">{ch.name}</p>
-                                                        <p className="text-[11px] text-zinc-400 truncate">
-                                                            {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
+                                                        <p className="font-medium text-sm text-ink truncate">{ch.name}</p>
+                                                        <p className="text-[11px] text-ink-muted truncate">
+                                                            {ch.race || "Sin raza"} Â· {prettyClassLabel(ch.class)} Â· Nivel {ch.level ?? "?"}
                                                         </p>
                                                     </div>
 
                                                     <div className="flex-shrink-0 ml-2">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-purple-600/25 bg-transparent text-purple-200">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-accent/40 bg-white/70 text-ink">
                               {ch.level ?? "?"}
                             </span>
                                                     </div>
@@ -666,11 +595,11 @@ export default function CampaignPlayerPage() {
                                                     e.stopPropagation();
                                                     startEdit(ch);
                                                 }}
-                                                className="text-[11px] px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 bg-zinc-900/60 flex items-center gap-2 text-purple-100"
+                                                className="text-[11px] px-2 py-1 rounded border border-ring hover:bg-ink/5 bg-white/70 flex items-center gap-2 text-ink"
                                                 aria-label={`Editar ${ch.name}`}
                                                 title="Editar"
                                             >
-                                                <Edit2 className="h-4 w-4" />
+                                                <Edit2 className="h-4 w-4 text-ember" />
                                             </button>
                                         </div>
                                     </li>
@@ -679,19 +608,19 @@ export default function CampaignPlayerPage() {
                         )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-zinc-800">
+                    <div className="mt-4 pt-3 border-t border-ring">
                         <div
                             onDragOver={handleTrashDragOver}
                             onDragLeave={handleTrashDragLeave}
                             onDrop={handleTrashDrop}
                             className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${
-                                isOverTrash ? "border-red-400 bg-red-900/20" : "border-red-700/30 bg-transparent"
+                                isOverTrash ? "border-red-500 bg-red-500/10" : "border-red-300/60 bg-white/60"
                             }`}
                         >
-                            <Trash2 className="h-5 w-5 text-red-400" />
+                            <Trash2 className="h-5 w-5 text-red-500" />
                             <div>
-                                <p className="text-sm font-medium text-red-300">Arrastra aquí para eliminar</p>
-                                <p className="text-[11px] text-zinc-400">Suelta para eliminar el personaje arrastrado</p>
+                                <p className="text-sm font-medium text-red-600">Arrastra aquÃ­ para eliminar</p>
+                                <p className="text-[11px] text-ink-muted">Suelta para eliminar el personaje arrastrado</p>
                             </div>
                         </div>
                     </div>
@@ -703,44 +632,42 @@ export default function CampaignPlayerPage() {
                     type="button"
                     onClick={() => setCharsOpen((v) => !v)}
                     className={`absolute top-4 z-30 rounded-full p-2 shadow-sm
-            ${charsOpen ? "right-[-18px] bg-zinc-900 border border-zinc-800 hover:bg-zinc-800" : "right-0 translate-x-1/2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800"}
+            ${charsOpen ? "right-[-18px] bg-panel border border-ring hover:bg-white" : "right-0 translate-x-1/2 bg-panel border border-ring hover:bg-white"}
             transition-all duration-300 ease-in-out`}
                     aria-label={charsOpen ? "Cerrar lista de personajes" : "Abrir lista de personajes"}
                     title={charsOpen ? "Cerrar lista" : "Abrir lista"}
                 >
-                    {charsOpen ? <ChevronLeft className="h-4 w-4 text-purple-200" /> : <ChevronRight className="h-4 w-4 text-purple-200" />}
+                    {charsOpen ? <ChevronLeft className="h-4 w-4 text-ink" /> : <ChevronRight className="h-4 w-4 text-ink" />}
                 </button>
             </aside>
 
             {/* Panel derecho (contenido principal) */}
-            {/* -> Aquí: dejamos header estático (no sticky) y todo el contenido se desplaza */}
+            {/* -> AquÃ­: dejamos header estÃ¡tico (no sticky) y todo el contenido se desplaza */}
             <section className="flex-1 p-6 h-screen overflow-hidden flex flex-col">
                 {error && (
-                    <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2 inline-block">
+                    <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2 inline-block">
                         {error}
                     </p>
                 )}
 
-                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 divide-y divide-zinc-800 overflow-hidden shadow-[0_6px_40px_rgba(2,6,23,0.45)] flex flex-col h-full">
-                    {/* HEADER: ahora estático (no sticky) */}
+                <div className="rounded-2xl bg-panel/80 border border-ring divide-y divide-ring overflow-hidden shadow-[0_18px_50px_rgba(45,29,12,0.12)] flex flex-col h-full">
+                    {/* HEADER: ahora estÃ¡tico (no sticky) */}
                     <div className="p-4 flex-shrink-0">
                         <div className="flex items-center justify-between gap-4">
                             <div>
-                                <h1 className="text-lg font-semibold text-purple-300">
+                                <h1 className="text-lg font-semibold text-ink">
                                     {mode === "create" ? "Nuevo personaje" : selectedChar?.name ?? "Personaje"}
                                 </h1>
-                                <p className="text-xs text-zinc-400 mt-1">
-                                    {selectedChar ? `${selectedChar.race ?? "Sin raza"} · ${prettyClassLabel(selectedChar.class)} · Nivel ${selectedChar.level ?? "?"}` : "Crea o selecciona un personaje"}
+                                <p className="text-xs text-ink-muted mt-1">
+                                    {selectedChar ? `${selectedChar.race ?? "Sin raza"} Â· ${prettyClassLabel(selectedChar.class)} Â· Nivel ${selectedChar.level ?? "?"}` : "Crea o selecciona un personaje"}
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                {/* (espacio para acciones rápidas si quieres) */}
-                            </div>
+                            <div className="flex items-center gap-2" />
                         </div>
                     </div>
 
-                    {/* CONTENIDO: aquí está el scroll interno — las pestañas se renderizan dentro de CharacterView */}
+                    {/* CONTENIDO: aquÃ­ estÃ¡ el scroll interno â€” las pestaÃ±as se renderizan dentro de CharacterView */}
                     <div className="p-4 flex-1 overflow-y-auto styled-scrollbar">
                         {rightPanelMode === "character" && (
                             <>
@@ -763,92 +690,12 @@ export default function CampaignPlayerPage() {
                                         mode={mode}
                                         onSubmit={handleSaveCharacter}
                                         onCancel={cancelEditOrCreate}
-                                        fields={{
-                                            charName,
-                                            setCharName,
-                                            charClass,
-                                            setCharClass,
-                                            charLevel,
-                                            setCharLevel,
-                                            race,
-                                            setRace,
-                                            experience,
-                                            setExperience,
-                                            armorClass,
-                                            setArmorClass,
-                                            speed,
-                                            setSpeed,
-                                            currentHp,
-                                            setCurrentHp,
-                                            hitDieSides,
-                                            setHitDieSides,
-                                            str,
-                                            setStr,
-                                            dex,
-                                            setDex,
-                                            con,
-                                            setCon,
-                                            intStat,
-                                            setIntStat,
-                                            wis,
-                                            setWis,
-                                            cha,
-                                            setCha,
-                                            armors,
-                                            addArmor,
-                                            removeArmor,
-                                            updateArmor,
-                                            weaponName,
-                                            setWeaponName,
-                                            weaponDamage,
-                                            setWeaponDamage,
-                                            weaponDescription,
-                                            setWeaponDescription,
-                                            weaponStatAbility,
-                                            setWeaponStatAbility,
-                                            weaponStatModifier,
-                                            setWeaponStatModifier,
-                                            inventory,
-                                            setInventory,
-                                            equipment,
-                                            setEquipment,
-                                            abilities,
-                                            setAbilities,
-                                            weaponsExtra,
-                                            setWeaponsExtra,
-                                            notes,
-                                            setNotes,
-                                            spellsL0,
-                                            setSpellsL0,
-                                            spellsL1,
-                                            setSpellsL1,
-                                            spellsL2,
-                                            setSpellsL2,
-                                            spellsL3,
-                                            setSpellsL3,
-                                            spellsL4,
-                                            setSpellsL4,
-                                            spellsL5,
-                                            setSpellsL5,
-                                            spellsL6,
-                                            setSpellsL6,
-                                            spellsL7,
-                                            setSpellsL7,
-                                            spellsL8,
-                                            setSpellsL8,
-                                            spellsL9,
-                                            setSpellsL9,
-                                            // Campos para clase personalizada
-                                            customClassName,
-                                            setCustomClassName,
-                                            customCastingAbility,
-                                            setCustomCastingAbility,
-                                        }}
+                                        fields={fields}
                                     />
                                 )}
 
                                 {mode === "view" && !selectedChar && (
-                                    <p className="text-sm text-zinc-500">Selecciona un personaje en la lista o crea uno nuevo.</p>
+                                    <p className="text-sm text-ink-muted">Selecciona un personaje en la lista o crea uno nuevo.</p>
                                 )}
                             </>
                         )}
@@ -877,30 +724,30 @@ export default function CampaignPlayerPage() {
                 }
 
                 .styled-scrollbar::-webkit-scrollbar-track {
-                    background: rgba(10, 8, 12, 0.12);
+                    background: rgba(140, 114, 85, 0.12);
                     border-radius: 10px;
                 }
 
                 .styled-scrollbar::-webkit-scrollbar-thumb {
-                    background: rgba(130, 80, 200, 0.32); /* morado suave */
+                    background: rgba(179, 90, 44, 0.35);
                     border-radius: 10px;
                     border: 2px solid transparent;
                     background-clip: padding-box;
                 }
 
                 .styled-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: rgba(150, 100, 230, 0.5);
+                    background: rgba(179, 90, 44, 0.55);
                 }
 
                 /* Firefox */
                 .styled-scrollbar {
                     scrollbar-width: thin;
-                    scrollbar-color: rgba(130, 80, 200, 0.32) rgba(10, 8, 12, 0.12);
+                    scrollbar-color: rgba(179, 90, 44, 0.45) rgba(140, 114, 85, 0.12);
                 }
 
                 /* Small accessibility: ensure focus outlines for keyboard users */
                 button:focus {
-                    outline: 2px solid rgba(140, 90, 220, 0.12);
+                    outline: 2px solid rgba(47, 111, 106, 0.2);
                     outline-offset: 2px;
                 }
 
@@ -910,6 +757,11 @@ export default function CampaignPlayerPage() {
                     backdrop-filter: blur(6px);
                 }
             `}</style>
+
+            <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </main>
     );
 }
+
+
+

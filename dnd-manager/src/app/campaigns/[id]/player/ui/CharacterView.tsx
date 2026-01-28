@@ -2,88 +2,13 @@
 
 import React from "react";
 import { Character, Details, Stats, Tab } from "../playerShared";
-import { sumArmorBonus } from "@/lib/dndMath";
+import { abilityModifier } from "./playerView/statsHelpers";
+import { ensureDetailsItems, getModifierTotal } from "@/lib/character/items";
 
 // Panels
 import StatsPanel from "./playerView/StatsPanel";
 import AbilityPanel from "./playerView/AbilityPanel";
 import InventoryPanel from "./playerView/InventoryPanel";
-
-/* ---------------------------
-   Helpers: ability bonuses (MISMA LÓGICA QUE FUNCIONABA)
---------------------------- */
-type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
-
-function accumulateBonus(
-    bonuses: Record<AbilityKey, number>,
-    ability: AbilityKey | undefined,
-    value: unknown
-) {
-    if (!ability) return;
-    const num = typeof value === "number" ? value : Number(value);
-    if (Number.isNaN(num)) return;
-    bonuses[ability] += num;
-}
-
-function getAbilityBonusesFromDetails(details: Details | undefined) {
-    const bonuses: Record<AbilityKey, number> = {
-        STR: 0,
-        DEX: 0,
-        CON: 0,
-        INT: 0,
-        WIS: 0,
-        CHA: 0,
-    };
-    if (!details) return bonuses;
-
-    const textSources = [
-        details.inventory,
-        details.equipment,
-        details.weaponsExtra,
-    ];
-
-    for (const source of textSources) {
-        if (!source) continue;
-        const lines = source.split("\n").map(l => l.trim()).filter(Boolean);
-        for (const line of lines) {
-            if (!line.startsWith("{")) continue;
-            try {
-                const item = JSON.parse(line);
-                if (item.ability && typeof item.modifier === "number") {
-                    accumulateBonus(bonuses, item.ability, item.modifier);
-                }
-                if (Array.isArray(item.modifiers)) {
-                    for (const m of item.modifiers) {
-                        accumulateBonus(bonuses, m.ability, m.modifier);
-                    }
-                }
-            } catch {}
-        }
-    }
-
-    if (Array.isArray(details.armors)) {
-        for (const a of details.armors as any[]) {
-            accumulateBonus(bonuses, a.statAbility, a.statModifier);
-            if (Array.isArray(a.modifiers)) {
-                for (const m of a.modifiers) {
-                    accumulateBonus(bonuses, m.ability, m.modifier);
-                }
-            }
-        }
-    }
-
-    const w = (details as any)?.weaponEquipped;
-    if (w) {
-        accumulateBonus(bonuses, w.statAbility, w.statModifier);
-        if (Array.isArray(w.modifiers)) {
-            for (const m of w.modifiers) {
-                accumulateBonus(bonuses, m.ability, m.modifier);
-            }
-        }
-    }
-
-    return bonuses;
-}
 
 /* ---------------------------
    COMPONENT
@@ -103,26 +28,23 @@ export default function CharacterView({
 }) {
     if (!character) {
         return (
-            <p className="text-sm text-zinc-500 p-4">
+            <p className="text-sm text-ink-muted p-4">
                 Selecciona un personaje.
             </p>
         );
     }
 
-    const details = character.details || {};
+    const details = ensureDetailsItems(character.details || {});
     const baseStats: Stats = character.stats ?? {
         str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10,
     };
 
-    const bonuses = getAbilityBonusesFromDetails(details);
-
-    // Totales finales (ESTO ES LO QUE QUIERE StatsPanel)
-    const totalStr = Number(baseStats.str) + bonuses.STR;
-    const totalDex = Number(baseStats.dex) + bonuses.DEX;
-    const totalCon = Number(baseStats.con) + bonuses.CON;
-    const totalInt = Number(baseStats.int) + bonuses.INT;
-    const totalWis = Number(baseStats.wis) + bonuses.WIS;
-    const totalCha = Number(baseStats.cha) + bonuses.CHA;
+    const totalStr = Number(baseStats.str) + getModifierTotal(details, "STR");
+    const totalDex = Number(baseStats.dex) + getModifierTotal(details, "DEX");
+    const totalCon = Number(baseStats.con) + getModifierTotal(details, "CON");
+    const totalInt = Number(baseStats.int) + getModifierTotal(details, "INT");
+    const totalWis = Number(baseStats.wis) + getModifierTotal(details, "WIS");
+    const totalCha = Number(baseStats.cha) + getModifierTotal(details, "CHA");
 
     // Stats row para inputs / displays
     const statsRow = {
@@ -134,43 +56,54 @@ export default function CharacterView({
         cha: totalCha,
     };
 
-    const armors = Array.isArray(details.armors) ? details.armors : [];
-    const totalAC =
-        (character.armor_class ?? 10) + sumArmorBonus(armors);
+    const totalAC = (character.armor_class ?? 10) + getModifierTotal(details, "AC");
+    const totalSpeed = (character.speed ?? 30) + getModifierTotal(details, "SPEED");
+    const totalMaxHp = (character.max_hp ?? details.max_hp ?? 0) + getModifierTotal(details, "HP_MAX");
+    const totalCurrentHp =
+        (character.current_hp ?? details.current_hp ?? totalMaxHp) +
+        getModifierTotal(details, "HP_CURRENT");
+    const baseProficiency = Math.max(
+        2,
+        2 + Math.floor(((character.level ?? 1) - 1) / 4)
+    );
+    const proficiencyBonus = baseProficiency + getModifierTotal(details, "PROFICIENCY");
+    const initiative = abilityModifier(totalDex) + getModifierTotal(details, "INITIATIVE");
+    const passivePerception =
+        10 + abilityModifier(totalWis) + getModifierTotal(details, "PASSIVE_PERCEPTION");
 
     return (
         <div className="space-y-4">
             {/* Tabs */}
-            <div className="border-b border-zinc-800 flex gap-4 text-sm">
+            <div className="border-b border-ring flex flex-wrap gap-3 text-sm">
                 <button
                     onClick={() => onTabChange("stats")}
-                    className={`pb-2 border-b-2 ${
+                    className={`pb-2 border-b-2 transition-colors ${
                         activeTab === "stats"
-                            ? "border-purple-500 text-purple-300"
-                            : "border-transparent text-zinc-500"
+                            ? "border-accent text-ink"
+                            : "border-transparent text-ink-muted hover:text-ink"
                     }`}
                 >
-                    Estadísticas
+                    Hoja
                 </button>
                 <button
                     onClick={() => onTabChange("spells")}
-                    className={`pb-2 border-b-2 ${
+                    className={`pb-2 border-b-2 transition-colors ${
                         activeTab === "spells"
-                            ? "border-purple-500 text-purple-300"
-                            : "border-transparent text-zinc-500"
+                            ? "border-accent text-ink"
+                            : "border-transparent text-ink-muted hover:text-ink"
                     }`}
                 >
-                    Habilidades
+                    Reverso · Magia y rasgos
                 </button>
                 <button
                     onClick={() => onTabChange("inventory")}
-                    className={`pb-2 border-b-2 ${
+                    className={`pb-2 border-b-2 transition-colors ${
                         activeTab === "inventory"
-                            ? "border-purple-500 text-purple-300"
-                            : "border-transparent text-zinc-500"
+                            ? "border-accent text-ink"
+                            : "border-transparent text-ink-muted hover:text-ink"
                     }`}
                 >
-                    Inventario
+                    Reverso · Inventario
                 </button>
             </div>
 
@@ -180,6 +113,12 @@ export default function CharacterView({
                     details={details}
                     statsRow={statsRow}
                     totalAC={totalAC}
+                    totalSpeed={totalSpeed}
+                    totalMaxHp={totalMaxHp}
+                    totalCurrentHp={totalCurrentHp}
+                    proficiencyBonus={proficiencyBonus}
+                    initiative={initiative}
+                    passivePerception={passivePerception}
                     totalStr={totalStr}
                     totalDex={totalDex}
                     totalCon={totalCon}
@@ -190,17 +129,27 @@ export default function CharacterView({
             )}
 
             {activeTab === "spells" && (
-                <AbilityPanel
-                    character={character}
-                    stats={baseStats}
-                    details={details}
-                    onDetailsChange={onDetailsChange}
-                    onOpenSpellManager={onOpenSpellManager}
-                />
+                <>
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
+                        Reverso de la hoja
+                    </div>
+                    <AbilityPanel
+                        character={character}
+                        stats={baseStats}
+                        details={details}
+                        onDetailsChange={onDetailsChange}
+                        onOpenSpellManager={onOpenSpellManager}
+                    />
+                </>
             )}
 
             {activeTab === "inventory" && (
-                <InventoryPanel details={details} />
+                <>
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
+                        Reverso de la hoja
+                    </div>
+                    <InventoryPanel details={details} />
+                </>
             )}
         </div>
     );

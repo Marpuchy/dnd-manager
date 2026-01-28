@@ -1,0 +1,388 @@
+﻿// Prisma schema for DND Manager
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum CampaignRole {
+  DM
+  PLAYER
+}
+
+enum CompendiumType {
+  SPELL
+  ITEM
+  FEAT
+  MONSTER
+  NPC
+  RACE
+  CLASS
+  SUBCLASS
+  BACKGROUND
+  CONDITION
+  RULE
+}
+
+enum Visibility {
+  PRIVATE
+  CAMPAIGN
+  PUBLIC
+}
+
+enum Locale {
+  en
+  es
+}
+
+enum HistoryAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum TranslationStatus {
+  PENDING
+  COMPLETE
+  FAILED
+}
+
+enum AssetType {
+  PORTRAIT
+  MAP
+  HANDOUT
+  NOTE
+}
+
+enum EntityType {
+  CAMPAIGN
+  CHARACTER
+  COMPENDIUM
+  NOTE
+  ASSET
+}
+
+model User {
+  id             String           @id @default(cuid())
+  name           String?
+  email          String?          @unique
+  emailVerified  DateTime?
+  image          String?
+  locale         Locale           @default(en)
+  defaultView    CampaignRole     @default(PLAYER)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  credentials    UserCredential?
+  characters     Character[]
+  campaigns      Campaign[]       @relation("CampaignCreator")
+  memberships    CampaignMember[]
+  notes          Note[]
+  collections    Collection[]
+  assets         Asset[]
+  histories      EntityHistory[]
+}
+
+model UserCredential {
+  userId        String   @id
+  passwordHash  String
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Campaign {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  status      CampaignStatus    @default(ACTIVE)
+  inviteCode  String?           @unique
+  createdById String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  createdBy   User              @relation("CampaignCreator", fields: [createdById], references: [id])
+  members     CampaignMember[]
+  sessions    CampaignSession[]
+  notes       Note[]
+  assets      Asset[]
+  characters  Character[]
+
+  @@index([createdById])
+}
+
+model CampaignMember {
+  id         String       @id @default(cuid())
+  campaignId String
+  userId     String
+  role       CampaignRole @default(PLAYER)
+  joinedAt   DateTime     @default(now())
+
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([userId])
+}
+
+model CampaignSession {
+  id         String    @id @default(cuid())
+  campaignId String
+  title      String
+  summary    String?
+  sessionAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}
+
+model Character {
+  id             String           @id @default(cuid())
+  name           String
+  ownerId        String
+  campaignId     String?
+  className      String?
+  subclassName   String?
+  raceName       String?
+  backgroundName String?
+  level          Int              @default(1)
+  alignment      String?
+  portraitUrl    String?
+  data           Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  owner          User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  campaign       Campaign?        @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  stats          CharacterStats?
+  items          CharacterItem[]
+  spells         CharacterSpell[]
+
+  @@index([ownerId])
+  @@index([campaignId])
+}
+
+model CharacterStats {
+  id                String   @id @default(cuid())
+  characterId       String   @unique
+  strength          Int      @default(10)
+  dexterity         Int      @default(10)
+  constitution      Int      @default(10)
+  intelligence      Int      @default(10)
+  wisdom            Int      @default(10)
+  charisma          Int      @default(10)
+  maxHp             Int?
+  currentHp         Int?
+  tempHp            Int?
+  armorClass        Int?
+  speed             Int?
+  initiative        Int?
+  proficiencyBonus  Int?
+  saves             Json?
+  skills            Json?
+  data              Json?
+
+  character         Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+model CharacterItem {
+  id               String           @id @default(cuid())
+  characterId      String
+  compendiumId     String?
+  name             String
+  quantity         Int              @default(1)
+  equipped         Boolean          @default(false)
+  data             Json?
+
+  character        Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  compendiumEntry  CompendiumEntry? @relation(fields: [compendiumId], references: [id], onDelete: SetNull)
+
+  @@index([characterId])
+}
+
+model CharacterSpell {
+  id               String           @id @default(cuid())
+  characterId      String
+  compendiumId     String?
+  name             String
+  level            Int
+  prepared         Boolean          @default(false)
+  data             Json?
+
+  character        Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  compendiumEntry  CompendiumEntry? @relation(fields: [compendiumId], references: [id], onDelete: SetNull)
+
+  @@index([characterId])
+}
+
+model CompendiumEntry {
+  id          String            @id @default(cuid())
+  type        CompendiumType
+  name        String
+  slug        String
+  source      String            @default("SRD")
+  isSystem    Boolean           @default(true)
+  campaignId  String?
+  createdById String?
+  data        Json
+  searchText  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  campaign         Campaign?              @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy        User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  translations     CompendiumTranslation[]
+  collectionItems  CollectionItem[]
+  characterItems   CharacterItem[]
+  characterSpells  CharacterSpell[]
+
+  @@unique([type, slug, source])
+  @@index([type, name])
+  @@index([campaignId])
+}
+
+model CompendiumTranslation {
+  id        String             @id @default(cuid())
+  entryId   String
+  locale    Locale
+  name      String?
+  summary   String?
+  data      Json?
+  status    TranslationStatus  @default(PENDING)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  entry     CompendiumEntry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, locale])
+  @@index([locale])
+}
+
+model Collection {
+  id         String          @id @default(cuid())
+  name       String
+  ownerId    String
+  campaignId String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  owner      User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  campaign   Campaign?       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  items      CollectionItem[]
+
+  @@index([ownerId])
+}
+
+model CollectionItem {
+  id           String           @id @default(cuid())
+  collectionId String
+  entryId      String
+  sortOrder    Int?
+
+  collection   Collection       @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  entry        CompendiumEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, entryId])
+}
+
+model Note {
+  id         String      @id @default(cuid())
+  title      String
+  content    String
+  visibility Visibility  @default(CAMPAIGN)
+  campaignId String?
+  authorId   String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  campaign   Campaign?   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  author     User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+}
+
+model Asset {
+  id         String    @id @default(cuid())
+  type       AssetType
+  name       String
+  url        String
+  size       Int?
+  mimeType   String?
+  metadata   Json?
+  campaignId String?
+  ownerId    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  owner      User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+}
+
+model EntityHistory {
+  id          String       @id @default(cuid())
+  entityType  EntityType
+  entityId    String
+  action      HistoryAction
+  before      Json?
+  after       Json?
+  diff        Json?
+  createdById String?
+  createdAt   DateTime     @default(now())
+
+  createdBy   User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

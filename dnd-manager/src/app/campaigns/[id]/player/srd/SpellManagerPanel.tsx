@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -15,8 +15,11 @@ import {
     getPreparedSpellsInfo,
     countPreparedSpells,
     formatCastingTime,
-    formatComponents,
 } from "../playerShared";
+import { getMaxSpellLevelForClass } from "@/lib/spells/spellLevels";
+import { getClientLocale } from "@/lib/i18n/getClientLocale";
+import { getLocalizedText } from "@/lib/character/items";
+import Markdown from "@/app/components/Markdown";
 
 type Props = {
     character: Character;
@@ -30,39 +33,7 @@ type StatusFilter = "all" | "learned" | "unlearned";
    HELPERS
 --------------------------- */
 function normalizeSpellName(name: string) {
-    return name.split("—")[0].trim();
-}
-
-/* ---------------------------
-   D&D SPELL LEVEL PROGRESSION
---------------------------- */
-function getMaxSpellLevelForClass(
-    classId: string | null,
-    level: number
-): number {
-    if (!classId || level <= 0) return 0;
-
-    const apiClass = normalizeClassForApi(classId);
-
-    const fullCasters = [
-        "druid",
-        "cleric",
-        "wizard",
-        "bard",
-        "sorcerer",
-    ];
-
-    const halfCasters = ["paladin", "ranger"];
-
-    if (fullCasters.includes(apiClass)) {
-        return Math.floor((level + 1) / 2);
-    }
-
-    if (halfCasters.includes(apiClass)) {
-        return Math.floor(level / 4) + 1;
-    }
-
-    return Math.floor((level + 1) / 2);
+    return name.split("â€”")[0].trim();
 }
 
 /* ---------------------------
@@ -88,7 +59,7 @@ export function SpellManagerPanel({
     const apiClass = normalizeClassForApi(character.class ?? null);
 
     const maxLearnableSpellLevel = getMaxSpellLevelForClass(
-        character.class,
+        apiClass,
         charLevel
     );
 
@@ -107,6 +78,8 @@ export function SpellManagerPanel({
         apiClass === "custom" ? "wizard" : apiClass
     );
 
+    const locale = getClientLocale();
+
     const preparedInfo = getPreparedSpellsInfo(
         character.class,
         stats,
@@ -123,7 +96,7 @@ export function SpellManagerPanel({
         if (!apiClass) return;
         loadAllSpells();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [apiClass, sourceClass, charLevel]);
+    }, [apiClass, sourceClass, charLevel, locale]);
 
     async function loadAllSpells() {
         try {
@@ -132,14 +105,13 @@ export function SpellManagerPanel({
 
             const classForApi =
                 apiClass === "custom" ? sourceClass : apiClass;
-
             const collected: SpellSummary[] = [];
 
             for (let charLvl = 1; charLvl <= charLevel; charLvl++) {
                 const res = await fetch(
                     `/api/dnd/spells?class=${encodeURIComponent(
                         classForApi
-                    )}&level=${charLvl}`
+                    )}&level=${charLvl}&locale=${locale}`
                 );
 
                 if (!res.ok) continue;
@@ -206,7 +178,7 @@ export function SpellManagerPanel({
                 const count = countPreparedSpells(currentSpells);
                 if (count >= preparedInfo.total) {
                     setError(
-                        `Has alcanzado tu máximo de ${preparedInfo.total} conjuros preparados.`
+                        `Has alcanzado tu mÃ¡ximo de ${preparedInfo.total} conjuros preparados.`
                     );
                     return;
                 }
@@ -317,7 +289,7 @@ export function SpellManagerPanel({
     }
 
     /* ---------------------------
-       FILTER + SORT (TU CÓDIGO)
+       FILTER + SORT (TU CÃ“DIGO)
     --------------------------- */
     const availableLevels = Array.from(
         new Set(spells.map((s) => s.level))
@@ -337,9 +309,9 @@ export function SpellManagerPanel({
             const term = searchTerm.trim().toLowerCase();
             if (term) {
                 const inName = s.name.toLowerCase().includes(term);
-                const inDesc =
-                    s.shortDesc?.toLowerCase().includes(term) ||
-                    s.fullDesc?.toLowerCase().includes(term);
+                const shortDesc = getLocalizedText(s.shortDesc as any, locale).toLowerCase();
+                const fullDesc = getLocalizedText(s.fullDesc as any, locale).toLowerCase();
+                const inDesc = shortDesc.includes(term) || fullDesc.includes(term);
                 if (!inName && !inDesc) return false;
             }
 
@@ -362,21 +334,21 @@ export function SpellManagerPanel({
        RENDER (100% TUYO)
     --------------------------- */
     return (
-        <div className="border border-zinc-800 rounded-xl bg-zinc-950/90 h-full flex flex-col">
-            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between gap-4">
+        <div className="border border-ring rounded-xl bg-panel/90 h-full flex flex-col">
+            <div className="px-6 py-4 border-b border-ring flex items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-sm font-semibold text-purple-200">
-                        Gestor de hechizos · {character.name}
+                    <h2 className="text-sm font-semibold text-ink">
+                        Gestor de hechizos Â· {character.name}
                     </h2>
-                    <p className="text-[11px] text-zinc-400">
-                        {CLASS_LABELS[apiClass] ?? apiClass} · Nivel{" "}
+                    <p className="text-[11px] text-ink-muted">
+                        {CLASS_LABELS[apiClass] ?? apiClass} Â· Nivel{" "}
                         {charLevel}
                     </p>
-                    <p className="text-[11px] text-zinc-400">
-                        Máx nivel de hechizo: {maxLearnableSpellLevel}
+                    <p className="text-[11px] text-ink-muted">
+                        MÃ¡x nivel de hechizo: {maxLearnableSpellLevel}
                     </p>
                     {preparedInfo && (
-                        <p className="text-[11px] text-zinc-400">
+                        <p className="text-[11px] text-ink-muted">
                             Preparados: {currentPreparedCount}/
                             {preparedInfo.total}
                         </p>
@@ -385,19 +357,19 @@ export function SpellManagerPanel({
 
                 <button
                     onClick={onClose}
-                    className="text-[11px] px-3 py-2 rounded-md border border-zinc-600 hover:bg-zinc-900"
+                    className="text-[11px] px-3 py-2 rounded-md border border-ring hover:bg-white/80"
                 >
                     Volver
                 </button>
             </div>
 
-            <div className="px-6 py-4 border-b border-zinc-800 flex flex-wrap gap-4">
+            <div className="px-6 py-4 border-b border-ring flex flex-wrap gap-4">
                 <input
                     type="text"
                     placeholder="Buscar hechizo..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="flex-1 min-w-[220px] rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm"
+                    className="flex-1 min-w-[220px] rounded-md bg-white/80 border border-ring px-3 py-2 text-sm"
                 />
 
                 <select
@@ -405,9 +377,9 @@ export function SpellManagerPanel({
                     onChange={(e) =>
                         setSortMode(e.target.value as any)
                     }
-                    className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
+                    className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                 >
-                    <option value="level">Nivel → Nombre</option>
+                    <option value="level">Nivel â†’ Nombre</option>
                     <option value="alpha">Nombre (A-Z)</option>
                 </select>
 
@@ -424,7 +396,7 @@ export function SpellManagerPanel({
                                 : Number(e.target.value)
                         )
                     }
-                    className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
+                    className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                 >
                     <option value="all">Todos</option>
                     {availableLevels.map((lvl) => (
@@ -443,7 +415,7 @@ export function SpellManagerPanel({
                             e.target.value as StatusFilter
                         )
                     }
-                    className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
+                    className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                 >
                     <option value="all">Todos</option>
                     <option value="learned">Aprendidos</option>
@@ -456,7 +428,7 @@ export function SpellManagerPanel({
                         onChange={(e) =>
                             setSourceClass(e.target.value)
                         }
-                        className="rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs"
+                        className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                     >
                         {DND_CLASS_OPTIONS.filter(
                             (c) => c.id !== "custom"
@@ -471,8 +443,8 @@ export function SpellManagerPanel({
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
                 {loading && (
-                    <p className="text-xs text-zinc-400">
-                        Cargando hechizos…
+                    <p className="text-xs text-ink-muted">
+                        Cargando hechizosâ€¦
                     </p>
                 )}
                 {error && (
@@ -482,6 +454,8 @@ export function SpellManagerPanel({
                 {!loading &&
                     filteredAndSorted.map((s) => {
                         const learned = isSpellLearned(s);
+                        const shortDesc = getLocalizedText(s.shortDesc as any, locale);
+                        const fullDesc = getLocalizedText(s.fullDesc as any, locale);
 
                         return (
                             <div
@@ -489,7 +463,7 @@ export function SpellManagerPanel({
                                 className={`border rounded-md p-2 space-y-1 ${
                                     learned
                                         ? "border-emerald-500/60 bg-emerald-900/10"
-                                        : "border-zinc-700 bg-zinc-950/40"
+                                        : "border-ring bg-white/70"
                                 }`}
                             >
                                 <div className="flex justify-between">
@@ -497,8 +471,8 @@ export function SpellManagerPanel({
                                         <p className="font-medium">
                                             {s.name}
                                         </p>
-                                        <p className="text-[11px] text-zinc-500">
-                                            Nivel {s.level} ·{" "}
+                                        <p className="text-[11px] text-ink-muted">
+                                            Nivel {s.level} Â·{" "}
                                             {formatCastingTime(
                                                 s.casting_time
                                             )}
@@ -522,19 +496,23 @@ export function SpellManagerPanel({
                                     </button>
                                 </div>
 
-                                {s.shortDesc && (
-                                    <p className="text-xs text-zinc-400">
-                                        {s.shortDesc}
-                                    </p>
+                                {shortDesc && (
+                                    <Markdown
+                                        content={shortDesc}
+                                        className="text-ink-muted text-xs"
+                                    />
                                 )}
 
                                 <details className="text-xs">
-                                    <summary className="cursor-pointer text-zinc-400">
-                                        Ver descripción
+                                    <summary className="cursor-pointer text-ink-muted">
+                                        Ver descripciÃ³n
                                     </summary>
-                                    <pre className="mt-1 whitespace-pre-wrap text-zinc-300">
-                                        {s.fullDesc}
-                                    </pre>
+                                    <div className="mt-2">
+                                        <Markdown
+                                            content={fullDesc || shortDesc || ""}
+                                            className="text-ink-muted text-xs"
+                                        />
+                                    </div>
                                 </details>
                             </div>
                         );
@@ -545,3 +523,4 @@ export function SpellManagerPanel({
 }
 
 export default SpellManagerPanel;
+

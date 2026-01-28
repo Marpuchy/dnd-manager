@@ -1,18 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
 type Mode = "login" | "register";
+type ViewMode = "DM" | "PLAYER";
 
 export default function LoginPage() {
     const router = useRouter();
     const [mode, setMode] = useState<Mode>("login");
+    const [viewMode, setViewMode] = useState<ViewMode>("PLAYER");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const stored = window.localStorage.getItem("dnd:viewMode");
+        if (stored === "DM" || stored === "PLAYER") {
+            setViewMode(stored);
+        }
+    }, []);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -43,7 +53,10 @@ export default function LoginPage() {
                 if (error) throw error;
             }
 
-            // De momento, siempre redirigimos al dashboard de jugador
+            if (typeof window !== "undefined") {
+                window.localStorage.setItem("dnd:viewMode", viewMode);
+            }
+
             router.push("/campaigns");
         } catch (err) {
             console.error("Error en login/registro:", err);
@@ -56,43 +69,65 @@ export default function LoginPage() {
     }
 
     return (
-        <main className="min-h-screen bg-black text-zinc-100 flex items-center justify-center">
-            <div className="w-full max-w-md border border-zinc-800 bg-zinc-950/80 rounded-xl p-6 shadow-lg shadow-purple-900/40">
-                <h1 className="text-2xl font-bold mb-2 text-purple-300">
+        <main className="min-h-screen flex items-center justify-center px-6 py-12">
+            <div className="w-full max-w-md border border-ring bg-panel/90 rounded-2xl p-6 shadow-[var(--shadow-soft)]">
+                <h1 className="font-display text-2xl mb-2 text-ink">
                     {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
                 </h1>
-                <p className="text-sm text-zinc-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                     {mode === "login"
                         ? "Entra con tu correo para gestionar tu personaje."
                         : "Regístrate para usar el gestor de campaña de D&D."}
                 </p>
 
+                <div className="mb-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-ink-muted mb-2">
+                        Vista preferida
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {(["PLAYER", "DM"] as ViewMode[]).map((value) => (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setViewMode(value)}
+                                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                                    viewMode === value
+                                        ? "border-accent bg-accent text-white"
+                                        : "border-ring bg-white/70 text-ink hover:border-accent"
+                                }`}
+                            >
+                                {value === "PLAYER" ? "Jugador" : "Dungeon Master"}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <form onSubmit={handleSubmit} className="space-y-3">
                     <div className="space-y-1">
-                        <label className="text-sm text-zinc-300">Correo</label>
+                        <label className="text-sm text-ink-muted">Correo</label>
                         <input
                             type="email"
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                            className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                         />
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-sm text-zinc-300">Contraseña</label>
+                        <label className="text-sm text-ink-muted">Contraseña</label>
                         <input
                             type="password"
                             required
                             minLength={6}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-purple-500"
+                            className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                         />
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2">
+                        <p className="text-sm text-ember bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                             {error}
                         </p>
                     )}
@@ -100,7 +135,7 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full mt-2 rounded-md bg-purple-700 hover:bg-purple-600 disabled:opacity-60 py-2 text-sm font-medium"
+                        className="w-full mt-2 rounded-md bg-accent hover:bg-accent-strong disabled:opacity-60 py-2 text-sm font-medium text-white"
                     >
                         {loading
                             ? "Procesando..."
@@ -111,7 +146,7 @@ export default function LoginPage() {
                 </form>
 
                 <button
-                    className="mt-4 text-xs text-zinc-400 hover:text-purple-300"
+                    className="mt-4 text-xs text-ink-muted hover:text-accent-strong"
                     onClick={() =>
                         setMode(mode === "login" ? "register" : "login")
                     }

@@ -4,7 +4,7 @@
  * Úsalos desde StatsPanel, StatDisplay u otros componentes.
  */
 
-export type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+export type AbilityKey = import("@/lib/types/dnd").AbilityKey;
 
 /**
  * Calcula el modificador de característica a partir de la puntuación (regla D&D 5e).
