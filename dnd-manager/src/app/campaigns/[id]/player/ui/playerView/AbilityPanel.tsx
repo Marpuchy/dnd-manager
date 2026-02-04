@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import {
@@ -82,18 +82,18 @@ export default function AbilityPanel({
 
     /* ---------------------------
        LOAD SRD METADATA (BY INDEX)
-       ⚠️ FIX: CLONE SPELLS TO AVOID MUTATION
+       âš ï¸ FIX: CLONE SPELLS TO AVOID MUTATION
     --------------------------- */
     useEffect(() => {
         if (!details.spells) return;
 
-        // ✅ CLONE to force new reference (React re-render)
+        // âœ… CLONE to force new reference (React re-render)
         const spellsByLevel: Spells = structuredClone(
             migrateOldSpells(details.spells)
         );
         const refs: LearnedSpellRef[] = [];
 
-        // 1️⃣ Collect all spells
+        // 1ï¸âƒ£ Collect all spells
         Object.values(spellsByLevel).forEach((level) => {
             if (Array.isArray(level)) {
                 level.forEach((s) => refs.push(s));
@@ -109,40 +109,76 @@ export default function AbilityPanel({
         let indexResolved = false;
 
         (async () => {
-            // 2️⃣ Resolve missing indexes (legacy)
+            // 2ï¸âƒ£ Resolve missing indexes (legacy)
             for (const spell of refs) {
                 if (spell.index) continue;
 
-                const searchRes = await fetch(
-                    `https://www.dnd5eapi.co/api/spells?name=${encodeURIComponent(
-                        spell.name
-                    )}`
-                );
+                try {
+                    const searchRes = await fetch(
+                        `/api/dnd/spells/search?name=${encodeURIComponent(spell.name)}`
+                    );
 
-                if (!searchRes.ok) continue;
+                    if (!searchRes.ok) continue;
 
-                const searchData = await searchRes.json();
-                const match = searchData?.results?.[0];
+                    const searchData = await searchRes.json();
+                    const results = Array.isArray(searchData?.results)
+                        ? searchData.results
+                        : [];
+                    const normalizedName = spell.name?.trim().toLowerCase();
+                    const exact =
+                        normalizedName && results.length
+                            ? results.find(
+                                  (r: any) =>
+                                      typeof r?.name === "string" &&
+                                      r.name.trim().toLowerCase() ===
+                                          normalizedName
+                              )
+                            : undefined;
+                    const match = exact ?? results[0];
 
-                if (match?.index) {
-                    spell.index = match.index;
-                    indexResolved = true;
+                    if (match?.index) {
+                        spell.index = match.index;
+                        indexResolved = true;
+                    }
+                } catch (err) {
+                    console.warn(
+                        "No se pudo resolver el índice del hechizo:",
+                        spell.name,
+                        err
+                    );
                 }
             }
 
-            // 3️⃣ Load SRD metadata by index
+            // 3ï¸âƒ£ Load SRD metadata by index
             for (const spell of refs) {
                 if (!spell.index) continue;
                 if (merged[spell.index]) continue;
 
-                const res = await fetch(
-                    `/api/dnd/spells/${encodeURIComponent(spell.index)}?locale=${locale}`
+                let apiData: any;
+                try {
+                    const res = await fetch(
+                        `/api/dnd/spells/${encodeURIComponent(spell.index)}?locale=${locale}`
+                    );
+                    if (!res.ok) continue;
+                    apiData = await res.json();
+                } catch (err) {
+                    console.warn("No se pudo cargar el hechizo:", spell.index, err);
+                    continue;
+                }
+
+                /* MAPEO CORRECTO A TU SpellMeta */
+                const shortDescSource = (
+                    apiData.shortDesc ??
+                    (Array.isArray(apiData.desc) ? apiData.desc[0] : undefined)
                 );
-                if (!res.ok) continue;
-
-                const apiData = await res.json();
-
-                /* 🔥 MAPEO CORRECTO A TU SpellMeta */
+                const fullDescSource = (
+                    apiData.fullDesc ??
+                    (Array.isArray(apiData.desc) || Array.isArray(apiData.higher_level)
+                        ? [...(apiData.desc ?? []), ...(apiData.higher_level ?? [])].join(
+                              "\n\n"
+                          )
+                        : undefined)
+                );
                 const mapped: SpellMeta = {
                     index: apiData.index,
                     name: apiData.name,
@@ -150,23 +186,15 @@ export default function AbilityPanel({
                     range: apiData.range,
                     casting_time: apiData.casting_time,
                     duration: apiData.duration,
-                    school: apiData.school?.name,
+                    school: apiData.school?.name ?? apiData.school,
                     components: apiData.components,
                     material: apiData.material,
                     concentration: apiData.concentration,
                     ritual: apiData.ritual,
 
-                    shortDesc: normalizeLocalizedText(
-                        Array.isArray(apiData.desc) ? apiData.desc[0] : undefined,
-                        locale
-                    ),
+                    shortDesc: normalizeLocalizedText(shortDescSource, locale),
 
-                    fullDesc: normalizeLocalizedText(
-                        [...(apiData.desc ?? []), ...(apiData.higher_level ?? [])].join(
-                            "\n\n"
-                        ),
-                        locale
-                    ),
+                    fullDesc: normalizeLocalizedText(fullDescSource, locale),
                 };
 
                 merged[spell.index] = mapped;
@@ -174,11 +202,11 @@ export default function AbilityPanel({
 
             }
 
-            // 4️⃣ Save ONLY if something changed
+            // 4ï¸âƒ£ Save ONLY if something changed
             if (changed || indexResolved) {
                 onDetailsChange?.({
                     ...details,
-                    spells: spellsByLevel, // ✅ NEW reference
+                    spells: spellsByLevel, // âœ… NEW reference
                     spellDetails: merged,
                 });
             }
@@ -235,3 +263,6 @@ export default function AbilityPanel({
         </>
     );
 }
+
+
+

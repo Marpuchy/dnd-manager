@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import {
     Character,
     LearnedSpellRef,
@@ -12,6 +13,7 @@ import { ClassAbility } from "@/lib/dnd/classAbilities/types";
 import Markdown from "@/app/components/Markdown";
 import CustomContentManager from "./CustomContentManager";
 import { CustomFeatureEntry, CustomSpellEntry } from "@/lib/types/dnd";
+import SpellSlotsPanel from "@/app/components/SpellSlotsPanel";
 
 type Props = {
     character: Character;
@@ -39,6 +41,36 @@ type Props = {
     setCustomClassAbilities: (v: CustomFeatureEntry[]) => void;
 };
 
+function ClassAbilityCard({ ability }: { ability: ClassAbility }) {
+    const [isOpen, setIsOpen] = useState(true);
+
+    return (
+        <details
+            open={isOpen}
+            onToggle={(event) => setIsOpen(event.currentTarget.open)}
+            className="group border border-ring rounded-xl bg-white/70 p-3 overflow-hidden"
+        >
+            <summary className="cursor-pointer font-semibold text-ink flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="h-4 w-4 text-ink-muted transition-transform group-open:rotate-90" />
+                <span>
+                    {ability.name} (Nivel {ability.level})
+                </span>
+            </summary>
+
+            {ability.description ? (
+                <Markdown
+                    content={ability.description}
+                    className="text-ink-muted mt-2"
+                />
+            ) : (
+                <p className="text-[11px] text-ink-muted mt-2">
+                    Sin descripción.
+                </p>
+            )}
+        </details>
+    );
+}
+
 export default function AbilityPanelView({
                                              character,
                                              preparedInfo,
@@ -58,10 +90,22 @@ export default function AbilityPanelView({
                                              customTraits,
                                              setCustomTraits,
                                              customClassAbilities,
-                                             setCustomClassAbilities,
-                                         }: Props) {
+                                         setCustomClassAbilities,
+                                     }: Props) {
+    const [customCreateOpen, setCustomCreateOpen] = useState(false);
+    const [classAbilitiesOpen, setClassAbilitiesOpen] = useState(true);
+
     return (
         <div className="space-y-4">
+            <div className="flex">
+                <button
+                    type="button"
+                    onClick={() => setCustomCreateOpen(true)}
+                    className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
+                >
+                    Crear magia/rasgos personalizados
+                </button>
+            </div>
             <CustomContentManager
                 locale={locale}
                 customSpells={customSpells}
@@ -72,6 +116,8 @@ export default function AbilityPanelView({
                 setCustomTraits={setCustomTraits}
                 customClassAbilities={customClassAbilities}
                 setCustomClassAbilities={setCustomClassAbilities}
+                createOpen={customCreateOpen}
+                onToggleCreate={setCustomCreateOpen}
             />
 
             {preparedInfo && (
@@ -101,33 +147,32 @@ export default function AbilityPanelView({
                 </div>
             )}
 
+            <SpellSlotsPanel
+                characterClass={character.class}
+                characterLevel={character.level}
+            />
+
             {classAbilities.length > 0 && (
-                <details className="border border-ring rounded-2xl bg-panel/80">
-                    <summary className="px-3 py-2 cursor-pointer bg-white/70 text-ink">
-                        Habilidades de clase ({classAbilities.length})
+                <details
+                    open={classAbilitiesOpen}
+                    onToggle={(event) =>
+                        setClassAbilitiesOpen(event.currentTarget.open)
+                    }
+                    className="group border border-ring rounded-2xl bg-panel/80 overflow-hidden"
+                >
+                    <summary className="px-3 py-2 cursor-pointer bg-white/70 text-ink flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
+                        <ChevronRight className="h-4 w-4 text-ink-muted transition-transform group-open:rotate-90" />
+                        <span className="font-semibold">
+                            Habilidades de clase ({classAbilities.length})
+                        </span>
                     </summary>
 
                     <div className="p-3 space-y-3 text-xs">
-                        {classAbilities.map((a) => (
-                            <details
-                                key={a.id}
-                                className="border border-ring rounded-xl bg-white/70 p-3"
-                            >
-                                <summary className="cursor-pointer font-semibold text-ink">
-                                    {a.name} (Nivel {a.level})
-                                </summary>
-
-                                {a.description ? (
-                                    <Markdown
-                                        content={a.description}
-                                        className="text-ink-muted mt-2"
-                                    />
-                                ) : (
-                                    <p className="text-[11px] text-ink-muted mt-2">
-                                        Sin descripción.
-                                    </p>
-                                )}
-                            </details>
+                        {classAbilities.map((ability) => (
+                            <ClassAbilityCard
+                                key={ability.id}
+                                ability={ability}
+                            />
                         ))}
                     </div>
                 </details>
@@ -171,14 +216,29 @@ export default function AbilityPanelView({
             {levels.map(({ lvl, label, spells }) => {
                 if (!spells.length) return null;
 
+                const isCollapsed = Boolean(collapsed[lvl]);
+                const spellNames = spells.map((spell) => spell.name).join(", ");
+
                 return (
                     <details
                         key={lvl}
                         open={!collapsed[lvl]}
-                        className="border border-ring rounded-2xl bg-panel/80"
+                        onToggle={(event) => {
+                            const isOpen = event.currentTarget.open;
+                            setCollapsed({ ...collapsed, [lvl]: !isOpen });
+                        }}
+                        className="group border border-ring rounded-2xl bg-panel/80 overflow-hidden"
                     >
-                        <summary className="px-3 py-2 cursor-pointer bg-white/70 flex justify-between text-ink">
-                            <span>{label}</span>
+                        <summary className="px-3 py-2 cursor-pointer bg-white/70 flex items-start gap-3 text-ink list-none [&::-webkit-details-marker]:hidden">
+                            <ChevronRight className="mt-0.5 h-4 w-4 text-ink-muted transition-transform group-open:rotate-90" />
+                            <div className="min-w-0 flex-1">
+                                <div className="font-semibold">{label}</div>
+                                {isCollapsed && spellNames.length > 0 && (
+                                    <div className="text-[11px] text-ink-muted break-words">
+                                        {spellNames}
+                                    </div>
+                                )}
+                            </div>
                             <span className="text-xs text-ink-muted">
                                 ({spells.length})
                             </span>

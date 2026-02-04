@@ -63,6 +63,15 @@ export default function ItemManagerSection({
     const [modNote, setModNote] = useState("");
 
     const [advancedOpen, setAdvancedOpen] = useState(false);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+    function applyItemOrder(list: CharacterItem[]) {
+        return list.map((item, index) => ({
+            ...item,
+            sortOrder: index,
+        }));
+    }
 
     function resetForm() {
         setEditingId(null);
@@ -130,9 +139,10 @@ export default function ItemManagerSection({
         };
 
         if (editingId) {
-            setItems(items.map((entry) => (entry.id === editingId ? item : entry)));
+            const next = items.map((entry) => (entry.id === editingId ? item : entry));
+            setItems(applyItemOrder(next));
         } else {
-            setItems([...items, item]);
+            setItems(applyItemOrder([...items, item]));
         }
 
         setIsFormOpen(false);
@@ -140,7 +150,7 @@ export default function ItemManagerSection({
     }
 
     function removeItem(id: string) {
-        setItems(items.filter((entry) => entry.id !== id));
+        setItems(applyItemOrder(items.filter((entry) => entry.id !== id)));
     }
 
     function toggleEquip(id: string) {
@@ -151,6 +161,45 @@ export default function ItemManagerSection({
                 return { ...entry, equipped: !entry.equipped };
             })
         );
+    }
+
+    function handleDragStart(event: React.DragEvent, id: string) {
+        setDraggingId(id);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", id);
+    }
+
+    function handleDragOver(event: React.DragEvent, id: string) {
+        event.preventDefault();
+        if (id !== dragOverId) setDragOverId(id);
+    }
+
+    function handleDrop(event: React.DragEvent, id: string) {
+        event.preventDefault();
+        const sourceId = draggingId ?? event.dataTransfer.getData("text/plain");
+        if (!sourceId || sourceId === id) {
+            setDragOverId(null);
+            return;
+        }
+
+        const fromIndex = items.findIndex((entry) => entry.id === sourceId);
+        const toIndex = items.findIndex((entry) => entry.id === id);
+        if (fromIndex === -1 || toIndex === -1) {
+            setDragOverId(null);
+            return;
+        }
+
+        const next = [...items];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        setItems(applyItemOrder(next));
+        setDraggingId(null);
+        setDragOverId(null);
+    }
+
+    function handleDragEnd() {
+        setDraggingId(null);
+        setDragOverId(null);
     }
 
     function addModifier() {
@@ -421,7 +470,17 @@ export default function ItemManagerSection({
                                 return (
                                     <details
                                         key={item.id}
-                                        className="rounded-xl border border-ring bg-white/80 p-3"
+                                        draggable
+                                        onDragStart={(event) => handleDragStart(event, item.id)}
+                                        onDragOver={(event) => handleDragOver(event, item.id)}
+                                        onDrop={(event) => handleDrop(event, item.id)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`rounded-xl border bg-white/80 p-3 ${
+                                            dragOverId === item.id
+                                                ? "border-accent bg-accent/10"
+                                                : "border-ring"
+                                        } ${draggingId === item.id ? "opacity-60" : ""}`}
+                                        title="Arrastra para ordenar"
                                     >
                                         <summary className="cursor-pointer list-none">
                                             <div className="flex items-start justify-between gap-2">
@@ -483,7 +542,17 @@ export default function ItemManagerSection({
                                 return (
                                     <details
                                         key={item.id}
-                                        className="rounded-xl border border-ring bg-white/80 p-3"
+                                        draggable
+                                        onDragStart={(event) => handleDragStart(event, item.id)}
+                                        onDragOver={(event) => handleDragOver(event, item.id)}
+                                        onDrop={(event) => handleDrop(event, item.id)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`rounded-xl border bg-white/80 p-3 ${
+                                            dragOverId === item.id
+                                                ? "border-accent bg-accent/10"
+                                                : "border-ring"
+                                        } ${draggingId === item.id ? "opacity-60" : ""}`}
+                                        title="Arrastra para ordenar"
                                     >
                                         <summary className="cursor-pointer list-none">
                                             <div className="flex items-start justify-between gap-2">

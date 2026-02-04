@@ -3,15 +3,17 @@ import type {
     AbilityKey,
     Character,
     CharacterItem,
+    CharacterType,
     CustomFeatureEntry,
     CustomSpellEntry,
     LearnedSpellRef,
     PassiveModifier,
+    SkillProficiencies,
     Spells,
     Stats,
 } from "@/lib/types/dnd";
 import { normalizeClassForApi } from "../playerShared";
-import { migrateLegacyItems } from "@/lib/character/items";
+import { migrateLegacyItems, sortItemsByOrder } from "@/lib/character/items";
 
 export type ArmorForm = {
     name: string;
@@ -27,6 +29,8 @@ export type CharacterFormFields = {
     // Basic
     charName: string;
     setCharName: (v: string) => void;
+    characterType?: CharacterType;
+    setCharacterType?: (v: CharacterType) => void;
     charClass: string;
     setCharClass: (v: string) => void;
     charLevel: number;
@@ -117,6 +121,8 @@ export type CharacterFormFields = {
     setLanguages?: (v: string) => void;
     proficiencies?: string;
     setProficiencies?: (v: string) => void;
+    skillProficiencies?: SkillProficiencies;
+    setSkillProficiencies?: (v: SkillProficiencies) => void;
     customSections?: { id: string; title: string; content: string }[];
     setCustomSections?: (sections: { id: string; title: string; content: string }[]) => void;
     companionEnabled?: boolean;
@@ -221,6 +227,7 @@ function spellsToText(value: string | LearnedSpellRef[] | undefined): string {
 export function useCharacterForm(): UseCharacterFormResult {
     // Basic
     const [charName, setCharName] = useState("");
+    const [characterType, setCharacterType] = useState<CharacterType>("character");
     const [charClass, setCharClass] = useState("");
     const [charLevel, setCharLevel] = useState<number>(1);
     const [race, setRace] = useState("");
@@ -265,6 +272,7 @@ export function useCharacterForm(): UseCharacterFormResult {
     const [backstory, setBackstory] = useState("");
     const [languages, setLanguages] = useState("");
     const [proficiencies, setProficiencies] = useState("");
+    const [skillProficiencies, setSkillProficiencies] = useState<SkillProficiencies>({});
     const [customSections, setCustomSections] = useState<{ id: string; title: string; content: string }[]>([]);
     const [companionEnabled, setCompanionEnabled] = useState(false);
     const [companionName, setCompanionName] = useState("");
@@ -324,6 +332,7 @@ export function useCharacterForm(): UseCharacterFormResult {
 
     function resetForm() {
         setCharName("");
+        setCharacterType("character");
         setCharClass("");
         setCharLevel(1);
         setRace("");
@@ -362,6 +371,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setBackstory("");
         setLanguages("");
         setProficiencies("");
+        setSkillProficiencies({});
         setCustomSections([]);
         setCompanionEnabled(false);
         setCompanionName("");
@@ -429,7 +439,7 @@ export function useCharacterForm(): UseCharacterFormResult {
 
         const details = char.details || {};
         const resolvedItems = migrateLegacyItems(details);
-        setItems(resolvedItems);
+        setItems(sortItemsByOrder(resolvedItems));
         setArmors(Array.isArray(details.armors) ? details.armors : []);
         setWeaponName(details.weaponEquipped?.name ?? "");
         setWeaponDamage(details.weaponEquipped?.damage ?? "");
@@ -466,6 +476,11 @@ export function useCharacterForm(): UseCharacterFormResult {
         setBackstory(details.backstory ?? "");
         setLanguages(details.languages ?? "");
         setProficiencies(details.proficiencies ?? "");
+        setSkillProficiencies(
+            details.skillProficiencies && typeof details.skillProficiencies === "object"
+                ? details.skillProficiencies
+                : {}
+        );
         setCustomSections(Array.isArray(details.customSections) ? details.customSections : []);
         const companion = details.companion;
         if (companion) {
@@ -501,6 +516,7 @@ export function useCharacterForm(): UseCharacterFormResult {
 
         setCustomClassName(details.customClassName ?? "");
         setCustomCastingAbility(details.customCastingAbility ?? "int");
+        setCharacterType((char as any).character_type ?? "character");
 
         const spells: Spells = details.spells || {};
         setSpellsL0(spellsToText(spells.level0));
@@ -528,6 +544,8 @@ export function useCharacterForm(): UseCharacterFormResult {
         fields: {
             charName,
             setCharName,
+            characterType,
+            setCharacterType,
             charClass,
             setCharClass,
             charLevel,
@@ -604,8 +622,10 @@ export function useCharacterForm(): UseCharacterFormResult {
             setBackstory,
             languages,
             setLanguages,
-            proficiencies,
-            setProficiencies,
+        proficiencies,
+        setProficiencies,
+        skillProficiencies,
+        setSkillProficiencies,
             customSections,
             setCustomSections,
             companionEnabled,

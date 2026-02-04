@@ -30,7 +30,7 @@ const ORDER: StatKey[] = ["FUE", "DES", "CON", "INT", "SAB", "CAR"];
    ðŸŽ¨ Colores por clase (TODAS)
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
-const CLASS_COLORS: Record<
+export const CLASS_COLORS: Record<
     string,
     { stroke: string; fill: string }
 > = {
@@ -111,6 +111,11 @@ function normalizeClass(cls?: string) {
     return cls?.toLowerCase().replace(/\s+/g, "") ?? "";
 }
 
+export function getClassColor(characterClass?: string) {
+    const clsKey = normalizeClass(characterClass);
+    return CLASS_COLORS[clsKey] ?? CLASS_COLORS.default;
+}
+
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Componente principal
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -161,9 +166,7 @@ export default function StatsHexagon({
         (_, i) => (Math.PI * 2 * i) / ORDER.length - Math.PI / 2
     );
 
-    const clsKey = normalizeClass(characterClass);
-    const hexColor =
-        CLASS_COLORS[clsKey] ?? CLASS_COLORS.default;
+    const hexColor = getClassColor(characterClass);
 
     const statPoints = angles
         .map((angle, i) => {
@@ -236,7 +239,7 @@ export default function StatsHexagon({
                     );
                 })}
 
-                {/* NÃºcleo */}
+                {/* Núcleo */}
                 <circle
                     cx={center}
                     cy={center}
@@ -252,7 +255,7 @@ export default function StatsHexagon({
                     opacity={0.15}
                 />
 
-                {/* PolÃ­gono */}
+                {/* Polígono */}
                 <polygon
                     points={statPoints}
                     fill={hexColor.fill}

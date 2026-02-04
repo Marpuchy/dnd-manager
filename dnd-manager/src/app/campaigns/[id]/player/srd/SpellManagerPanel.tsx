@@ -20,6 +20,7 @@ import { getMaxSpellLevelForClass } from "@/lib/spells/spellLevels";
 import { getClientLocale } from "@/lib/i18n/getClientLocale";
 import { getLocalizedText } from "@/lib/character/items";
 import Markdown from "@/app/components/Markdown";
+import CustomContentManager from "../sections/CustomContentManager";
 
 type Props = {
     character: Character;
@@ -33,7 +34,7 @@ type StatusFilter = "all" | "learned" | "unlearned";
    HELPERS
 --------------------------- */
 function normalizeSpellName(name: string) {
-    return name.split("â€”")[0].trim();
+    return name.split("—")[0].trim();
 }
 
 /* ---------------------------
@@ -67,6 +68,7 @@ export function SpellManagerPanel({
     const [error, setError] = useState<string | null>(null);
     const [spells, setSpells] = useState<SpellSummary[]>([]);
     const [savingId, setSavingId] = useState<string | null>(null);
+    const [customCreateOpen, setCustomCreateOpen] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [sortMode, setSortMode] = useState<"level" | "alpha">("level");
@@ -79,6 +81,13 @@ export function SpellManagerPanel({
     );
 
     const locale = getClientLocale();
+
+    const customSpells = Array.isArray(details.customSpells) ? details.customSpells : [];
+    const customCantrips = Array.isArray(details.customCantrips) ? details.customCantrips : [];
+    const customTraits = Array.isArray(details.customTraits) ? details.customTraits : [];
+    const customClassAbilities = Array.isArray(details.customClassAbilities)
+        ? details.customClassAbilities
+        : [];
 
     const preparedInfo = getPreparedSpellsInfo(
         character.class,
@@ -138,6 +147,24 @@ export function SpellManagerPanel({
         }
     }
 
+    async function patchDetails(patch: Partial<Details>) {
+        try {
+            const updatedDetails: Details = {
+                ...details,
+                ...patch,
+            };
+
+            await supabase
+                .from("characters")
+                .update({ details: updatedDetails })
+                .eq("id", character.id);
+
+            onDetailsChange?.(updatedDetails);
+        } catch (err: any) {
+            setError(err?.message ?? "Error guardando contenido personalizado.");
+        }
+    }
+
     /* ---------------------------
        LEARNED STATE (FIX)
     --------------------------- */
@@ -178,7 +205,7 @@ export function SpellManagerPanel({
                 const count = countPreparedSpells(currentSpells);
                 if (count >= preparedInfo.total) {
                     setError(
-                        `Has alcanzado tu mÃ¡ximo de ${preparedInfo.total} conjuros preparados.`
+                        `Has alcanzado tu máximo de ${preparedInfo.total} conjuros preparados.`
                     );
                     return;
                 }
@@ -289,7 +316,7 @@ export function SpellManagerPanel({
     }
 
     /* ---------------------------
-       FILTER + SORT (TU CÃ“DIGO)
+       FILTER + SORT (TU CÓDIGO)
     --------------------------- */
     const availableLevels = Array.from(
         new Set(spells.map((s) => s.level))
@@ -338,14 +365,14 @@ export function SpellManagerPanel({
             <div className="px-6 py-4 border-b border-ring flex items-center justify-between gap-4">
                 <div>
                     <h2 className="text-sm font-semibold text-ink">
-                        Gestor de hechizos Â· {character.name}
+                        Gestor de hechizos · {character.name}
                     </h2>
                     <p className="text-[11px] text-ink-muted">
-                        {CLASS_LABELS[apiClass] ?? apiClass} Â· Nivel{" "}
+                        {CLASS_LABELS[apiClass] ?? apiClass} · Nivel{" "}
                         {charLevel}
                     </p>
                     <p className="text-[11px] text-ink-muted">
-                        MÃ¡x nivel de hechizo: {maxLearnableSpellLevel}
+                        Máx nivel de hechizo: {maxLearnableSpellLevel}
                     </p>
                     {preparedInfo && (
                         <p className="text-[11px] text-ink-muted">
@@ -363,116 +390,163 @@ export function SpellManagerPanel({
                 </button>
             </div>
 
-            <div className="px-6 py-4 border-b border-ring flex flex-wrap gap-4">
-                <input
-                    type="text"
-                    placeholder="Buscar hechizo..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="flex-1 min-w-[220px] rounded-md bg-white/80 border border-ring px-3 py-2 text-sm"
-                />
+            <div className="px-6 py-4 border-b border-ring space-y-3">
+                <div className="flex">
+                    <button
+                        type="button"
+                        onClick={() => setCustomCreateOpen(true)}
+                        className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
+                    >
+                        Crear hechizo personalizado
+                    </button>
+                </div>
 
-                <select
-                    value={sortMode}
-                    onChange={(e) =>
-                        setSortMode(e.target.value as any)
-                    }
-                    className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
-                >
-                    <option value="level">Nivel â†’ Nombre</option>
-                    <option value="alpha">Nombre (A-Z)</option>
-                </select>
+                {customCreateOpen && (
+                    <CustomContentManager
+                        locale={locale}
+                        customSpells={customSpells}
+                        setCustomSpells={(next) => patchDetails({ customSpells: next })}
+                        customCantrips={customCantrips}
+                        setCustomCantrips={(next) => patchDetails({ customCantrips: next })}
+                        customTraits={customTraits}
+                        setCustomTraits={(next) => patchDetails({ customTraits: next })}
+                        customClassAbilities={customClassAbilities}
+                        setCustomClassAbilities={(next) =>
+                            patchDetails({ customClassAbilities: next })
+                        }
+                        createOpen={customCreateOpen}
+                        onToggleCreate={setCustomCreateOpen}
+                    />
+                )}
 
-                <select
-                    value={
-                        levelFilter === "all"
-                            ? "all"
-                            : String(levelFilter)
-                    }
-                    onChange={(e) =>
-                        setLevelFilter(
-                            e.target.value === "all"
-                                ? "all"
-                                : Number(e.target.value)
-                        )
-                    }
-                    className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
-                >
-                    <option value="all">Todos</option>
-                    {availableLevels.map((lvl) => (
-                        <option key={lvl} value={lvl}>
-                            {lvl === 0
-                                ? "Trucos"
-                                : `Nivel ${lvl}`}
-                        </option>
-                    ))}
-                </select>
+                <div className="flex flex-wrap gap-4">
+                    <input
+                        type="text"
+                        placeholder="Buscar hechizo..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="flex-1 min-w-[220px] rounded-md bg-white/80 border border-ring px-3 py-2 text-sm"
+                    />
 
-                <select
-                    value={statusFilter}
-                    onChange={(e) =>
-                        setStatusFilter(
-                            e.target.value as StatusFilter
-                        )
-                    }
-                    className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
-                >
-                    <option value="all">Todos</option>
-                    <option value="learned">Aprendidos</option>
-                    <option value="unlearned">No aprendidos</option>
-                </select>
-
-                {apiClass === "custom" && (
                     <select
-                        value={sourceClass}
+                        value={sortMode}
                         onChange={(e) =>
-                            setSourceClass(e.target.value)
+                            setSortMode(e.target.value as any)
                         }
                         className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                     >
-                        {DND_CLASS_OPTIONS.filter(
-                            (c) => c.id !== "custom"
-                        ).map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.label}
+                        <option value="level">Nivel → Nombre</option>
+                        <option value="alpha">Nombre (A-Z)</option>
+                    </select>
+
+                    <select
+                        value={
+                            levelFilter === "all"
+                                ? "all"
+                                : String(levelFilter)
+                        }
+                        onChange={(e) =>
+                            setLevelFilter(
+                                e.target.value === "all"
+                                    ? "all"
+                                    : Number(e.target.value)
+                            )
+                        }
+                        className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
+                    >
+                        <option value="all">Todos</option>
+                        {availableLevels.map((lvl) => (
+                            <option key={lvl} value={lvl}>
+                                {lvl === 0
+                                    ? "Trucos"
+                                    : `Nivel ${lvl}`}
                             </option>
                         ))}
                     </select>
-                )}
+
+                    <select
+                        value={statusFilter}
+                        onChange={(e) =>
+                            setStatusFilter(
+                                e.target.value as StatusFilter
+                            )
+                        }
+                        className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
+                    >
+                        <option value="all">Todos</option>
+                        <option value="learned">Aprendidos</option>
+                        <option value="unlearned">No aprendidos</option>
+                    </select>
+
+                    {apiClass === "custom" && (
+                        <select
+                            value={sourceClass}
+                            onChange={(e) =>
+                                setSourceClass(e.target.value)
+                            }
+                            className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
+                        >
+                            {DND_CLASS_OPTIONS.filter(
+                                (c) => c.id !== "custom"
+                            ).map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
-                {loading && (
-                    <p className="text-xs text-ink-muted">
-                        Cargando hechizosâ€¦
-                    </p>
-                )}
                 {error && (
                     <p className="text-xs text-red-400">{error}</p>
                 )}
 
-                {!loading &&
+                {loading ? (
+                    <div className="space-y-2">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div
+                                key={`loading-${i}`}
+                                className="border rounded-md p-2 space-y-2 border-ring bg-white/70 animate-pulse"
+                            >
+                                <div className="flex justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <div className="h-4 w-40 rounded bg-ink-muted/20" />
+                                        <div className="h-3 w-32 rounded bg-ink-muted/20" />
+                                    </div>
+                                    <div className="h-6 w-20 rounded bg-ink-muted/20" />
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="h-3 w-full rounded bg-ink-muted/20" />
+                                    <div className="h-3 w-5/6 rounded bg-ink-muted/20" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
                     filteredAndSorted.map((s) => {
                         const learned = isSpellLearned(s);
                         const shortDesc = getLocalizedText(s.shortDesc as any, locale);
                         const fullDesc = getLocalizedText(s.fullDesc as any, locale);
+                        const description = fullDesc || shortDesc;
 
                         return (
                             <div
                                 key={s.index}
-                                className={`border rounded-md p-2 space-y-1 ${
+                                className={`border rounded-md p-2 space-y-2 ${
                                     learned
                                         ? "border-emerald-500/60 bg-emerald-900/10"
                                         : "border-ring bg-white/70"
                                 }`}
                             >
-                                <div className="flex justify-between">
+                                <div className="flex justify-between gap-3">
                                     <div>
                                         <p className="font-medium">
                                             {s.name}
                                         </p>
                                         <p className="text-[11px] text-ink-muted">
-                                            Nivel {s.level} Â·{" "}
+                                            Nivel {s.level} ·{" "}
                                             {formatCastingTime(
                                                 s.casting_time
                                             )}
@@ -496,27 +570,18 @@ export function SpellManagerPanel({
                                     </button>
                                 </div>
 
-                                {shortDesc && (
-                                    <Markdown
-                                        content={shortDesc}
-                                        className="text-ink-muted text-xs"
-                                    />
-                                )}
-
-                                <details className="text-xs">
-                                    <summary className="cursor-pointer text-ink-muted">
-                                        Ver descripciÃ³n
-                                    </summary>
-                                    <div className="mt-2">
+                                {description && (
+                                    <div className="pt-2 border-t border-ring/60">
                                         <Markdown
-                                            content={fullDesc || shortDesc || ""}
+                                            content={description}
                                             className="text-ink-muted text-xs"
                                         />
                                     </div>
-                                </details>
+                                )}
                             </div>
                         );
-                    })}
+                    })
+                )}
             </div>
         </div>
     );

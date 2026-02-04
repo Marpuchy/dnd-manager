@@ -1,4 +1,4 @@
-// src/app/api/dnd/spells/route.ts
+﻿// src/app/api/dnd/spells/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { translateText } from "@/lib/translation/translator";
 
@@ -131,3 +131,4 @@ export async function GET(req: NextRequest) {
         );
     }
 }
+

@@ -72,11 +72,28 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                     .from("user_settings")
                     .select("*")
                     .eq("user_id", userId)
+                    .order("updated_at", { ascending: false })
+                    .limit(1)
                     .maybeSingle();
 
-                if (error) {
-                    console.error("Error cargando ajustes:", error);
-                    if (active) setLoading(false);
+                const errorCode = (error as any)?.code;
+                const errorMessage = (error as any)?.message;
+                const isEmptyError =
+                    error &&
+                    typeof error === "object" &&
+                    !Array.isArray(error) &&
+                    Object.keys(error).length === 0;
+                const isNoRows =
+                    errorCode === "PGRST116" ||
+                    (typeof errorMessage === "string" &&
+                        errorMessage.toLowerCase().includes("0 rows"));
+
+                if (error && !isEmptyError && !isNoRows) {
+                    console.error("Error cargando ajustes:", errorMessage ?? error);
+                    if (active) {
+                        setSettings(defaultSettings);
+                        setLoading(false);
+                    }
                     return;
                 }
 
@@ -89,7 +106,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                     return;
                 }
 
-                await supabase.from("user_settings").insert({
+                const { error: insertError } = await supabase
+                    .from("user_settings")
+                    .insert({
                     user_id: userId,
                     theme: defaultSettings.theme,
                     locale: defaultSettings.locale,
@@ -99,6 +118,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                     show_hints: defaultSettings.showHints,
                     updated_at: new Date().toISOString(),
                 });
+
+                if (insertError) {
+                    console.error(
+                        "Error guardando ajustes iniciales:",
+                        insertError?.message ?? insertError
+                    );
+                }
 
                 if (active) {
                     setSettings(defaultSettings);

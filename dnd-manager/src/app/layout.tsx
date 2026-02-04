@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { Alegreya, Cinzel } from "next/font/google";
+import { Noto_Sans, Noto_Serif } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "./components/SettingsProvider";
 
-const bodyFont = Alegreya({
+const bodyFont = Noto_Sans({
   variable: "--font-body",
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700"],
 });
 
-const displayFont = Cinzel({
+const displayFont = Noto_Serif({
   variable: "--font-display",
   subsets: ["latin", "latin-ext"],
-  weight: ["500", "600", "700", "800", "900"],
+  weight: ["500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {

@@ -4,6 +4,10 @@
 import React, { FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { abilityMod, computeMaxHp } from "@/lib/dndMath";
+import { formatModifier, proficiencyBonusFromLevel } from "@/lib/ability";
+import { getModifierTotal } from "@/lib/character/items";
+import { SKILL_DEFINITIONS, type SkillDefinition } from "@/lib/dnd/skills";
+import type { AbilityKey, SkillKey } from "@/lib/types/dnd";
 import { Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
 import { InfoBox } from "./InfoBox";
 import { StatInput } from "./StatInput";
@@ -36,9 +40,10 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     const locale = getClientLocale();
 
     const {
-        // Datos bÃ¡sicos
+        // Datos básicos
         charName,
         setCharName,
+        characterType,
         charClass,
         setCharClass,
         charLevel,
@@ -78,7 +83,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         removeArmor,
         updateArmor,
 
-        // Arma equipada (datos bÃ¡sicos; los modificadores se gestionan en la secciÃ³n)
+        // Arma equipada (datos básicos; los modificadores se gestionan en la sección)
         weaponId,
         setWeaponId,
         weaponName,
@@ -129,42 +134,10 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         setLanguages,
         proficiencies,
         setProficiencies,
+        skillProficiencies,
+        setSkillProficiencies,
         customSections,
         setCustomSections,
-        companionEnabled,
-        setCompanionEnabled,
-        companionName,
-        setCompanionName,
-        companionKind,
-        setCompanionKind,
-        companionSize,
-        setCompanionSize,
-        companionArmorClass,
-        setCompanionArmorClass,
-        companionSpeed,
-        setCompanionSpeed,
-        companionCurrentHp,
-        setCompanionCurrentHp,
-        companionMaxHp,
-        setCompanionMaxHp,
-        companionStr,
-        setCompanionStr,
-        companionDex,
-        setCompanionDex,
-        companionCon,
-        setCompanionCon,
-        companionInt,
-        setCompanionInt,
-        companionWis,
-        setCompanionWis,
-        companionCha,
-        setCompanionCha,
-        companionAbilities,
-        setCompanionAbilities,
-        companionSpells,
-        setCompanionSpells,
-        companionNotes,
-        setCompanionNotes,
         items,
         setItems,
         customSpells,
@@ -220,8 +193,10 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     // Retenemos localmente el id para siguientes guardados
     const [localCharacterId, setLocalCharacterId] = React.useState<string | null | undefined>(incomingCharacterId ?? undefined);
 
-    // Bloqueo de envÃ­o para evitar dobles llamadas
+    // Bloqueo de envío para evitar dobles llamadas
     const [saving, setSaving] = React.useState(false);
+    const [customCreateOpen, setCustomCreateOpen] = React.useState(false);
+    const customContentRef = React.useRef<HTMLDivElement | null>(null);
 
     // Resolver campaign id (prioridad: fields -> nested -> route)
     const campaignIdFromFields =
@@ -239,6 +214,75 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     const isCustomClass = charClass === "custom";
 
     const customSectionsSafe = Array.isArray(customSections) ? customSections : [];
+    const detailsForMods = React.useMemo(() => ({ items }), [items]);
+    const proficiencyBonus =
+        proficiencyBonusFromLevel(charLevel) + getModifierTotal(detailsForMods, "PROFICIENCY");
+    const abilityTotals: Record<AbilityKey, number> = {
+        STR: Number(str) + getModifierTotal(detailsForMods, "STR"),
+        DEX: Number(dex) + getModifierTotal(detailsForMods, "DEX"),
+        CON: Number(con) + getModifierTotal(detailsForMods, "CON"),
+        INT: Number(intStat) + getModifierTotal(detailsForMods, "INT"),
+        WIS: Number(wis) + getModifierTotal(detailsForMods, "WIS"),
+        CHA: Number(cha) + getModifierTotal(detailsForMods, "CHA"),
+    };
+    const abilityShort: Record<AbilityKey, string> = {
+        STR: "FUE",
+        DEX: "DES",
+        CON: "CON",
+        INT: "INT",
+        WIS: "SAB",
+        CHA: "CAR",
+    };
+
+    const skillOrder: SkillKey[] = [
+        "acrobatics",
+        "animalHandling",
+        "arcana",
+        "athletics",
+        "deception",
+        "history",
+        "insight",
+        "intimidation",
+        "investigation",
+        "medicine",
+        "nature",
+        "perception",
+        "performance",
+        "persuasion",
+        "religion",
+        "sleightOfHand",
+        "stealth",
+        "survival",
+    ];
+
+    const orderedSkills = skillOrder
+        .map((key) => SKILL_DEFINITIONS.find((skill) => skill.key === key))
+        .filter(Boolean) as SkillDefinition[];
+
+    function getSkillBonusValue(key: SkillKey): number {
+        const raw = skillProficiencies?.[key];
+        if (raw === true) return 2;
+        if (typeof raw === "number") return raw === 2 ? 2 : 1;
+        return 0;
+    }
+
+    function setSkillBonus(key: SkillKey, value: number) {
+        if (!setSkillProficiencies) return;
+        const next = { ...(skillProficiencies ?? {}) } as Record<string, number | boolean>;
+        if (!value) {
+            delete next[key];
+        } else {
+            next[key] = value === 2 ? 2 : 1;
+        }
+        setSkillProficiencies(next);
+    }
+
+    function getSkillTotal(skill: SkillDefinition) {
+        const base = abilityMod(abilityTotals[skill.ability] ?? 10);
+        const prof = getSkillBonusValue(skill.key);
+        const itemBonus = getModifierTotal(detailsForMods, skill.modifierTarget);
+        return base + prof + itemBonus;
+    }
 
     function updateCustomSection(index: number, patch: Partial<{ title: string; content: string }>) {
         if (!setCustomSections) return;
@@ -255,7 +299,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             ...customSectionsSafe,
             {
                 id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                title: "Nueva secciÃ³n",
+                title: "Nueva sección",
                 content: "",
             },
         ];
@@ -265,6 +309,15 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     function removeCustomSection(id: string) {
         if (!setCustomSections) return;
         setCustomSections(customSectionsSafe.filter((section) => section.id !== id));
+    }
+
+    function openCustomCreator() {
+        setCustomCreateOpen(true);
+        if (customContentRef.current) {
+            requestAnimationFrame(() => {
+                customContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+        }
     }
 
     async function handleSubmit(e: FormEvent) {
@@ -282,7 +335,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         }
 
         if (saving) {
-            console.debug("handleSubmit: already saving â€” ignoring duplicate submit");
+            console.debug("handleSubmit: already saving — ignoring duplicate submit");
             return;
         }
         setSaving(true);
@@ -291,21 +344,21 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             // session / user
             const { data: sessData, error: sessErr } = await supabase.auth.getSession();
             if (sessErr) {
-                console.error("Error obteniendo sesiÃ³n:", inspectError(sessErr));
-                alert("Error obteniendo sesiÃ³n: " + inspectError(sessErr));
+                console.error("Error obteniendo sesión:", inspectError(sessErr));
+                alert("Error obteniendo sesión: " + inspectError(sessErr));
                 setSaving(false);
                 return;
             }
             const session = (sessData as any)?.session ?? null;
             const userId = session?.user?.id ?? null;
             if (!userId) {
-                alert("No estÃ¡s autenticado. Ve al login antes de guardar un personaje.");
+                alert("No estás autenticado. Ve al login antes de guardar un personaje.");
                 setSaving(false);
                 return;
             }
 
             if (!campaignId) {
-                const msg = "No se resolviÃ³ campaign_id. Pasa campaignId en fields o usa la ruta /campaigns/[id]/player.";
+                const msg = "No se resolvió campaign_id. Pasa campaignId en fields o usa la ruta /campaigns/[id]/player.";
                 console.error(msg);
                 alert(msg);
                 setSaving(false);
@@ -316,6 +369,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             const basePayload: Record<string, any> = {
                 campaign_id: campaignId,
                 user_id: userId ?? null,
+                character_type: characterType ?? "character",
                 name: charName ?? null,
                 class: charClass ?? null,
                 level: Number(charLevel ?? 1),
@@ -325,7 +379,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                 speed: speed !== undefined && speed !== null ? Number(speed) : null,
                 max_hp: previewMaxHp !== undefined && previewMaxHp !== null ? Number(previewMaxHp) : null,
                 current_hp: currentHp !== undefined && currentHp !== null ? Number(currentHp) : null,
-                details: {} // actualizaremos despuÃ©s
+                details: {} // actualizaremos después
             };
 
             try {
@@ -345,10 +399,12 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     const d = (charRes as any).data;
                     cid = Array.isArray(d) ? (d[0]?.id ?? null) : (d?.id ?? null);
                 }
-                if (!cid && (localCharacterId || incomingCharacterId)) cid = localCharacterId ?? incomingCharacterId ?? null;
+                if (!cid && (localCharacterId || incomingCharacterId)) {
+                    cid = localCharacterId ?? incomingCharacterId ?? null;
+                }
 
                 if (!cid) {
-                    console.error("createOrUpdateCharacterRow no devolviÃ³ id y no tenemos fallback. Respuesta:", charRes);
+                    console.error("createOrUpdateCharacterRow no devolvió id y no tenemos fallback. Respuesta:", charRes);
                     alert("Error: no se obtuvo id del personaje. Revisa consola (posible RLS).");
                     setSaving(false);
                     return;
@@ -363,7 +419,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     const maybeSetter = (fields as unknown as { setCharacterId?: (id: string) => void }).setCharacterId;
                     maybeSetter?.(cid);
                 } catch (err) {
-                    console.debug("No se pudo notificar setCharacterId al padre (no existe o fallÃ³).", err);
+                    console.debug("No se pudo notificar setCharacterId al padre (no existe o falló).", err);
                 }
 
                 // 2) upsert stats
@@ -383,29 +439,9 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                 }
 
                 // 3) update details JSON (items + contenido personalizado)
-                const companionPayload =
-                    companionEnabled || (companionName && companionName.trim())
-                        ? {
-                            name: companionName?.trim() || "Compañero",
-                            kind: companionKind?.trim() || undefined,
-                            size: companionSize?.trim() || undefined,
-                            armorClass: typeof companionArmorClass === "number" ? companionArmorClass : undefined,
-                            speed: typeof companionSpeed === "number" ? companionSpeed : undefined,
-                            currentHp: typeof companionCurrentHp === "number" ? companionCurrentHp : undefined,
-                            maxHp: typeof companionMaxHp === "number" ? companionMaxHp : undefined,
-                            stats: {
-                                str: companionStr ?? 10,
-                                dex: companionDex ?? 10,
-                                con: companionCon ?? 10,
-                                int: companionInt ?? 10,
-                                wis: companionWis ?? 10,
-                                cha: companionCha ?? 10,
-                            },
-                            abilities: companionAbilities?.trim() || undefined,
-                            spells: companionSpells?.trim() || undefined,
-                            notes: companionNotes?.trim() || undefined,
-                        }
-                        : null;
+                const orderedItems = Array.isArray(items)
+                    ? items.map((item, index) => ({ ...item, sortOrder: index }))
+                    : [];
 
                 const detailsPatch: any = {
                     abilities: abilities ?? null,
@@ -420,9 +456,9 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     backstory: backstory ?? null,
                     languages: languages ?? null,
                     proficiencies: proficiencies ?? null,
+                    skillProficiencies: skillProficiencies ?? null,
                     customSections: customSectionsSafe ?? null,
-                    companion: companionPayload,
-                    items: Array.isArray(items) ? items : [],
+                    items: orderedItems,
                     customSpells: Array.isArray(customSpells) ? customSpells : [],
                     customCantrips: Array.isArray(customCantrips) ? customCantrips : [],
                     customTraits: Array.isArray(customTraits) ? customTraits : [],
@@ -509,9 +545,9 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             </header>
 
             <form id="character-form" onSubmit={handleSubmit} className="space-y-6">
-                {/* Datos bÃ¡sicos / clase / vida */}
+                {/* Datos básicos / clase / vida */}
                 <section className="space-y-3">
-                    <h3 className="text-sm font-semibold text-ink">Datos bÃ¡sicos</h3>
+                    <h3 className="text-sm font-semibold text-ink">Datos básicos</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <TextField label="Nombre" value={charName} onChange={setCharName} required />
 
@@ -529,7 +565,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                                         {c.label}
                                     </option>
                                 ))}
-                                <option value="custom">Clase personalizadaâ€¦</option>
+                                <option value="custom">Clase personalizada…</option>
                             </select>
                             <p className="text-[11px] text-ink-muted">
                                 Se usa para calcular espacios de conjuro y cargar habilidades.
@@ -544,18 +580,18 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border border-ring rounded-lg p-3 bg-panel/80">
                             <TextField label="Nombre de la clase personalizada" value={customClassName} onChange={setCustomClassName} />
                             <div className="space-y-1">
-                                <label className="text-sm text-ink">CaracterÃ­stica de conjuro</label>
+                                <label className="text-sm text-ink">Característica de conjuro</label>
                                 <select
                                     value={customCastingAbility}
                                     onChange={(e) => setCustomCastingAbility(e.target.value as keyof Stats)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                                 >
                                     <option value="int">Inteligencia (INT)</option>
-                                    <option value="wis">SabidurÃ­a (SAB)</option>
+                                    <option value="wis">Sabiduría (SAB)</option>
                                     <option value="cha">Carisma (CAR)</option>
                                     <option value="str">Fuerza (FUE)</option>
                                     <option value="dex">Destreza (DES)</option>
-                                    <option value="con">ConstituciÃ³n (CON)</option>
+                                    <option value="con">Constitución (CON)</option>
                                 </select>
                             </div>
                         </div>
@@ -588,9 +624,9 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                         <NumberField label="Vida actual" value={currentHp} onChange={setCurrentHp} min={0} />
 
                         <InfoBox
-                            label="Vida mÃ¡xima (calculada)"
+                            label="Vida máxima (calculada)"
                             value={previewMaxHp}
-                            sub={`(${hitDieSides} Ã— nivel) + ${conMod >= 0 ? `+${conMod}` : conMod}`}
+                            sub={`(${hitDieSides} × nivel) + ${conMod >= 0 ? `+${conMod}` : conMod}`}
                         />
                     </div>
                 </section>
@@ -608,20 +644,68 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     </div>
                 </section>
 
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-ink">Habilidades (skills)</h3>
+                        <span className="text-[11px] text-ink-muted">
+                            Elige +1 o +2 por habilidad
+                        </span>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                        {orderedSkills.map((skill) => {
+                            const bonus = getSkillBonusValue(skill.key);
+                            const total = getSkillTotal(skill);
+                            return (
+                                <div
+                                    key={skill.key}
+                                    className="flex items-center justify-between rounded-lg border border-ring bg-white/80 px-3 py-2 text-xs text-ink"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">{skill.label}</span>
+                                        <span className="text-[10px] text-ink-muted">
+                                            ({abilityShort[skill.ability]})
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={bonus}
+                                            onChange={(event) =>
+                                                setSkillBonus(skill.key, Number(event.target.value))
+                                            }
+                                            className="rounded-md border border-ring bg-white/90 px-2 py-1 text-[11px] text-ink"
+                                        >
+                                            <option value={0}>—</option>
+                                            <option value={1}>+1</option>
+                                            <option value={2}>+2</option>
+                                        </select>
+                                        <span className="font-mono text-ink">
+                                            {formatModifier(total)}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+
                 {/* Inventario y equipamiento */}
                 <ItemManagerSection items={items} setItems={setItems} />
 
-                <CustomContentManager
-                    locale={locale}
-                    customSpells={customSpells}
-                    setCustomSpells={setCustomSpells}
-                    customCantrips={customCantrips}
-                    setCustomCantrips={setCustomCantrips}
-                    customTraits={customTraits}
-                    setCustomTraits={setCustomTraits}
-                    customClassAbilities={customClassAbilities}
-                    setCustomClassAbilities={setCustomClassAbilities}
-                />
+                <div ref={customContentRef}>
+                    <CustomContentManager
+                        locale={locale}
+                        customSpells={customSpells}
+                        setCustomSpells={setCustomSpells}
+                        customCantrips={customCantrips}
+                        setCustomCantrips={setCustomCantrips}
+                        customTraits={customTraits}
+                        setCustomTraits={setCustomTraits}
+                        customClassAbilities={customClassAbilities}
+                        setCustomClassAbilities={setCustomClassAbilities}
+                        createOpen={customCreateOpen}
+                        onToggleCreate={setCustomCreateOpen}
+                    />
+                </div>
 
                 {/* Conjuros (chips + buscador) */}
                 <SpellSection
@@ -647,48 +731,11 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     setSpellsL8={setSpellsL8}
                     spellsL9={spellsL9}
                     setSpellsL9={setSpellsL9}
+                    onOpenCustomCreate={openCustomCreator}
                 />
 
-                {/* Perfil rápido y notas */}
+                {/* Perfil y notas */}
                 <section className="space-y-3">
-                    <details className="rounded-2xl border border-ring bg-panel/80 p-3">
-                        <summary className="cursor-pointer text-sm font-semibold text-ink">
-                            Perfil rápido
-                        </summary>
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <TextField
-                                label="Trasfondo"
-                                value={background}
-                                onChange={setBackground}
-                            />
-                            <TextField
-                                label="Alineamiento"
-                                value={alignment}
-                                onChange={setAlignment}
-                            />
-                            <MarkdownField
-                                label="Rasgos de personalidad"
-                                value={personalityTraits}
-                                onChange={setPersonalityTraits}
-                            />
-                            <MarkdownField
-                                label="Ideales"
-                                value={ideals}
-                                onChange={setIdeals}
-                            />
-                            <MarkdownField
-                                label="Vínculos"
-                                value={bonds}
-                                onChange={setBonds}
-                            />
-                            <MarkdownField
-                                label="Defectos"
-                                value={flaws}
-                                onChange={setFlaws}
-                            />
-                        </div>
-                    </details>
-
                     <details className="rounded-2xl border border-ring bg-panel/80 p-3">
                         <summary className="cursor-pointer text-sm font-semibold text-ink">
                             Notas y rasgos libres
@@ -713,11 +760,41 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                 <section className="space-y-3">
                     <h3 className="text-sm font-semibold text-ink">Perfil y trasfondo</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <TextField
+                            label="Trasfondo"
+                            value={background}
+                            onChange={setBackground}
+                        />
+                        <TextField
+                            label="Alineamiento"
+                            value={alignment}
+                            onChange={setAlignment}
+                        />
+                        <MarkdownField
+                            label="Rasgos de personalidad"
+                            value={personalityTraits}
+                            onChange={setPersonalityTraits}
+                        />
+                        <MarkdownField
+                            label="Ideales"
+                            value={ideals}
+                            onChange={setIdeals}
+                        />
+                        <MarkdownField
+                            label="Vínculos"
+                            value={bonds}
+                            onChange={setBonds}
+                        />
+                        <MarkdownField
+                            label="Defectos"
+                            value={flaws}
+                            onChange={setFlaws}
+                        />
                         <MarkdownField
                             label="Apariencia"
                             value={appearance}
                             onChange={setAppearance}
-                            helper="DescripciÃ³n fÃ­sica, rasgos visibles, marcas, etc."
+                            helper="Descripción física, rasgos visibles, marcas, etc."
                         />
                         <MarkdownField
                             label="Historia / Backstory"
@@ -743,119 +820,25 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
 
                 <section className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-ink">Compañero / Mascota</h3>
-                        <label className="flex items-center gap-2 text-xs text-ink-muted">
-                            <input
-                                type="checkbox"
-                                checked={!!companionEnabled}
-                                onChange={(e) => setCompanionEnabled?.(e.target.checked)}
-                            />
-                            Activar compañero
-                        </label>
-                    </div>
-
-                    {companionEnabled && (
-                        <div className="space-y-4 rounded-lg border border-ring bg-panel/80 p-3">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <TextField
-                                    label="Nombre"
-                                    value={companionName ?? ""}
-                                    onChange={(value) => setCompanionName?.(value)}
-                                />
-                                <TextField
-                                    label="Tipo / Especie"
-                                    value={companionKind ?? ""}
-                                    onChange={(value) => setCompanionKind?.(value)}
-                                />
-                                <TextField
-                                    label="Tamaño"
-                                    value={companionSize ?? ""}
-                                    onChange={(value) => setCompanionSize?.(value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <NumberField
-                                    label="CA"
-                                    value={companionArmorClass ?? 10}
-                                    onChange={(value) => setCompanionArmorClass?.(value)}
-                                    min={0}
-                                />
-                                <NumberField
-                                    label="Velocidad (ft)"
-                                    value={companionSpeed ?? 30}
-                                    onChange={(value) => setCompanionSpeed?.(value)}
-                                    min={0}
-                                />
-                                <NumberField
-                                    label="Vida actual"
-                                    value={companionCurrentHp ?? 0}
-                                    onChange={(value) => setCompanionCurrentHp?.(value)}
-                                    min={0}
-                                />
-                                <NumberField
-                                    label="Vida máxima"
-                                    value={companionMaxHp ?? 0}
-                                    onChange={(value) => setCompanionMaxHp?.(value)}
-                                    min={0}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-                                <StatInput label="FUE" value={companionStr ?? 10} onChange={(v) => setCompanionStr?.(v)} />
-                                <StatInput label="DES" value={companionDex ?? 10} onChange={(v) => setCompanionDex?.(v)} />
-                                <StatInput label="CON" value={companionCon ?? 10} onChange={(v) => setCompanionCon?.(v)} />
-                                <StatInput label="INT" value={companionInt ?? 10} onChange={(v) => setCompanionInt?.(v)} />
-                                <StatInput label="SAB" value={companionWis ?? 10} onChange={(v) => setCompanionWis?.(v)} />
-                                <StatInput label="CAR" value={companionCha ?? 10} onChange={(v) => setCompanionCha?.(v)} />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <MarkdownField
-                                    label="Habilidades y rasgos"
-                                    value={companionAbilities ?? ""}
-                                    onChange={(value) => setCompanionAbilities?.(value)}
-                                    helper="Describe habilidades, sentidos, resistencias, etc."
-                                />
-                                <MarkdownField
-                                    label="Hechizos / magia"
-                                    value={companionSpells ?? ""}
-                                    onChange={(value) => setCompanionSpells?.(value)}
-                                    helper="Hechizos, efectos pasivos o poderes especiales."
-                                />
-                            </div>
-
-                            <MarkdownField
-                                label="Notas del compañero"
-                                value={companionNotes ?? ""}
-                                onChange={(value) => setCompanionNotes?.(value)}
-                                helper="Personalidad, comportamiento, equipo, etc."
-                            />
-                        </div>
-                    )}
-                </section>
-
-                <section className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
                         <h3 className="text-sm font-semibold text-ink">Secciones personalizadas</h3>
                         <button
                             type="button"
                             onClick={addCustomSection}
                             className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                         >
-                            AÃ±adir secciÃ³n
+                            Añadir sección
                         </button>
                     </div>
 
                     {customSectionsSafe.length === 0 ? (
-                        <p className="text-xs text-ink-muted">AÃºn no has creado secciones personalizadas.</p>
+                        <p className="text-xs text-ink-muted">Aún no has creado secciones personalizadas.</p>
                     ) : (
                         <div className="space-y-4">
                             {customSectionsSafe.map((section, index) => (
                                 <div key={section.id} className="rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <TextField
-                                            label="TÃ­tulo"
+                                            label="Título"
                                             value={section.title}
                                             onChange={(value) => updateCustomSection(index, { title: value })}
                                         />

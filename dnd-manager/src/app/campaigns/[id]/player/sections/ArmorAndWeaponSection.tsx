@@ -199,7 +199,7 @@ export function ArmorAndWeaponSection({
                         <div className="flex items-center gap-2">
                             <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700">{abilityKeyToLabelEs[m.ability]}</span>
                             <span className="font-mono">{m.value >= 0 ? `+${m.value}` : m.value}</span>
-                            {m.note ? <span className="text-ink-muted ml-2">Â· {m.note}</span> : null}
+                            {m.note ? <span className="text-ink-muted ml-2">· {m.note}</span> : null}
                         </div>
                         <div>
                             <button
@@ -234,7 +234,7 @@ export function ArmorAndWeaponSection({
             </div>
 
             {armors.length === 0 ? (
-                <p className="text-xs text-ink-muted">No tienes ninguna armadura aÃ±adida.</p>
+                <p className="text-xs text-ink-muted">No tienes ninguna armadura añadida.</p>
             ) : (
                 <ul className="space-y-2">
                     {armors.map(
@@ -330,7 +330,7 @@ export function ArmorAndWeaponSection({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="space-y-1">
-                            <label className="text-xs text-ink">Modifica caracterÃ­stica</label>
+                            <label className="text-xs text-ink">Modifica característica</label>
                             <select
                                 value={armorFormStatAbility}
                                 onChange={(e) => setArmorFormStatAbility(e.target.value as AbilityKey | "none")}
@@ -339,9 +339,9 @@ export function ArmorAndWeaponSection({
                                 <option value="none">Ninguna</option>
                                 <option value="STR">Fuerza (FUE)</option>
                                 <option value="DEX">Destreza (DES)</option>
-                                <option value="CON">ConstituciÃ³n (CON)</option>
+                                <option value="CON">Constitución (CON)</option>
                                 <option value="INT">Inteligencia (INT)</option>
-                                <option value="WIS">SabidurÃ­a (SAB)</option>
+                                <option value="WIS">Sabiduría (SAB)</option>
                                 <option value="CHA">Carisma (CAR)</option>
                             </select>
                         </div>
@@ -385,7 +385,7 @@ export function ArmorAndWeaponSection({
                         onClick={() => setIsWeaponFormOpen((v) => !v)}
                         className="text-[11px] px-3 py-1 rounded-md border border-ring hover:bg-white/80"
                     >
-                        {isWeaponFormOpen ? "Cerrar ediciÃ³n" : "Editar / Crear arma"}
+                        {isWeaponFormOpen ? "Cerrar edición" : "Editar / Crear arma"}
                     </button>
                 </div>
 
@@ -395,7 +395,7 @@ export function ArmorAndWeaponSection({
                             <div className="space-y-1">
                                 <p className="text-sm text-ink font-medium">{weaponName || "Arma sin nombre"}</p>
 
-                                {weaponDamage && <p className="text-xs text-ink-muted">DaÃ±o: <span className="font-mono">{weaponDamage}</span></p>}
+                                {weaponDamage && <p className="text-xs text-ink-muted">Daño: <span className="font-mono">{weaponDamage}</span></p>}
 
                                 {weaponDescription && <p className="text-xs text-ink-muted whitespace-pre-wrap">{weaponDescription}</p>}
 
@@ -406,7 +406,7 @@ export function ArmorAndWeaponSection({
 
                                 {(weaponStatAbility !== "none") && (
                                     <p className="text-[11px] mt-1">
-                                        CaracterÃ­stica usada (para tirar con el arma):{" "}
+                                        Característica usada (para tirar con el arma):{" "}
                                         <span className="px-2 py-0.5 rounded-full border border-emerald-400 text-emerald-700">
                                             {abilityKeyToLabelEs[weaponStatAbility as AbilityKey]}
                                         </span>
@@ -433,12 +433,12 @@ export function ArmorAndWeaponSection({
                                 value={weaponName}
                                 onChange={(e) => setWeaponName(e.target.value)}
                                 className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-xs outline-none focus:border-accent"
-                                placeholder="Espada larga, arco cortoâ€¦"
+                                placeholder="Espada larga, arco corto…"
                             />
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs text-ink">DaÃ±o (ej: 1d8 + 3)</label>
+                            <label className="text-xs text-ink">Daño (ej: 1d8 + 3)</label>
                             <input
                                 type="text"
                                 value={weaponDamage}
@@ -446,11 +446,11 @@ export function ArmorAndWeaponSection({
                                 className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-xs outline-none focus:border-accent"
                                 placeholder="1d8 + 3 cortante"
                             />
-                            <div className="text-[11px] text-ink-muted mt-1">Introduce el daÃ±o tal cual quieres que aparezca (ej. "1d8 + 3").</div>
+                            <div className="text-[11px] text-ink-muted mt-1">Introduce el daño tal cual quieres que aparezca (ej. "1d8 + 3").</div>
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs text-ink">DescripciÃ³n / propiedades</label>
+                            <label className="text-xs text-ink">Descripción / propiedades</label>
                             <textarea
                                 value={weaponDescription}
                                 onChange={(e) => setWeaponDescription(e.target.value)}
@@ -461,7 +461,7 @@ export function ArmorAndWeaponSection({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div className="space-y-1">
-                                <label className="text-xs text-ink">CaracterÃ­stica para tirar</label>
+                                <label className="text-xs text-ink">Característica para tirar</label>
                                 <select
                                     value={weaponStatAbility}
                                     onChange={(e) => setWeaponStatAbility(e.target.value as AbilityKey | "none")}
@@ -470,15 +470,15 @@ export function ArmorAndWeaponSection({
                                     <option value="none">Ninguna</option>
                                     <option value="STR">Fuerza (FUE)</option>
                                     <option value="DEX">Destreza (DES)</option>
-                                    <option value="CON">ConstituciÃ³n (CON)</option>
+                                    <option value="CON">Constitución (CON)</option>
                                     <option value="INT">Inteligencia (INT)</option>
-                                    <option value="WIS">SabidurÃ­a (SAB)</option>
+                                    <option value="WIS">Sabiduría (SAB)</option>
                                     <option value="CHA">Carisma (CAR)</option>
                                 </select>
                             </div>
 
                             <div className="space-y-1">
-                                <label className="text-xs text-ink">Modificador (solo para tirar, no altera el string de daÃ±o)</label>
+                                <label className="text-xs text-ink">Modificador (solo para tirar, no altera el string de daño)</label>
                                 <input
                                     type="number"
                                     value={weaponStatModifier !== null ? String(weaponStatModifier) : ""}
@@ -494,22 +494,22 @@ export function ArmorAndWeaponSection({
                                     className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-xs outline-none focus:border-accent"
                                     placeholder="+1, +2, -1..."
                                 />
-                                <div className="text-[11px] text-ink-muted mt-1">Este valor es solo para tiradas, no para mostrar en la lÃ­nea de daÃ±o si tÃº ya lo incluyes manualmente.</div>
+                                <div className="text-[11px] text-ink-muted mt-1">Este valor es solo para tiradas, no para mostrar en la línea de daño si tú ya lo incluyes manualmente.</div>
                             </div>
                         </div>
 
                         <div className="mt-3 border-t border-ring pt-3">
-                            <div className="text-xs text-ink-muted mb-2">AÃ±adir modificador pasivo al arma (afecta stats)</div>
+                            <div className="text-xs text-ink-muted mb-2">Añadir modificador pasivo al arma (afecta stats)</div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
                                 <div>
-                                    <label className="text-xs text-ink-muted">CaracterÃ­stica</label>
+                                    <label className="text-xs text-ink-muted">Característica</label>
                                     <select value={newModAbility} onChange={(e) => setNewModAbility(e.target.value as AbilityKey)} className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-xs outline-none">
                                         <option value="STR">Fuerza (FUE)</option>
                                         <option value="DEX">Destreza (DES)</option>
-                                        <option value="CON">ConstituciÃ³n (CON)</option>
+                                        <option value="CON">Constitución (CON)</option>
                                         <option value="INT">Inteligencia (INT)</option>
-                                        <option value="WIS">SabidurÃ­a (SAB)</option>
+                                        <option value="WIS">Sabiduría (SAB)</option>
                                         <option value="CHA">Carisma (CAR)</option>
                                     </select>
                                 </div>
@@ -521,13 +521,13 @@ export function ArmorAndWeaponSection({
 
                                 <div>
                                     <label className="text-xs text-ink-muted">Nota (opcional)</label>
-                                    <input type="text" value={newModNote} onChange={(e) => setNewModNote(e.target.value)} className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-xs outline-none" placeholder="e.g. 'Filo rÃºnico'"/>
+                                    <input type="text" value={newModNote} onChange={(e) => setNewModNote(e.target.value)} className="w-full rounded-md bg-white/80 border border-ring px-2 py-1 text-xs outline-none" placeholder="e.g. 'Filo rúnico'"/>
                                 </div>
                             </div>
 
                             <div className="flex justify-end mt-2">
                                 <button type="button" onClick={addWeaponPassiveModifier} className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
-                                    AÃ±adir modificador pasivo
+                                    Añadir modificador pasivo
                                 </button>
                             </div>
 

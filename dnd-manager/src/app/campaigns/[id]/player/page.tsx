@@ -51,7 +51,7 @@ export default function CampaignPlayerPage() {
     const [isOverTrash, setIsOverTrash] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
 
-    // EdiciÃ³n / creaciÃ³n
+    // Edición / creación
     const [editingId, setEditingId] = useState<string | null>(null);
 
     const { fields, resetForm, loadFromCharacter } = useCharacterForm();
@@ -95,24 +95,10 @@ export default function CampaignPlayerPage() {
         backstory,
         languages,
         proficiencies,
+        skillProficiencies,
         customSections,
-        companionEnabled,
-        companionName,
-        companionKind,
-        companionSize,
-        companionArmorClass,
-        companionSpeed,
-        companionCurrentHp,
-        companionMaxHp,
-        companionStr,
-        companionDex,
-        companionCon,
-        companionInt,
-        companionWis,
-        companionCha,
-        companionAbilities,
-        companionSpells,
-        companionNotes,
+        characterType,
+        setCharacterType,
         customClassName,
         customCastingAbility,
         items,
@@ -132,7 +118,7 @@ export default function CampaignPlayerPage() {
         spellsL9,
     } = fields;
 
-    // Form fields (resumidos â€” los mantienes igual que antes)
+    // Form fields (resumidos — los mantienes igual que antes)
     // details
     // Clase personalizada
     // Hechizos en formulario
@@ -153,7 +139,7 @@ export default function CampaignPlayerPage() {
             const { data: chars, error: charsError } = await supabase
                 .from("characters")
                 .select(
-                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image"
+                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type"
                 )
                 .eq("campaign_id", params.id)
                 .eq("user_id", session.user.id);
@@ -216,8 +202,9 @@ export default function CampaignPlayerPage() {
     }, [params.id, router]);
 
 
-    function startCreate() {
+    function startCreate(type: "character" | "companion" = "character") {
         resetForm();
+        setCharacterType?.(type);
         setEditingId(null);
         setMode("create");
         setActiveTab("stats");
@@ -254,7 +241,7 @@ export default function CampaignPlayerPage() {
             } = await supabase.auth.getSession();
 
             if (!session?.user) {
-                throw new Error("No hay sesiÃ³n activa.");
+                throw new Error("No hay sesión activa.");
             }
 
             if (!charName.trim()) {
@@ -285,6 +272,11 @@ export default function CampaignPlayerPage() {
                 level9: spellsL9.trim() || undefined,
             };
 
+            const orderedItems = Array.isArray(items)
+                ? items.map((item, index) => ({ ...item, sortOrder: index }))
+                : [];
+            const legacyCompanion =
+                mode === "edit" ? selectedChar?.details?.companion : undefined;
             const detailsObj: Details = {
                 abilities: abilities.trim() || undefined,
                 notes: notes.trim() || undefined,
@@ -298,50 +290,17 @@ export default function CampaignPlayerPage() {
                 backstory: backstory?.trim() || undefined,
                 languages: languages?.trim() || undefined,
                 proficiencies: proficiencies?.trim() || undefined,
+                skillProficiencies: skillProficiencies ?? undefined,
                 customSections:
                     Array.isArray(customSections) && customSections.length > 0
                         ? customSections
                         : undefined,
-                companion:
-                    companionEnabled || (companionName && companionName.trim())
-                        ? {
-                            name: companionName?.trim() || "Compañero",
-                            kind: companionKind?.trim() || undefined,
-                            size: companionSize?.trim() || undefined,
-                            armorClass:
-                                typeof companionArmorClass === "number"
-                                    ? companionArmorClass
-                                    : undefined,
-                            speed:
-                                typeof companionSpeed === "number"
-                                    ? companionSpeed
-                                    : undefined,
-                            currentHp:
-                                typeof companionCurrentHp === "number"
-                                    ? companionCurrentHp
-                                    : undefined,
-                            maxHp:
-                                typeof companionMaxHp === "number"
-                                    ? companionMaxHp
-                                    : undefined,
-                            stats: {
-                                str: companionStr ?? 10,
-                                dex: companionDex ?? 10,
-                                con: companionCon ?? 10,
-                                int: companionInt ?? 10,
-                                wis: companionWis ?? 10,
-                                cha: companionCha ?? 10,
-                            },
-                            abilities: companionAbilities?.trim() || undefined,
-                            spells: companionSpells?.trim() || undefined,
-                            notes: companionNotes?.trim() || undefined,
-                        }
-                        : undefined,
+                companion: legacyCompanion,
                 hitDie: { sides: hitDieSides },
                 spells,
                 customClassName: customClassName.trim() || undefined,
                 customCastingAbility,
-                items: Array.isArray(items) ? items : [],
+                items: orderedItems,
                 customSpells: Array.isArray(customSpells) ? customSpells : [],
                 customCantrips: Array.isArray(customCantrips) ? customCantrips : [],
                 customTraits: Array.isArray(customTraits) ? customTraits : [],
@@ -350,8 +309,13 @@ export default function CampaignPlayerPage() {
                     : [],
             };
 
+            const resolvedCharacterType =
+                mode === "edit"
+                    ? selectedChar?.character_type ?? characterType ?? "character"
+                    : characterType ?? "character";
             const payload = {
                 name: charName.trim(),
+                character_type: resolvedCharacterType,
                 class: charClass.trim() || null,
                 level: charLevel,
                 race: race.trim() || null,
@@ -412,7 +376,7 @@ export default function CampaignPlayerPage() {
 
     // BORRAR personaje: BORRADO REAL en la BD + recarga de la lista
     async function handleDeleteCharacter(id: string) {
-        const confirmDelete = window.confirm("Â¿Seguro que quieres eliminar este personaje? Esta acciÃ³n no se puede deshacer.");
+        const confirmDelete = window.confirm("¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer.");
         if (!confirmDelete) return;
 
         setError(null);
@@ -422,7 +386,7 @@ export default function CampaignPlayerPage() {
             } = await supabase.auth.getSession();
 
             if (!session?.user) {
-                throw new Error("No hay sesiÃ³n activa.");
+                throw new Error("No hay sesión activa.");
             }
 
             const { error: deleteError } = await supabase
@@ -440,7 +404,7 @@ export default function CampaignPlayerPage() {
             // recargamos la lista desde DB para garantizar persistencia y evitar inconsistencias por RLS
             await loadCharacters();
 
-            // limpiar selecciÃ³n si era el personaje borrado
+            // limpiar selección si era el personaje borrado
             if (selectedId === id) {
                 setSelectedId(null);
             }
@@ -451,11 +415,12 @@ export default function CampaignPlayerPage() {
     }
 
     const selectedChar = characters.find((c) => c.id === selectedId) ?? null;
+    const createTitle = characterType === "companion" ? "Nuevo compañero" : "Nuevo personaje";
 
     if (!allowed && !loading) {
         return (
             <main className="p-6 text-sm text-ink-muted">
-                No tienes acceso a esta campaÃ±a o no se han podido cargar los datos.
+                No tienes acceso a esta campaña o no se han podido cargar los datos.
             </main>
         );
     }
@@ -490,9 +455,9 @@ export default function CampaignPlayerPage() {
             if (parsed?.type === "character" && parsed.id) {
                 const char = characters.find((c) => c.id === parsed.id);
                 if (!char) return;
-                const confirmDelete = window.confirm(`Â¿Eliminar personaje "${char.name}" arrastrÃ¡ndolo a la papelera? Esta acciÃ³n no se puede deshacer.`);
+                const confirmDelete = window.confirm(`¿Eliminar personaje "${char.name}" arrastrándolo a la papelera? Esta acción no se puede deshacer.`);
                 if (!confirmDelete) return;
-                // usa la funciÃ³n centralizada para borrar + recargar
+                // usa la función centralizada para borrar + recargar
                 handleDeleteCharacter(parsed.id);
             }
         } catch {
@@ -542,16 +507,26 @@ export default function CampaignPlayerPage() {
                             </div>
                             <div>
                                 <h2 className="text-lg font-semibold text-ink leading-tight">Tus personajes</h2>
-                                <p className="text-[11px] text-ink-muted mt-0.5">Gestiona tus personajes de campaÃ±a</p>
+                                <p className="text-[11px] text-ink-muted mt-0.5">Gestiona tus personajes de campaña</p>
                             </div>
                         </div>
 
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
                         <button
                             type="button"
-                            onClick={startCreate}
-                            className="text-xs px-3 py-1 rounded-md border border-accent/60 text-accent-strong hover:bg-accent/10"
+                            onClick={() => startCreate("character")}
+                            className="text-[11px] px-2 py-1 rounded-md border border-accent/60 text-accent-strong hover:bg-accent/10"
                         >
-                            Nuevo
+                            Nuevo PJ
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => startCreate("companion")}
+                            className="text-[11px] px-2 py-1 rounded-md border border-ring text-ink hover:bg-ink/5"
+                        >
+                            Nuevo compañero
                         </button>
                     </div>
 
@@ -559,7 +534,7 @@ export default function CampaignPlayerPage() {
                         {loading ? (
                             <p className="text-xs text-ink-muted">Cargando...</p>
                         ) : characters.length === 0 ? (
-                            <p className="text-xs text-ink-muted">TodavÃ­a no tienes personajes en esta campaÃ±a.</p>
+                            <p className="text-xs text-ink-muted">Todavía no tienes personajes en esta campaña.</p>
                         ) : (
                             <ul className="space-y-2 text-sm">
                                 {characters.map((ch) => (
@@ -573,9 +548,16 @@ export default function CampaignPlayerPage() {
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div className="min-w-0">
-                                                        <p className="font-medium text-sm text-ink truncate">{ch.name}</p>
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <p className="font-medium text-sm text-ink truncate">{ch.name}</p>
+                                                            {ch.character_type === "companion" && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
+                                                                    Compañero
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-[11px] text-ink-muted truncate">
-                                                            {ch.race || "Sin raza"} Â· {prettyClassLabel(ch.class)} Â· Nivel {ch.level ?? "?"}
+                                                            {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
                                                         </p>
                                                     </div>
 
@@ -619,7 +601,7 @@ export default function CampaignPlayerPage() {
                         >
                             <Trash2 className="h-5 w-5 text-red-500" />
                             <div>
-                                <p className="text-sm font-medium text-red-600">Arrastra aquÃ­ para eliminar</p>
+                                <p className="text-sm font-medium text-red-600">Arrastra aquí para eliminar</p>
                                 <p className="text-[11px] text-ink-muted">Suelta para eliminar el personaje arrastrado</p>
                             </div>
                         </div>
@@ -642,7 +624,7 @@ export default function CampaignPlayerPage() {
             </aside>
 
             {/* Panel derecho (contenido principal) */}
-            {/* -> AquÃ­: dejamos header estÃ¡tico (no sticky) y todo el contenido se desplaza */}
+            {/* -> Aquí: dejamos header estático (no sticky) y todo el contenido se desplaza */}
             <section className="flex-1 p-6 h-screen overflow-hidden flex flex-col">
                 {error && (
                     <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2 inline-block">
@@ -651,15 +633,19 @@ export default function CampaignPlayerPage() {
                 )}
 
                 <div className="rounded-2xl bg-panel/80 border border-ring divide-y divide-ring overflow-hidden shadow-[0_18px_50px_rgba(45,29,12,0.12)] flex flex-col h-full">
-                    {/* HEADER: ahora estÃ¡tico (no sticky) */}
+                    {/* HEADER: ahora estático (no sticky) */}
                     <div className="p-4 flex-shrink-0">
                         <div className="flex items-center justify-between gap-4">
                             <div>
                                 <h1 className="text-lg font-semibold text-ink">
-                                    {mode === "create" ? "Nuevo personaje" : selectedChar?.name ?? "Personaje"}
+                                    {mode === "create"
+                                        ? createTitle
+                                        : selectedChar?.name ?? "Personaje"}
                                 </h1>
                                 <p className="text-xs text-ink-muted mt-1">
-                                    {selectedChar ? `${selectedChar.race ?? "Sin raza"} Â· ${prettyClassLabel(selectedChar.class)} Â· Nivel ${selectedChar.level ?? "?"}` : "Crea o selecciona un personaje"}
+                                    {selectedChar
+                                        ? `${selectedChar.race ?? "Sin raza"} · ${prettyClassLabel(selectedChar.class)} · Nivel ${selectedChar.level ?? "?"}`
+                                        : `Crea o selecciona un ${characterType === "companion" ? "compañero" : "personaje"}`}
                                 </p>
                             </div>
 
@@ -667,7 +653,7 @@ export default function CampaignPlayerPage() {
                         </div>
                     </div>
 
-                    {/* CONTENIDO: aquÃ­ estÃ¡ el scroll interno â€” las pestaÃ±as se renderizan dentro de CharacterView */}
+                    {/* CONTENIDO: aquí está el scroll interno — las pestañas se renderizan dentro de CharacterView */}
                     <div className="p-4 flex-1 overflow-y-auto styled-scrollbar">
                         {rightPanelMode === "character" && (
                             <>

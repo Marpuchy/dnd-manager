@@ -9,14 +9,14 @@ type Props = {
 };
 
 const SCHOOLS = [
-    "AbjuraciÃ³n",
-    "AdivinaciÃ³n",
-    "ConjuraciÃ³n",
+    "Abjuración",
+    "Adivinación",
+    "Conjuración",
     "Encantamiento",
-    "EvocaciÃ³n",
-    "IlusiÃ³n",
+    "Evocación",
+    "Ilusión",
     "Nigromancia",
-    "TransmutaciÃ³n",
+    "Transmutación",
 ];
 
 const inputClass =
@@ -29,7 +29,7 @@ export default function CreateCustomSpellModal({
     const [form, setForm] = useState({
         name: "",
         level: 0,
-        school: "EvocaciÃ³n",
+        school: "Evocación",
         casting_time: "",
         rangeFeet: "",
         duration: "",
@@ -145,7 +145,7 @@ export default function CreateCustomSpellModal({
                         </label>
                         <input
                             className={inputClass}
-                            placeholder="AcciÃ³n, AcciÃ³n adicional, ReacciÃ³nâ€¦"
+                            placeholder="Acción, Acción adicional, Reacción…"
                             value={form.casting_time}
                             onChange={(e) =>
                                 setForm({
@@ -193,11 +193,11 @@ export default function CreateCustomSpellModal({
 
                     <div>
                         <label className="text-[11px] text-ink-muted">
-                            DuraciÃ³n
+                            Duración
                         </label>
                         <input
                             className={inputClass}
-                            placeholder="ConcentraciÃ³n, hasta 1 minutoâ€¦"
+                            placeholder="Concentración, hasta 1 minuto…"
                             value={form.duration}
                             onChange={(e) =>
                                 setForm({ ...form, duration: e.target.value })
@@ -234,15 +234,15 @@ export default function CreateCustomSpellModal({
                     </label>
                 </div>
 
-                {/* DescripciÃ³n */}
+                {/* Descripción */}
                 <div>
                     <label className="text-[11px] text-ink-muted">
-                        DescripciÃ³n
+                        Descripción
                     </label>
                     <textarea
                         className={inputClass}
                         rows={5}
-                        placeholder="DescripciÃ³n completa del hechizoâ€¦"
+                        placeholder="Descripción completa del hechizo…"
                         value={form.description}
                         onChange={(e) =>
                             setForm({ ...form, description: e.target.value })

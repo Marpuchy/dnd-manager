@@ -283,10 +283,26 @@ export function migrateLegacyItems(details?: Details | null): CharacterItem[] {
   return items;
 }
 
+export function sortItemsByOrder(items: CharacterItem[]): CharacterItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const ao = a.item.sortOrder;
+      const bo = b.item.sortOrder;
+      const aHas = typeof ao === "number";
+      const bHas = typeof bo === "number";
+      if (aHas && bHas) return (ao as number) - (bo as number);
+      if (aHas) return -1;
+      if (bHas) return 1;
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
+}
+
 export function ensureDetailsItems(details?: Details | null): Details {
   const safe: Details = details ? { ...details } : {};
   return {
     ...safe,
-    items: migrateLegacyItems(safe),
+    items: sortItemsByOrder(migrateLegacyItems(safe)),
   };
 }

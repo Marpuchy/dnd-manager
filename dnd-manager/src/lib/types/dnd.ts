@@ -1,4 +1,28 @@
 export type AbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+export type CharacterType = "character" | "companion";
+
+export type SkillKey =
+    | "athletics"
+    | "acrobatics"
+    | "sleightOfHand"
+    | "stealth"
+    | "arcana"
+    | "history"
+    | "investigation"
+    | "nature"
+    | "religion"
+    | "animalHandling"
+    | "insight"
+    | "medicine"
+    | "perception"
+    | "survival"
+    | "deception"
+    | "intimidation"
+    | "performance"
+    | "persuasion";
+
+export type SkillProficiencyValue = 1 | 2 | boolean;
+export type SkillProficiencies = Partial<Record<SkillKey, SkillProficiencyValue>>;
 
 export type TranslationEntry = {
     text: string;
@@ -93,6 +117,47 @@ export type SpellMeta = {
     fullDesc?: string | LocalizedText;
 };
 
+export type SpellComponentSet = {
+    verbal?: boolean;
+    somatic?: boolean;
+    material?: boolean;
+};
+
+export type SpellCastingTime = {
+    value: string;
+    note?: string;
+};
+
+export type SpellResourceCost = {
+    usesSpellSlot?: boolean;
+    slotLevel?: number;
+    charges?: number;
+    points?: number;
+};
+
+export type SpellSaveConfig = {
+    type?: "attack" | "save" | "none";
+    saveAbility?: AbilityKey;
+    dcType?: "fixed" | "stat";
+    dcValue?: number;
+    dcStat?: AbilityKey;
+};
+
+export type SpellDamageConfig = {
+    damageType?: string;
+    dice?: string;
+    scaling?: string;
+};
+
+export type AbilityResourceCost = {
+    usesSpellSlot?: boolean;
+    slotLevel?: number;
+    charges?: number;
+    recharge?: "short" | "long";
+    pointsLabel?: string;
+    points?: number;
+};
+
 export type ItemCategory =
     | "weapon"
     | "armor"
@@ -126,6 +191,7 @@ export type CharacterItem = {
     charges?: number | string;
     slot?: string;
     source?: string;
+    sortOrder?: number;
 };
 
 export type CustomSpellEntry = {
@@ -134,6 +200,16 @@ export type CustomSpellEntry = {
     level: number;
     school?: string;
     description?: LocalizedText;
+    castingTime?: SpellCastingTime;
+    range?: string;
+    components?: SpellComponentSet;
+    materials?: string;
+    duration?: string;
+    concentration?: boolean;
+    ritual?: boolean;
+    resourceCost?: SpellResourceCost;
+    save?: SpellSaveConfig;
+    damage?: SpellDamageConfig;
 };
 
 export type CustomFeatureEntry = {
@@ -141,6 +217,10 @@ export type CustomFeatureEntry = {
     name: string;
     level?: number;
     description?: LocalizedText;
+    actionType?: "action" | "bonus" | "reaction" | "passive";
+    resourceCost?: AbilityResourceCost;
+    requirements?: string;
+    effect?: string;
 };
 
 export type Companion = {
@@ -195,6 +275,7 @@ export type Details = {
     backstory?: string;
     languages?: string;
     proficiencies?: string;
+    skillProficiencies?: SkillProficiencies;
     allies?: string;
     organizations?: string;
     customSections?: { id: string; title: string; content: string }[];
@@ -220,6 +301,7 @@ export type Character = {
     stats: Stats | null;
     details: Details | null;
     profile_image?: string | null;
+    character_type?: CharacterType | null;
 };
 
 export type LearnedSpellLine = {

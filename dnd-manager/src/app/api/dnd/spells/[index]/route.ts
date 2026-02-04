@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { translateText } from "@/lib/translation/translator";
 
 const BASE_URL = "https://www.dnd5eapi.co/api";
@@ -107,3 +107,4 @@ export async function GET(
         );
     }
 }
+

@@ -27,6 +27,7 @@ type SpellSectionProps = {
   setSpellsL8: (v: string) => void;
   spellsL9: string;
   setSpellsL9: (v: string) => void;
+  onOpenCustomCreate?: () => void;
 };
 
 export function SpellSection({
@@ -52,6 +53,7 @@ export function SpellSection({
   setSpellsL8,
   spellsL9,
   setSpellsL9,
+  onOpenCustomCreate,
 }: SpellSectionProps) {
   const maxSpellLevel = useMemo(() => {
     if (!charClass || !charLevel || charLevel < 1) return 0;
@@ -208,6 +210,7 @@ export function SpellSection({
         isSpellLearned={isSpellLearnedInForm}
         onAddSpell={addSpellToForm}
         onRemoveSpell={removeSpellFromForm}
+        onOpenCustomCreate={onOpenCustomCreate}
       />
     </section>
   );
@@ -219,6 +222,7 @@ type MiniSpellSearchProps = {
   isSpellLearned: (spell: SpellSummary) => boolean;
   onAddSpell: (spell: SpellSummary) => void;
   onRemoveSpell: (spell: SpellSummary) => void;
+  onOpenCustomCreate?: () => void;
 };
 
 function MiniSpellSearch({
@@ -227,6 +231,7 @@ function MiniSpellSearch({
   isSpellLearned,
   onAddSpell,
   onRemoveSpell,
+  onOpenCustomCreate,
 }: MiniSpellSearchProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -282,37 +287,50 @@ function MiniSpellSearch({
 
   return (
     <div className="border border-ring rounded-2xl p-3 space-y-3 mt-2 bg-panel/80">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex-1 min-w-[220px]">
-          <input
-            type="text"
-            placeholder="Buscar habilidades por nombre o descripción..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
-            <label className="text-[11px] text-ink-muted">Ordenar por</label>
-            <select
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as "level" | "alpha")}
-              className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs text-ink outline-none focus:border-accent"
+      <div className="space-y-3">
+        {onOpenCustomCreate && (
+          <div className="flex">
+            <button
+              type="button"
+              onClick={onOpenCustomCreate}
+              className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
             >
-              <option value="level">Nivel → Nombre</option>
-              <option value="alpha">Nombre (A-Z)</option>
-            </select>
+              Crear hechizo personalizado
+            </button>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex-1 min-w-[220px]">
+            <input
+              type="text"
+              placeholder="Buscar habilidades por nombre o descripción..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            />
           </div>
 
-          <button
-            type="button"
-            onClick={loadSpells}
-            className="text-[11px] px-3 py-2 rounded-md border border-ring bg-white/70 text-ink hover:bg-white"
-          >
-            {isLoading ? "Cargando..." : "Cargar habilidades"}
-          </button>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <label className="text-[11px] text-ink-muted">Ordenar por</label>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as "level" | "alpha")}
+                className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs text-ink outline-none focus:border-accent"
+              >
+                <option value="level">Nivel → Nombre</option>
+                <option value="alpha">Nombre (A-Z)</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadSpells}
+              className="text-[11px] px-3 py-2 rounded-md border border-ring bg-white/70 text-ink hover:bg-white"
+            >
+              {isLoading ? "Cargando..." : "Cargar habilidades"}
+            </button>
+          </div>
         </div>
       </div>
 

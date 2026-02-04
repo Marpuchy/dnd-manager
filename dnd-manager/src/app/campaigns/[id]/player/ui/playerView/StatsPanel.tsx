@@ -2,19 +2,35 @@
 
 import React, { useMemo, useState } from "react";
 import { Details, Stats } from "../../playerShared";
-import { getSpellSlotsFor } from "@/lib/spellSlots";
-import { Award, Eye, Heart, HeartPulse, Shield, Wind, Zap, Dice5 } from "lucide-react";
+import {
+  Award,
+  Brain,
+  Dice5,
+  Dumbbell,
+  Eye,
+  Feather,
+  Heart,
+  HeartPulse,
+  Shield,
+  Star,
+  Wind,
+  Zap,
+} from "lucide-react";
 import StatsHexagon from "../../../../../components/StatsHexagon";
 import Markdown from "@/app/components/Markdown";
+import SpellSlotsPanel from "@/app/components/SpellSlotsPanel";
 import { abilityModifier, formatModifier } from "./statsHelpers";
 import ImageCropModal from "@/app/components/ImageCropModal";
 import {
   MODIFIER_TARGETS,
   getLocalizedText,
+  getModifierTotal,
   getModifierSources,
   normalizeTarget,
 } from "@/lib/character/items";
 import { getClientLocale } from "@/lib/i18n/getClientLocale";
+import { SKILL_DEFINITIONS, type SkillDefinition } from "@/lib/dnd/skills";
+import type { AbilityKey, SkillKey } from "@/lib/types/dnd";
 
 type MetricCardProps = {
   label: string;
@@ -44,24 +60,21 @@ function MetricCard({ label, value, sub, icon }: MetricCardProps) {
   );
 }
 
-function SpellSlotOrb({ level }: { level: number }) {
-  const tones: Record<number, string> = {
-    1: "bg-amber-100 border-amber-300",
-    2: "bg-amber-200 border-amber-400",
-    3: "bg-amber-300 border-amber-500",
-    4: "bg-orange-200 border-orange-400",
-    5: "bg-orange-300 border-orange-500",
-    6: "bg-rose-200 border-rose-400",
-    7: "bg-rose-300 border-rose-500",
-    8: "bg-red-200 border-red-400",
-    9: "bg-red-300 border-red-500",
-  };
-
+function MetricCardCompact({ label, value, icon }: MetricCardProps) {
   return (
-    <div
-      className={`h-4 w-4 rounded-full border ${tones[level] ?? "bg-amber-100 border-amber-300"}`}
-      title={`Espacio de conjuro de nivel ${level}`}
-    />
+    <div className="rounded-xl border border-ring bg-panel/80 px-2 py-1.5 flex items-center gap-2 w-full min-w-0">
+      {icon ? (
+        <div className="h-7 w-7 rounded-full border border-accent/20 bg-accent/10 text-accent-strong flex items-center justify-center">
+          {icon}
+        </div>
+      ) : null}
+      <div>
+        <div className="text-[9px] uppercase tracking-[0.2em] text-ink-muted">
+          {label}
+        </div>
+        <div className="text-sm font-semibold text-ink">{value}</div>
+      </div>
+    </div>
   );
 }
 
@@ -118,11 +131,62 @@ export default function StatsPanel({
   const customClassAbilities = Array.isArray(details?.customClassAbilities)
     ? details.customClassAbilities
     : [];
+  const skillProficiencies = details?.skillProficiencies ?? {};
 
-  const spellSlots =
-    character?.class && character?.level
-      ? getSpellSlotsFor(character.class, character.level)
-      : null;
+  const abilityScores: Record<AbilityKey, number> = {
+    STR: totalStr,
+    DEX: totalDex,
+    CON: totalCon,
+    INT: totalInt,
+    WIS: totalWis,
+    CHA: totalCha,
+  };
+  const abilityShort: Record<AbilityKey, string> = {
+    STR: "FUE",
+    DEX: "DES",
+    CON: "CON",
+    INT: "INT",
+    WIS: "SAB",
+    CHA: "CAR",
+  };
+
+  const skillOrder: SkillKey[] = [
+    "acrobatics",
+    "animalHandling",
+    "arcana",
+    "athletics",
+    "deception",
+    "history",
+    "insight",
+    "intimidation",
+    "investigation",
+    "medicine",
+    "nature",
+    "perception",
+    "performance",
+    "persuasion",
+    "religion",
+    "sleightOfHand",
+    "stealth",
+    "survival",
+  ];
+  const orderedSkills: SkillDefinition[] = skillOrder
+    .map((key) => SKILL_DEFINITIONS.find((skill) => skill.key === key))
+    .filter(Boolean) as SkillDefinition[];
+
+  function getSkillBonusValue(skill: SkillDefinition): number {
+    const raw = (skillProficiencies as Record<string, number | boolean>)[skill.key];
+    if (raw === true) return 2;
+    if (typeof raw === "number") return raw === 2 ? 2 : 1;
+    return 0;
+  }
+
+  function getSkillTotal(skill: SkillDefinition) {
+    const base = abilityModifier(abilityScores[skill.ability] ?? 10);
+    const proficiency = getSkillBonusValue(skill);
+    const itemBonus = getModifierTotal(details ?? undefined, skill.modifierTarget);
+    return base + proficiency + itemBonus;
+  }
 
   const profileImage = character?.profile_image;
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -180,12 +244,12 @@ export default function StatsPanel({
   }
 
   const statEntries = [
-    { key: "FUE", value: totalStr, raw: "STR" },
-    { key: "DES", value: totalDex, raw: "DEX" },
-    { key: "CON", value: totalCon, raw: "CON" },
-    { key: "INT", value: totalInt, raw: "INT" },
-    { key: "SAB", value: totalWis, raw: "WIS" },
-    { key: "CAR", value: totalCha, raw: "CHA" },
+    { key: "FUE", label: "Fuerza", value: totalStr, raw: "STR", icon: Dumbbell },
+    { key: "DES", label: "Destreza", value: totalDex, raw: "DEX", icon: Feather },
+    { key: "CON", label: "Constitución", value: totalCon, raw: "CON", icon: Heart },
+    { key: "INT", label: "Inteligencia", value: totalInt, raw: "INT", icon: Brain },
+    { key: "SAB", label: "Sabiduría", value: totalWis, raw: "WIS", icon: Eye },
+    { key: "CAR", label: "Carisma", value: totalCha, raw: "CHA", icon: Star },
   ] as const;
 
   return (
@@ -198,9 +262,9 @@ export default function StatsPanel({
           onSave={handleSaveCroppedImage}
         />
       )}
-      <section className="grid gap-4 lg:grid-cols-[220px_1fr]">
-        <div className="rounded-3xl border border-ring bg-panel/90 p-3">
-          <div className="w-full aspect-[3/5] rounded-2xl overflow-hidden bg-white/70 border border-ring">
+      <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="rounded-3xl border border-ring bg-panel/90 p-4">
+          <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden bg-white/70 border border-ring">
             {profileImage?.startsWith("http") ? (
               <img
                 src={profileImage}
@@ -220,7 +284,7 @@ export default function StatsPanel({
           </label>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
@@ -231,19 +295,24 @@ export default function StatsPanel({
                   {character?.name ?? "Personaje"}
                 </h2>
                 <p className="text-sm text-ink-muted">
-                  {character?.race ?? "Sin raza"} · {character?.class ?? "Sin clase"} · Nivel {character?.level ?? "?"}
+                  {character?.race ?? "Sin raza"} · {character?.class ?? "Sin clase"} · Nivel{" "}
+                  {character?.level ?? "?"}
                 </p>
               </div>
               <div className="grid gap-3 text-xs text-ink-muted sm:grid-cols-2">
                 {details?.background && (
                   <div>
-                    <span className="text-[10px] uppercase tracking-[0.2em]">Trasfondo</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em]">
+                      Trasfondo
+                    </span>
                     <div className="text-ink">{details.background}</div>
                   </div>
                 )}
                 {details?.alignment && (
                   <div>
-                    <span className="text-[10px] uppercase tracking-[0.2em]">Alineamiento</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em]">
+                      Alineamiento
+                    </span>
                     <div className="text-ink">{details.alignment}</div>
                   </div>
                 )}
@@ -257,51 +326,53 @@ export default function StatsPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <MetricCard
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <MetricCardCompact
               label="Clase de armadura"
               value={totalAC}
-              icon={<Shield className="h-4 w-4" />}
+              icon={<Shield className="h-3.5 w-3.5" />}
             />
-            <MetricCard
+            <MetricCardCompact
               label="Iniciativa"
               value={formatModifier(initiative)}
-              icon={<Zap className="h-4 w-4" />}
+              icon={<Zap className="h-3.5 w-3.5" />}
             />
-            <MetricCard
+            <MetricCardCompact
               label="Velocidad"
               value={`${totalSpeed} ft`}
-              icon={<Wind className="h-4 w-4" />}
+              icon={<Wind className="h-3.5 w-3.5" />}
             />
-            <MetricCard
+            <MetricCardCompact
               label="Competencia"
               value={`+${proficiencyBonus}`}
-              icon={<Award className="h-4 w-4" />}
+              icon={<Award className="h-3.5 w-3.5" />}
+            />
+            <MetricCardCompact
+              label="Vida actual"
+              value={totalCurrentHp ?? "?"}
+              icon={<HeartPulse className="h-3.5 w-3.5" />}
+            />
+            <MetricCardCompact
+              label="Vida máxima"
+              value={totalMaxHp ?? "?"}
+              icon={<Heart className="h-3.5 w-3.5" />}
+            />
+            <MetricCardCompact
+              label="Percepción pasiva"
+              value={passivePerception}
+              icon={<Eye className="h-3.5 w-3.5" />}
+            />
+            <MetricCardCompact
+              label="Dado de golpe"
+              value={`d${details?.hitDie?.sides ?? 8}`}
+              icon={<Dice5 className="h-3.5 w-3.5" />}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <MetricCard
-              label="Vida actual"
-              value={totalCurrentHp ?? "?"}
-              icon={<HeartPulse className="h-4 w-4" />}
-            />
-            <MetricCard
-              label="Vida máxima"
-              value={totalMaxHp ?? "?"}
-              icon={<Heart className="h-4 w-4" />}
-            />
-            <MetricCard
-              label="Percepción pasiva"
-              value={passivePerception}
-              icon={<Eye className="h-4 w-4" />}
-            />
-            <MetricCard
-              label="Dado de golpe"
-              value={`d${details?.hitDie?.sides ?? 8}`}
-              icon={<Dice5 className="h-4 w-4" />}
-            />
-          </div>
+          <SpellSlotsPanel
+            characterClass={character?.class}
+            characterLevel={character?.level}
+          />
         </div>
       </section>
 
@@ -311,7 +382,37 @@ export default function StatsPanel({
           <p className="text-xs text-ink-muted">Vista hexagonal estilo videojuego</p>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] items-start">
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_260px] items-start">
+          <div className="rounded-2xl border border-ring bg-white/80 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-ink">Habilidades</p>
+              <span className="text-[10px] text-ink-muted">Bonus: +1 / +2</span>
+            </div>
+            <div className="space-y-2">
+              {orderedSkills.map((skill) => {
+                const bonusValue = getSkillBonusValue(skill);
+                const total = getSkillTotal(skill);
+                return (
+                  <div
+                    key={skill.key}
+                    className="flex items-center justify-between text-xs text-ink"
+                  >
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={bonusValue > 0} readOnly />
+                      <span>
+                        {skill.label}{" "}
+                        <span className="text-[10px] text-ink-muted">
+                          ({abilityShort[skill.ability]})
+                        </span>
+                      </span>
+                    </label>
+                    <span className="font-mono text-ink">{formatModifier(total)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-col items-center gap-2 w-full">
             <div className="w-full max-w-[320px] sm:max-w-[360px] md:max-w-[420px]">
               <StatsHexagon
@@ -351,18 +452,33 @@ export default function StatsPanel({
             {statEntries.map((stat) => {
               const mod = abilityModifier(stat.value);
               const bonuses = getBonusDetails(stat.raw as keyof typeof bonusSources);
+              const Icon = stat.icon;
               return (
                 <div
                   key={stat.key}
                   className="rounded-2xl border border-ring bg-white/80 px-3 py-2"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-ink">{stat.key}</span>
-                    <span className="text-xs text-ink-muted">{formatModifier(mod)}</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 w-9 rounded-full border border-accent/20 bg-accent/10 text-accent-strong flex items-center justify-center">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">
+                          {stat.key}
+                        </div>
+                        <div className="text-sm font-semibold text-ink">
+                          {stat.label}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-ink-muted">{formatModifier(mod)}</div>
+                      <div className="text-lg font-semibold text-ink">{stat.value}</div>
+                    </div>
                   </div>
-                  <div className="text-lg font-semibold text-ink">{stat.value}</div>
                   {bonuses.length > 0 ? (
-                    <div className="mt-1 flex flex-wrap gap-1">
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {bonuses.map((bonus, i) => (
                         <span
                           key={`${bonus.source}-${i}`}
@@ -377,7 +493,7 @@ export default function StatsPanel({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-ink-muted mt-1">Sin bonus activos</p>
+                    <p className="text-[11px] text-ink-muted mt-2">Sin bonus activos</p>
                   )}
                 </div>
               );
@@ -480,39 +596,7 @@ export default function StatsPanel({
         )}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
-          <h3 className="text-sm font-display font-semibold text-ink">Espacios de conjuro</h3>
-
-          <div className="mt-3">
-            {!spellSlots ? (
-              <p className="text-xs text-ink-muted">Esta clase no tiene espacios de conjuro.</p>
-            ) : "slots" in spellSlots ? (
-              <p className="text-xs text-ink-muted">
-                Brujo: {(spellSlots as any).slots} espacios (nivel {(spellSlots as any).slotLevel})
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(spellSlots)
-                  .filter(([lvl, num]) => Number(lvl) > 0 && Number(num) > 0)
-                  .map(([lvl, num]) => {
-                    const levelNum = Number(lvl);
-                    return (
-                      <div key={lvl} className="flex items-center gap-3">
-                        <span className="w-16 text-xs text-ink-muted">Nivel {lvl}</span>
-                        <div className="flex gap-2">
-                          {Array.from({ length: Number(num) }).map((_, i) => (
-                            <SpellSlotOrb key={i} level={levelNum} />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-        </div>
-
+      <section className="grid gap-4">
         <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
           <h3 className="text-sm font-display font-semibold text-ink">Dotes y rasgos</h3>
 
