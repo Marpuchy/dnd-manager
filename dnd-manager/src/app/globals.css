@@ -71,8 +71,10 @@
   --color-ring: var(--ring);
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
 }
 
+html,
 body {
   background:
     radial-gradient(1200px 600px at 5% -10%, var(--surface-glow-1) 0%, transparent 65%),
@@ -81,6 +83,13 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
 }
 
 :root[data-animations="off"] *,
@@ -98,6 +107,10 @@ body {
 
 .font-display {
   font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
 }
 
 .markdown p {

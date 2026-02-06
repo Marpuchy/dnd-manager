@@ -99,6 +99,7 @@ export default function CampaignPlayerPage() {
         customSections,
         characterType,
         setCharacterType,
+        companionOwnerId,
         customClassName,
         customCastingAbility,
         items,
@@ -313,6 +314,15 @@ export default function CampaignPlayerPage() {
                 mode === "edit"
                     ? selectedChar?.character_type ?? characterType ?? "character"
                     : characterType ?? "character";
+
+            if (resolvedCharacterType === "companion" && !companionOwnerId) {
+                throw new Error("Selecciona un dueño para el compañero.");
+            }
+
+            detailsObj.companionOwnerId =
+                resolvedCharacterType === "companion"
+                    ? companionOwnerId ?? null
+                    : undefined;
             const payload = {
                 name: charName.trim(),
                 character_type: resolvedCharacterType,
@@ -415,6 +425,9 @@ export default function CampaignPlayerPage() {
     }
 
     const selectedChar = characters.find((c) => c.id === selectedId) ?? null;
+    const ownerOptions = characters
+        .filter((c) => c.character_type !== "companion")
+        .map((c) => ({ id: c.id, name: c.name }));
     const createTitle = characterType === "companion" ? "Nuevo compañero" : "Nuevo personaje";
 
     if (!allowed && !loading) {
@@ -660,8 +673,10 @@ export default function CampaignPlayerPage() {
                                 {mode === "view" && selectedChar && (
                                     <CharacterView
                                         character={selectedChar}
+                                        companions={characters}
                                         activeTab={activeTab}
                                         onTabChange={setActiveTab}
+                                        onImageUpdated={loadCharacters}
                                         onDetailsChange={(newDetails: Details) => {
                                             setCharacters((prev) =>
                                                 prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c))
@@ -677,6 +692,10 @@ export default function CampaignPlayerPage() {
                                         onSubmit={handleSaveCharacter}
                                         onCancel={cancelEditOrCreate}
                                         fields={fields}
+                                        ownerOptions={ownerOptions}
+                                        characterId={mode === "edit" ? editingId ?? selectedChar?.id ?? null : null}
+                                        profileImage={mode === "edit" ? selectedChar?.profile_image ?? null : null}
+                                        onImageUpdated={loadCharacters}
                                     />
                                 )}
 

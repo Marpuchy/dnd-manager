@@ -239,6 +239,7 @@ export type Companion = {
 
 export type Details = {
     profile_image?: string | null;
+    companionOwnerId?: string | null;
     armors?: Armor[];
     weaponEquipped?: {
         name: string;

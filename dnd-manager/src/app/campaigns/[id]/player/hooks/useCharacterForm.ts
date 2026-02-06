@@ -159,6 +159,8 @@ export type CharacterFormFields = {
     setCompanionSpells?: (v: string) => void;
     companionNotes?: string;
     setCompanionNotes?: (v: string) => void;
+    companionOwnerId?: string;
+    setCompanionOwnerId?: (v: string) => void;
 
     // Items (nuevo sistema unificado)
     items: CharacterItem[];
@@ -291,6 +293,7 @@ export function useCharacterForm(): UseCharacterFormResult {
     const [companionAbilities, setCompanionAbilities] = useState("");
     const [companionSpells, setCompanionSpells] = useState("");
     const [companionNotes, setCompanionNotes] = useState("");
+    const [companionOwnerId, setCompanionOwnerId] = useState("");
 
     // Items y contenido personalizado
     const [items, setItems] = useState<CharacterItem[]>([]);
@@ -390,6 +393,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setCompanionAbilities("");
         setCompanionSpells("");
         setCompanionNotes("");
+        setCompanionOwnerId("");
         setItems([]);
         setCustomSpells([]);
         setCustomCantrips([]);
@@ -512,6 +516,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         } else {
             setCompanionEnabled(false);
         }
+        setCompanionOwnerId(details.companionOwnerId ?? "");
         setHitDieSides(details.hitDie?.sides ?? 8);
 
         setCustomClassName(details.customClassName ?? "");
@@ -660,8 +665,10 @@ export function useCharacterForm(): UseCharacterFormResult {
             setCompanionAbilities,
             companionSpells,
             setCompanionSpells,
-            companionNotes,
-            setCompanionNotes,
+        companionNotes,
+        setCompanionNotes,
+        companionOwnerId,
+        setCompanionOwnerId,
             items,
             setItems,
             customSpells,

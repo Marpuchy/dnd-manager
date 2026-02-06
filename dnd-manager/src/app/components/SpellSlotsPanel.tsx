@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useMemo } from "react";
 import { getSpellSlotsFor } from "@/lib/spellSlots";
@@ -86,6 +86,18 @@ export default function SpellSlotsPanel({
       slots: Number((spellSlots as any)[lvl] ?? 0),
     }));
   }, [spellSlots]);
+  const visibleSpellSlots = spellSlotCounts.filter((entry) => entry.slots > 0);
+  const gridColumns = useMemo(() => {
+    const count = visibleSpellSlots.length;
+    if (count <= 1) return 1;
+    if (count <= 3) return count;
+    if (count === 4) return 2;
+    if (count === 6) return 3;
+    if (count === 8) return 4;
+    if (count === 9) return 3;
+    if (count % 2 === 0 && count / 2 <= 4) return count / 2;
+    return Math.ceil(Math.sqrt(count));
+  }, [visibleSpellSlots.length]);
 
   const panelClassName = className
     ? `rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] w-full ${className}`
@@ -109,9 +121,18 @@ export default function SpellSlotsPanel({
           <p className="text-xs text-ink-muted">
             Esta clase no tiene espacios de conjuro.
           </p>
+        ) : visibleSpellSlots.length === 0 ? (
+          <p className="text-xs text-ink-muted">
+            No hay espacios de conjuro desbloqueados.
+          </p>
         ) : (
-          <div className="grid grid-flow-col grid-rows-3 grid-cols-3 gap-2">
-            {spellSlotCounts.map((entry) => (
+          <div
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${gridColumns}, minmax(120px, 1fr))`,
+            }}
+          >
+            {visibleSpellSlots.map((entry) => (
               <div
                 key={entry.level}
                 className="rounded-xl border border-ring bg-white/80 px-2 py-2"
@@ -120,17 +141,13 @@ export default function SpellSlotsPanel({
                   Nivel {entry.level}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  {entry.slots > 0 ? (
-                    Array.from({ length: entry.slots }).map((_, i) => (
-                      <SpellSlotOrb
-                        key={i}
-                        level={entry.level}
-                        classColor={classColor}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-ink-muted">—</span>
-                  )}
+                  {Array.from({ length: entry.slots }).map((_, i) => (
+                    <SpellSlotOrb
+                      key={i}
+                      level={entry.level}
+                      classColor={classColor}
+                    />
+                  ))}
                 </div>
               </div>
             ))}
@@ -140,3 +157,4 @@ export default function SpellSlotsPanel({
     </div>
   );
 }
+

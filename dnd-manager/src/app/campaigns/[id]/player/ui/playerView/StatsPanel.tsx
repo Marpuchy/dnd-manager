@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Details, Stats } from "../../playerShared";
 import {
   Award,
@@ -20,7 +20,6 @@ import StatsHexagon from "../../../../../components/StatsHexagon";
 import Markdown from "@/app/components/Markdown";
 import SpellSlotsPanel from "@/app/components/SpellSlotsPanel";
 import { abilityModifier, formatModifier } from "./statsHelpers";
-import ImageCropModal from "@/app/components/ImageCropModal";
 import {
   MODIFIER_TARGETS,
   getLocalizedText,
@@ -189,41 +188,6 @@ export default function StatsPanel({
   }
 
   const profileImage = character?.profile_image;
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [cropFileName, setCropFileName] = useState<string>("personaje.jpg");
-
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setCropFileName(file.name || "personaje.jpg");
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCropSrc(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  }
-
-  async function handleSaveCroppedImage(blob: Blob) {
-    if (!character?.id) return;
-    const formData = new FormData();
-    formData.append("file", blob, cropFileName);
-    formData.append("characterId", character.id);
-
-    const res = await fetch("/api/dnd/characters/upload-image", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) {
-      console.error("Error subiendo imagen");
-      return;
-    }
-
-    setCropSrc(null);
-    onImageUpdated?.();
-  }
 
   const bonusSources = useMemo(() => {
     const keys = ["STR", "DEX", "CON", "INT", "WIS", "CHA"] as const;
@@ -254,14 +218,6 @@ export default function StatsPanel({
 
   return (
     <div className="space-y-6">
-      {cropSrc && (
-        <ImageCropModal
-          src={cropSrc}
-          aspect={3 / 5}
-          onClose={() => setCropSrc(null)}
-          onSave={handleSaveCroppedImage}
-        />
-      )}
       <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="rounded-3xl border border-ring bg-panel/90 p-4">
           <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden bg-white/70 border border-ring">
@@ -277,11 +233,6 @@ export default function StatsPanel({
               </div>
             )}
           </div>
-
-          <label className="mt-3 block text-xs text-center cursor-pointer text-accent-strong hover:underline">
-            Cambiar imagen
-            <input type="file" accept="image/*" hidden onChange={handleImageUpload} />
-          </label>
         </div>
 
         <div className="space-y-3">

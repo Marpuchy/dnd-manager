@@ -12,6 +12,7 @@ import { Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
 import { InfoBox } from "./InfoBox";
 import { StatInput } from "./StatInput";
 import { TextField, NumberField, MarkdownField } from "./FormFields";
+import ImageCropModal from "@/app/components/ImageCropModal";
 
 import { SpellSection } from "../sections/SpellSection";
 import ItemManagerSection from "../sections/ItemManagerSection";
@@ -32,9 +33,22 @@ type CharacterFormProps = {
     onSubmit?: (e: FormEvent) => void;
     onCancel: () => void;
     fields: CharacterFormFields;
+    ownerOptions?: { id: string; name: string }[];
+    characterId?: string | null;
+    profileImage?: string | null;
+    onImageUpdated?: () => void;
 };
 
-export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFormProps) {
+export function CharacterForm({
+    mode,
+    onSubmit,
+    onCancel,
+    fields,
+    ownerOptions = [],
+    characterId = null,
+    profileImage = null,
+    onImageUpdated,
+}: CharacterFormProps) {
     const params = useParams();
     const routeCampaignId = (params as any)?.id ?? null;
     const locale = getClientLocale();
@@ -148,6 +162,8 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         setCustomTraits,
         customClassAbilities,
         setCustomClassAbilities,
+        companionOwnerId,
+        setCompanionOwnerId,
 
         // Hechizos por nivel
         spellsL0,
@@ -190,8 +206,12 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
 
     const incomingCharacterId = candidateCharacterId || candidateId || candidateCharId || null;
 
+    const [cropSrc, setCropSrc] = React.useState<string | null>(null);
+    const [cropFileName, setCropFileName] = React.useState<string>("personaje.jpg");
+
     // Retenemos localmente el id para siguientes guardados
     const [localCharacterId, setLocalCharacterId] = React.useState<string | null | undefined>(incomingCharacterId ?? undefined);
+    const resolvedCharacterId = characterId || localCharacterId || incomingCharacterId || null;
 
     // Bloqueo de envío para evitar dobles llamadas
     const [saving, setSaving] = React.useState(false);
@@ -214,6 +234,7 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
     const isCustomClass = charClass === "custom";
 
     const customSectionsSafe = Array.isArray(customSections) ? customSections : [];
+    const ownerOptionsSafe = Array.isArray(ownerOptions) ? ownerOptions : [];
     const detailsForMods = React.useMemo(() => ({ items }), [items]);
     const proficiencyBonus =
         proficiencyBonusFromLevel(charLevel) + getModifierTotal(detailsForMods, "PROFICIENCY");
@@ -481,6 +502,12 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                     customCastingAbility: customCastingAbility ?? null,
                 };
 
+                if (characterType === "companion") {
+                    detailsPatch.companionOwnerId = companionOwnerId ?? null;
+                } else {
+                    detailsPatch.companionOwnerId = null;
+                }
+
                 const { data: detailsData, error: detailsErr } = await updateCharacterDetails(cid, detailsPatch);
                 if (detailsErr) {
                     console.error("Error actualizando details:", inspectError(detailsErr));
@@ -509,22 +536,67 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
         }
     }
 
+    async function handleSaveCroppedImage(blob: Blob) {
+        if (!resolvedCharacterId) {
+            alert("Guarda el personaje antes de subir una imagen.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", blob, cropFileName);
+        formData.append("characterId", resolvedCharacterId);
+
+        const res = await fetch("/api/dnd/characters/upload-image", {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!res.ok) {
+            console.error("Error subiendo imagen");
+            alert("No se pudo subir la imagen.");
+            return;
+        }
+
+        setCropSrc(null);
+        onImageUpdated?.();
+    }
+
+    function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!resolvedCharacterId) {
+            alert("Guarda el personaje antes de subir una imagen.");
+            e.target.value = "";
+            return;
+        }
+
+        setCropFileName(file.name || "personaje.jpg");
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropSrc(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = "";
+    }
+
     /* ---------------------------
        render (mantengo tu UI)
     --------------------------- */
 
     return (
         <div className="border border-ring bg-panel/80 rounded-xl p-[var(--panel-pad)] space-y-[var(--panel-gap)]">
+            {cropSrc && (
+                <ImageCropModal
+                    src={cropSrc}
+                    aspect={3 / 4}
+                    onClose={() => setCropSrc(null)}
+                    onSave={handleSaveCroppedImage}
+                />
+            )}
             {/* Header */}
             <header className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h2 className="text-lg font-semibold text-ink">
-                        {mode === "create" ? "Nuevo personaje" : "Editar personaje"}
-                    </h2>
-                    <p className="text-xs text-ink-muted">
-                        Gestiona stats base, inventario, objetos equipados y conjuros.
-                    </p>
-                </div>
+                <div />
                 <div className="flex gap-2">
                     <button
                         type="button"
@@ -545,6 +617,43 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
             </header>
 
             <form id="character-form" onSubmit={handleSubmit} className="space-y-6">
+                <section className="space-y-3">
+                    <h3 className="text-sm font-semibold text-ink">Imagen</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 items-start">
+                        <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden bg-white/70 border border-ring">
+                            {profileImage?.startsWith("http") ? (
+                                <img
+                                    src={profileImage}
+                                    alt="Imagen del personaje"
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-ink-muted">
+                                    Sin imagen
+                                </div>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <p className="text-xs text-ink-muted">
+                                Ajusta y sube la imagen desde el editor.
+                            </p>
+                            <label className="inline-flex text-xs cursor-pointer text-accent-strong hover:underline">
+                                Cambiar imagen
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    hidden
+                                    onChange={handleImageUpload}
+                                />
+                            </label>
+                            {!resolvedCharacterId && (
+                                <p className="text-[11px] text-ink-muted">
+                                    Guarda el personaje para poder subir imagen.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </section>
                 {/* Datos básicos / clase / vida */}
                 <section className="space-y-3">
                     <h3 className="text-sm font-semibold text-ink">Datos básicos</h3>
@@ -573,6 +682,33 @@ export function CharacterForm({ mode, onSubmit, onCancel, fields }: CharacterFor
                         </div>
 
                         <TextField label="Raza / Origen" value={race} onChange={setRace} />
+
+                        {characterType === "companion" && (
+                            <div className="flex flex-col gap-1 text-sm">
+                                <label className="text-sm text-ink">Dueño</label>
+                                <select
+                                    value={companionOwnerId ?? ""}
+                                    onChange={(e) => setCompanionOwnerId?.(e.target.value)}
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                    required
+                                >
+                                    <option value="">Selecciona dueño</option>
+                                    {ownerOptionsSafe.map((owner) => (
+                                        <option key={owner.id} value={owner.id}>
+                                            {owner.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-ink-muted">
+                                    El compañero debe estar asignado a un personaje de la campaña.
+                                </p>
+                                {ownerOptionsSafe.length === 0 && (
+                                    <p className="text-[11px] text-red-700">
+                                        No hay personajes disponibles. Crea un personaje primero.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Clase personalizada */}
