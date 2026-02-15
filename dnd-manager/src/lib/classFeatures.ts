@@ -1,53 +1,48 @@
-import { normalizeClassForApi } from "@/app/campaigns/[id]/player/playerShared";
+﻿import { normalizeClassForApi } from "@/app/campaigns/[id]/player/playerShared";
 
-/**
- * Habilidad / rasgo de clase
- */
 export type ClassFeature = {
-    index: string;
-    name: string;
-    desc?: string[];
+  index: string;
+  name: string;
+  desc?: string[];
 };
 
-/**
- * Obtiene todas las habilidades de clase hasta un nivel dado.
- * Combina SRD (API) + overrides manuales.
- */
 export async function fetchClassFeatures(
-    className: string,
-    level: number
+  className: string,
+  level: number,
+  locale: "en" | "es" = "en"
 ): Promise<ClassFeature[]> {
-    const apiClass = normalizeClassForApi(className);
-    if (!apiClass) return [];
+  const apiClass = normalizeClassForApi(className);
+  if (!apiClass || level < 1) return [];
 
-    const featuresMap: Record<string, ClassFeature> = {};
+  const featuresMap: Record<string, ClassFeature> = {};
 
-    // 1️⃣ Habilidades SRD desde la API
-    for (let lvl = 1; lvl <= level; lvl++) {
-        const res = await fetch(
-            `/api/dnd/classes/${apiClass}/levels/${lvl}`
-        );
-
-        if (!res.ok) continue;
-
-        const data = await res.json();
-        for (const f of data.features || []) {
-            featuresMap[f.index] = f;
-        }
-    }
-
-    // 2️⃣ Overrides manuales (no SRD)
+  for (let lvl = 1; lvl <= level; lvl += 1) {
     try {
-        const { CLASS_FEATURE_OVERRIDES } = await import(
-            "./classFeatureOverrides"
-            );
+      const res = await fetch(
+        `/api/dnd/classes/${apiClass}/levels/${lvl}?locale=${locale}`
+      );
+      if (!res.ok) continue;
 
-        for (const f of CLASS_FEATURE_OVERRIDES[apiClass] || []) {
-            featuresMap[f.index] = f;
+      const data = await res.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      for (const feature of features) {
+        if (feature?.index) {
+          featuresMap[feature.index] = feature;
         }
+      }
     } catch {
-        // si no existe el archivo de overrides, no pasa nada
+      // keep rendering with available data
     }
+  }
 
-    return Object.values(featuresMap);
+  try {
+    const { CLASS_FEATURE_OVERRIDES } = await import("./classFeatureOverrides");
+    for (const feature of CLASS_FEATURE_OVERRIDES[apiClass] || []) {
+      featuresMap[feature.index] = feature;
+    }
+  } catch {
+    // optional overrides file
+  }
+
+  return Object.values(featuresMap);
 }

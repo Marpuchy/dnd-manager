@@ -252,7 +252,10 @@ export function migrateLegacyItems(details?: Details | null): CharacterItem[] {
         category: "armor",
         equippable: true,
         equipped: !!armor.equipped,
-        description: normalizeLocalizedText(armor.description ?? armor.ability, "es"),
+        description: normalizeLocalizedText(
+          armor.description ?? armor.ability ?? undefined,
+          "es"
+        ),
         modifiers,
       });
     }

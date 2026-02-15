@@ -10,23 +10,67 @@ import {
     normalizeTarget,
 } from "@/lib/character/items";
 import Markdown from "@/app/components/Markdown";
-import { getClientLocale } from "@/lib/i18n/getClientLocale";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import { tr } from "@/lib/i18n/translate";
 
-const CATEGORY_LABELS: Record<ItemCategory, string> = {
-    weapon: "Arma",
-    armor: "Armadura",
-    accessory: "Accesorio",
-    consumable: "Consumible",
-    tool: "Herramienta",
-    misc: "Misceláneo",
+const CATEGORY_LABELS: Record<ItemCategory, { es: string; en: string }> = {
+    weapon: { es: "Arma", en: "Weapon" },
+    armor: { es: "Armadura", en: "Armor" },
+    accessory: { es: "Accesorio", en: "Accessory" },
+    consumable: { es: "Consumible", en: "Consumable" },
+    tool: { es: "Herramienta", en: "Tool" },
+    misc: { es: "Miscelaneo", en: "Misc" },
 };
 
-const targetLabelMap = new Map(
-    MODIFIER_TARGETS.map((entry) => [entry.key, entry.label])
-);
+const TARGET_LABEL_EN: Record<string, string> = {
+    STR: "Strength (STR)",
+    DEX: "Dexterity (DEX)",
+    CON: "Constitution (CON)",
+    INT: "Intelligence (INT)",
+    WIS: "Wisdom (WIS)",
+    CHA: "Charisma (CHA)",
+    AC: "Armor class (AC)",
+    HP_MAX: "Max hit points",
+    HP_CURRENT: "Current hit points",
+    SPEED: "Speed",
+    INITIATIVE: "Initiative",
+    PROFICIENCY: "Proficiency bonus",
+    PASSIVE_PERCEPTION: "Passive perception",
+    SPELL_ATTACK: "Spell attack",
+    SPELL_DC: "Spell save DC",
+    ATTACK_BONUS: "Attack bonus",
+    DAMAGE_BONUS: "Damage bonus",
+    SAVE_STR: "Saving throw STR",
+    SAVE_DEX: "Saving throw DEX",
+    SAVE_CON: "Saving throw CON",
+    SAVE_INT: "Saving throw INT",
+    SAVE_WIS: "Saving throw WIS",
+    SAVE_CHA: "Saving throw CHA",
+    SKILL_ACROBATICS: "Skill: Acrobatics",
+    SKILL_ANIMAL_HANDLING: "Skill: Animal Handling",
+    SKILL_ARCANA: "Skill: Arcana",
+    SKILL_ATHLETICS: "Skill: Athletics",
+    SKILL_DECEPTION: "Skill: Deception",
+    SKILL_HISTORY: "Skill: History",
+    SKILL_INSIGHT: "Skill: Insight",
+    SKILL_INTIMIDATION: "Skill: Intimidation",
+    SKILL_INVESTIGATION: "Skill: Investigation",
+    SKILL_MEDICINE: "Skill: Medicine",
+    SKILL_NATURE: "Skill: Nature",
+    SKILL_PERCEPTION: "Skill: Perception",
+    SKILL_PERFORMANCE: "Skill: Performance",
+    SKILL_PERSUASION: "Skill: Persuasion",
+    SKILL_RELIGION: "Skill: Religion",
+    SKILL_SLEIGHT_OF_HAND: "Skill: Sleight of Hand",
+    SKILL_STEALTH: "Skill: Stealth",
+    SKILL_SURVIVAL: "Skill: Survival",
+};
 
-function getTargetLabel(target: string) {
+const targetLabelMap = new Map(MODIFIER_TARGETS.map((entry) => [entry.key, entry.label]));
+
+function getTargetLabel(target: string, locale: string) {
     const normalized = normalizeTarget(target);
+    if (locale === "en" && TARGET_LABEL_EN[normalized]) return TARGET_LABEL_EN[normalized];
     return targetLabelMap.get(normalized) ?? target;
 }
 
@@ -35,19 +79,13 @@ type ItemManagerSectionProps = {
     setItems: (items: CharacterItem[]) => void;
 };
 
-export default function ItemManagerSection({
-                                               items,
-                                               setItems,
-                                           }: ItemManagerSectionProps) {
-    const locale = getClientLocale();
-    const equippedItems = useMemo(
-        () => items.filter((item) => item.equipped),
-        [items]
-    );
+export default function ItemManagerSection({ items, setItems }: ItemManagerSectionProps) {
+    const locale = useClientLocale();
+    const t = (es: string, en: string) => tr(locale, es, en);
+    const equippedItems = useMemo(() => items.filter((item) => item.equipped), [items]);
 
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
-
     const [name, setName] = useState("");
     const [category, setCategory] = useState<ItemCategory>("misc");
     const [equippable, setEquippable] = useState(false);
@@ -56,22 +94,16 @@ export default function ItemManagerSection({
     const [quantity, setQuantity] = useState<number>(1);
     const [rarity, setRarity] = useState("");
     const [tags, setTags] = useState("");
-
     const [modifiers, setModifiers] = useState<ItemModifier[]>([]);
     const [modTarget, setModTarget] = useState(MODIFIER_TARGETS[0]?.key ?? "STR");
     const [modValue, setModValue] = useState("1");
     const [modNote, setModNote] = useState("");
-
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-    function applyItemOrder(list: CharacterItem[]) {
-        return list.map((item, index) => ({
-            ...item,
-            sortOrder: index,
-        }));
-    }
+    const applyItemOrder = (list: CharacterItem[]) =>
+        list.map((item, index) => ({ ...item, sortOrder: index }));
 
     function resetForm() {
         setEditingId(null);
@@ -88,11 +120,6 @@ export default function ItemManagerSection({
         setModValue("1");
         setModNote("");
         setAdvancedOpen(false);
-    }
-
-    function openNewItem() {
-        resetForm();
-        setIsFormOpen(true);
     }
 
     function openEditItem(item: CharacterItem) {
@@ -124,8 +151,7 @@ export default function ItemManagerSection({
 
         const item: CharacterItem = {
             ...(editingId
-                ? (items.find((entry) => entry.id === editingId) ??
-                    buildItemBase(trimmed, category))
+                ? (items.find((entry) => entry.id === editingId) ?? buildItemBase(trimmed, category))
                 : buildItemBase(trimmed, category)),
             name: trimmed,
             category,
@@ -139,12 +165,10 @@ export default function ItemManagerSection({
         };
 
         if (editingId) {
-            const next = items.map((entry) => (entry.id === editingId ? item : entry));
-            setItems(applyItemOrder(next));
+            setItems(applyItemOrder(items.map((entry) => (entry.id === editingId ? item : entry))));
         } else {
             setItems(applyItemOrder([...items, item]));
         }
-
         setIsFormOpen(false);
         resetForm();
     }
@@ -163,31 +187,27 @@ export default function ItemManagerSection({
         );
     }
 
-    function handleDragStart(event: React.DragEvent, id: string) {
+    function onDragStart(event: React.DragEvent, id: string) {
         setDraggingId(id);
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", id);
     }
 
-    function handleDragOver(event: React.DragEvent, id: string) {
+    function onDragOver(event: React.DragEvent, id: string) {
         event.preventDefault();
         if (id !== dragOverId) setDragOverId(id);
     }
 
-    function handleDrop(event: React.DragEvent, id: string) {
+    function onDrop(event: React.DragEvent, id: string) {
         event.preventDefault();
         const sourceId = draggingId ?? event.dataTransfer.getData("text/plain");
         if (!sourceId || sourceId === id) {
             setDragOverId(null);
             return;
         }
-
         const fromIndex = items.findIndex((entry) => entry.id === sourceId);
         const toIndex = items.findIndex((entry) => entry.id === id);
-        if (fromIndex === -1 || toIndex === -1) {
-            setDragOverId(null);
-            return;
-        }
+        if (fromIndex === -1 || toIndex === -1) return;
 
         const next = [...items];
         const [moved] = next.splice(fromIndex, 1);
@@ -197,47 +217,42 @@ export default function ItemManagerSection({
         setDragOverId(null);
     }
 
-    function handleDragEnd() {
-        setDraggingId(null);
-        setDragOverId(null);
-    }
-
     function addModifier() {
-        const value = Number(modValue);
-        if (Number.isNaN(value)) return;
+        const numeric = Number(modValue);
+        if (Number.isNaN(numeric)) return;
         const target = modTarget.trim();
         if (!target) return;
         setModifiers([
             ...modifiers,
-            {
-                target,
-                value,
-                note: modNote.trim() || undefined,
-            },
+            { target, value: numeric, note: modNote.trim() || undefined },
         ]);
         setModValue("1");
         setModNote("");
-    }
-
-    function removeModifier(index: number) {
-        setModifiers(modifiers.filter((_, i) => i !== index));
     }
 
     return (
         <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-ink">Inventario y equipamiento</h3>
+                    <h3 className="text-sm font-semibold text-ink">
+                        {t("Inventario y equipamiento", "Inventory and equipment")}
+                    </h3>
                     <p className="text-[11px] text-ink-muted">
-                        Todo está en objetos. Los modificadores solo aplican si el objeto está equipado.
+                        {t(
+                            "Todo esta en objetos. Los modificadores solo aplican si el objeto esta equipado.",
+                            "Everything is item-based. Modifiers apply only when the item is equipped."
+                        )}
                     </p>
                 </div>
                 <button
                     type="button"
-                    onClick={openNewItem}
+                    onClick={() => {
+                        resetForm();
+                        setIsFormOpen(true);
+                    }}
                     className="text-xs px-3 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
                 >
-                    Añadir objeto
+                    {t("Anadir objeto", "Add item")}
                 </button>
             </div>
 
@@ -245,9 +260,9 @@ export default function ItemManagerSection({
                 <div className="rounded-2xl border border-ring bg-panel/80 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                         <h4 className="text-sm font-semibold text-ink">
-                            {editingId ? "Editar objeto" : "Nuevo objeto"}
+                            {editingId ? t("Editar objeto", "Edit item") : t("Nuevo objeto", "New item")}
                         </h4>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 onClick={() => {
@@ -256,21 +271,21 @@ export default function ItemManagerSection({
                                 }}
                                 className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                             >
-                                Cancelar
+                                {t("Cancelar", "Cancel")}
                             </button>
                             <button
                                 type="button"
                                 onClick={saveItem}
                                 className="text-[11px] px-3 py-1 rounded-md border border-emerald-500/60 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                             >
-                                Guardar
+                                {t("Guardar", "Save")}
                             </button>
                         </div>
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-2">
                         <div className="space-y-1">
-                            <label className="text-xs text-ink-muted">Nombre</label>
+                            <label className="text-xs text-ink-muted">{t("Nombre", "Name")}</label>
                             <input
                                 value={name}
                                 onChange={(event) => setName(event.target.value)}
@@ -278,17 +293,17 @@ export default function ItemManagerSection({
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-ink-muted">Categoría</label>
+                            <label className="text-xs text-ink-muted">
+                                {t("Categoria", "Category")}
+                            </label>
                             <select
                                 value={category}
-                                onChange={(event) =>
-                                    setCategory(event.target.value as ItemCategory)
-                                }
+                                onChange={(event) => setCategory(event.target.value as ItemCategory)}
                                 className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                             >
                                 {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
                                     <option key={key} value={key}>
-                                        {label}
+                                        {t(label.es, label.en)}
                                     </option>
                                 ))}
                             </select>
@@ -305,7 +320,7 @@ export default function ItemManagerSection({
                                     if (!event.target.checked) setEquipped(false);
                                 }}
                             />
-                            Es equipable
+                            {t("Es equipable", "Equippable")}
                         </label>
                         <label className="flex items-center gap-2 text-xs text-ink-muted">
                             <input
@@ -314,13 +329,13 @@ export default function ItemManagerSection({
                                 disabled={!equippable}
                                 onChange={(event) => setEquipped(event.target.checked)}
                             />
-                            Está equipado
+                            {t("Esta equipado", "Equipped")}
                         </label>
                     </div>
 
                     <details className="rounded-xl border border-ring bg-white/80 p-3">
                         <summary className="cursor-pointer text-xs text-ink-muted">
-                            Descripción (Markdown)
+                            {t("Descripcion (Markdown)", "Description (Markdown)")}
                         </summary>
                         <div className="mt-2">
                             <textarea
@@ -333,40 +348,33 @@ export default function ItemManagerSection({
                     </details>
 
                     <div className="rounded-xl border border-ring bg-white/80 p-3 space-y-2">
-                        <p className="text-xs font-semibold text-ink">Modificadores</p>
-                        {modifiers.length > 0 ? (
+                        <p className="text-xs font-semibold text-ink">{t("Modificadores", "Modifiers")}</p>
+                        {modifiers.length === 0 ? (
+                            <p className="text-[11px] text-ink-muted">{t("Aun no hay modificadores.", "No modifiers yet.")}</p>
+                        ) : (
                             <div className="flex flex-wrap gap-2">
                                 {modifiers.map((mod, index) => (
                                     <span
                                         key={`${mod.target}-${index}`}
-                                        className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                                            mod.value >= 0
-                                                ? "border-emerald-500/50 text-emerald-700 bg-emerald-50"
-                                                : "border-rose-500/50 text-rose-700 bg-rose-50"
-                                        }`}
+                                        className="text-[10px] px-2 py-0.5 rounded-full border border-ring text-ink"
                                     >
-                                        {getTargetLabel(mod.target)}{" "}
-                                        {mod.value >= 0 ? `+${mod.value}` : mod.value}
+                                        {getTargetLabel(mod.target, locale)} {mod.value >= 0 ? `+${mod.value}` : mod.value}
                                         {mod.note ? ` · ${mod.note}` : ""}
                                         <button
                                             type="button"
-                                            onClick={() => removeModifier(index)}
-                                            className="ml-2 text-[10px] text-ink-muted hover:text-ink"
+                                            onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))}
+                                            className="ml-2 text-ink-muted hover:text-ink"
                                         >
-                                            ×
+                                            x
                                         </button>
                                     </span>
                                 ))}
                             </div>
-                        ) : (
-                            <p className="text-[11px] text-ink-muted">
-                                Aún no hay modificadores.
-                            </p>
                         )}
 
                         <div className="grid gap-2 md:grid-cols-3">
                             <div className="space-y-1">
-                                <label className="text-[11px] text-ink-muted">Destino</label>
+                                <label className="text-[11px] text-ink-muted">{t("Destino", "Target")}</label>
                                 <input
                                     list="modifier-targets"
                                     value={modTarget}
@@ -376,13 +384,13 @@ export default function ItemManagerSection({
                                 <datalist id="modifier-targets">
                                     {MODIFIER_TARGETS.map((target) => (
                                         <option key={target.key} value={target.key}>
-                                            {target.label}
+                                            {getTargetLabel(target.key, locale)}
                                         </option>
                                     ))}
                                 </datalist>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[11px] text-ink-muted">Valor</label>
+                                <label className="text-[11px] text-ink-muted">{t("Valor", "Value")}</label>
                                 <input
                                     type="number"
                                     value={modValue}
@@ -391,7 +399,7 @@ export default function ItemManagerSection({
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[11px] text-ink-muted">Nota</label>
+                                <label className="text-[11px] text-ink-muted">{t("Nota", "Note")}</label>
                                 <input
                                     value={modNote}
                                     onChange={(event) => setModNote(event.target.value)}
@@ -399,13 +407,12 @@ export default function ItemManagerSection({
                                 />
                             </div>
                         </div>
-
                         <button
                             type="button"
                             onClick={addModifier}
                             className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                         >
-                            Añadir modificador
+                            {t("Anadir modificador", "Add modifier")}
                         </button>
                     </div>
 
@@ -417,11 +424,11 @@ export default function ItemManagerSection({
                                 setAdvancedOpen((prev) => !prev);
                             }}
                         >
-                            Campos avanzados
+                            {t("Campos avanzados", "Advanced fields")}
                         </summary>
                         <div className="mt-3 grid gap-3 md:grid-cols-3">
                             <div className="space-y-1">
-                                <label className="text-[11px] text-ink-muted">Cantidad</label>
+                                <label className="text-[11px] text-ink-muted">{t("Cantidad", "Quantity")}</label>
                                 <input
                                     type="number"
                                     value={quantity}
@@ -431,7 +438,7 @@ export default function ItemManagerSection({
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[11px] text-ink-muted">Rareza</label>
+                                <label className="text-[11px] text-ink-muted">{t("Rareza", "Rarity")}</label>
                                 <input
                                     value={rarity}
                                     onChange={(event) => setRarity(event.target.value)}
@@ -444,7 +451,7 @@ export default function ItemManagerSection({
                                     value={tags}
                                     onChange={(event) => setTags(event.target.value)}
                                     className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
-                                    placeholder="mágico, raro, fuego"
+                                    placeholder={t("magico, raro, fuego", "magic, rare, fire")}
                                 />
                             </div>
                         </div>
@@ -455,13 +462,13 @@ export default function ItemManagerSection({
             <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-ring bg-panel/80 p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-ink">Equipados</h4>
+                        <h4 className="text-sm font-semibold text-ink">{t("Equipados", "Equipped")}</h4>
                         <span className="text-[11px] text-ink-muted">
-                            {equippedItems.length} objeto{equippedItems.length === 1 ? "" : "s"}
+                            {equippedItems.length} {equippedItems.length === 1 ? t("objeto", "item") : t("objetos", "items")}
                         </span>
                     </div>
                     {equippedItems.length === 0 ? (
-                        <p className="text-xs text-ink-muted">No hay objetos equipados.</p>
+                        <p className="text-xs text-ink-muted">{t("No hay objetos equipados.", "No equipped items.")}</p>
                     ) : (
                         <div className="space-y-2">
                             {equippedItems.map((item) => {
@@ -471,53 +478,39 @@ export default function ItemManagerSection({
                                     <details
                                         key={item.id}
                                         draggable
-                                        onDragStart={(event) => handleDragStart(event, item.id)}
-                                        onDragOver={(event) => handleDragOver(event, item.id)}
-                                        onDrop={(event) => handleDrop(event, item.id)}
-                                        onDragEnd={handleDragEnd}
+                                        onDragStart={(event) => onDragStart(event, item.id)}
+                                        onDragOver={(event) => onDragOver(event, item.id)}
+                                        onDrop={(event) => onDrop(event, item.id)}
+                                        onDragEnd={() => {
+                                            setDraggingId(null);
+                                            setDragOverId(null);
+                                        }}
                                         className={`rounded-xl border bg-white/80 p-3 ${
-                                            dragOverId === item.id
-                                                ? "border-accent bg-accent/10"
-                                                : "border-ring"
+                                            dragOverId === item.id ? "border-accent bg-accent/10" : "border-ring"
                                         } ${draggingId === item.id ? "opacity-60" : ""}`}
-                                        title="Arrastra para ordenar"
+                                        title={t("Arrastra para ordenar", "Drag to reorder")}
                                     >
                                         <summary className="cursor-pointer list-none">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <p className="text-sm font-semibold text-ink">{item.name}</p>
-                                                    <p className="text-[11px] text-ink-muted">
-                                                        {CATEGORY_LABELS[item.category] ?? "Objeto"}
-                                                    </p>
-                                                </div>
-                                                <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700 bg-emerald-50">
-                                                    Equipado
-                                                </span>
-                                            </div>
+                                            <p className="text-sm font-semibold text-ink">{item.name}</p>
+                                            <p className="text-[11px] text-ink-muted">
+                                                {t(CATEGORY_LABELS[item.category]?.es ?? "Objeto", CATEGORY_LABELS[item.category]?.en ?? "Item")}
+                                            </p>
                                         </summary>
-                                        <div className="mt-2 space-y-2 text-xs text-ink-muted">
-                                            {mods.length > 0 && (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {mods.map((mod, index) => (
-                                                        <span
-                                                            key={`${mod.target}-${index}`}
-                                                            className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                                                                mod.value >= 0
-                                                                    ? "border-emerald-500/50 text-emerald-700 bg-emerald-50"
-                                                                    : "border-rose-500/50 text-rose-700 bg-rose-50"
-                                                            }`}
-                                                        >
-                                                            {getTargetLabel(mod.target)}{" "}
-                                                            {mod.value >= 0 ? `+${mod.value}` : mod.value}
-                                                            {mod.note ? ` · ${mod.note}` : ""}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {desc && (
-                                                <Markdown content={desc} className="text-ink-muted text-xs" />
-                                            )}
-                                        </div>
+                                        {mods.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                {mods.map((mod, index) => (
+                                                    <span
+                                                        key={`${mod.target}-${index}`}
+                                                        className="text-[10px] px-2 py-0.5 rounded-full border border-ring text-ink"
+                                                    >
+                                                        {getTargetLabel(mod.target, locale)}{" "}
+                                                        {mod.value >= 0 ? `+${mod.value}` : mod.value}
+                                                        {mod.note ? ` · ${mod.note}` : ""}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {desc && <Markdown content={desc} className="mt-2 text-ink-muted text-xs" />}
                                     </details>
                                 );
                             })}
@@ -527,13 +520,13 @@ export default function ItemManagerSection({
 
                 <div className="rounded-2xl border border-ring bg-panel/80 p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-ink">Inventario</h4>
+                        <h4 className="text-sm font-semibold text-ink">{t("Inventario", "Inventory")}</h4>
                         <span className="text-[11px] text-ink-muted">
-                            {items.length} objeto{items.length === 1 ? "" : "s"}
+                            {items.length} {items.length === 1 ? t("objeto", "item") : t("objetos", "items")}
                         </span>
                     </div>
                     {items.length === 0 ? (
-                        <p className="text-xs text-ink-muted">No has añadido objetos.</p>
+                        <p className="text-xs text-ink-muted">{t("No has anadido objetos.", "No items added.")}</p>
                     ) : (
                         <div className="space-y-2">
                             {items.map((item) => {
@@ -543,26 +536,27 @@ export default function ItemManagerSection({
                                     <details
                                         key={item.id}
                                         draggable
-                                        onDragStart={(event) => handleDragStart(event, item.id)}
-                                        onDragOver={(event) => handleDragOver(event, item.id)}
-                                        onDrop={(event) => handleDrop(event, item.id)}
-                                        onDragEnd={handleDragEnd}
+                                        onDragStart={(event) => onDragStart(event, item.id)}
+                                        onDragOver={(event) => onDragOver(event, item.id)}
+                                        onDrop={(event) => onDrop(event, item.id)}
+                                        onDragEnd={() => {
+                                            setDraggingId(null);
+                                            setDragOverId(null);
+                                        }}
                                         className={`rounded-xl border bg-white/80 p-3 ${
-                                            dragOverId === item.id
-                                                ? "border-accent bg-accent/10"
-                                                : "border-ring"
+                                            dragOverId === item.id ? "border-accent bg-accent/10" : "border-ring"
                                         } ${draggingId === item.id ? "opacity-60" : ""}`}
-                                        title="Arrastra para ordenar"
+                                        title={t("Arrastra para ordenar", "Drag to reorder")}
                                     >
                                         <summary className="cursor-pointer list-none">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div>
                                                     <p className="text-sm font-semibold text-ink">{item.name}</p>
                                                     <p className="text-[11px] text-ink-muted">
-                                                        {CATEGORY_LABELS[item.category] ?? "Objeto"}
+                                                        {t(CATEGORY_LABELS[item.category]?.es ?? "Objeto", CATEGORY_LABELS[item.category]?.en ?? "Item")}
                                                     </p>
                                                 </div>
-                                                <div className="flex gap-2">
+                                                <div className="flex flex-wrap gap-2">
                                                     {item.equippable && (
                                                         <button
                                                             type="button"
@@ -572,7 +566,7 @@ export default function ItemManagerSection({
                                                             }}
                                                             className="text-[10px] px-2 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                                                         >
-                                                            {item.equipped ? "Desequipar" : "Equipar"}
+                                                            {item.equipped ? t("Desequipar", "Unequip") : t("Equipar", "Equip")}
                                                         </button>
                                                     )}
                                                     <button
@@ -583,7 +577,7 @@ export default function ItemManagerSection({
                                                         }}
                                                         className="text-[10px] px-2 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                                                     >
-                                                        Editar
+                                                        {t("Editar", "Edit")}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -593,39 +587,26 @@ export default function ItemManagerSection({
                                                         }}
                                                         className="text-[10px] px-2 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
                                                     >
-                                                        Eliminar
+                                                        {t("Eliminar", "Delete")}
                                                     </button>
                                                 </div>
                                             </div>
-                                            {item.equipped && (
-                                                <span className="mt-2 inline-flex text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700 bg-emerald-50">
-                                                    Equipado
-                                                </span>
-                                            )}
                                         </summary>
-                                        <div className="mt-2 space-y-2 text-xs text-ink-muted">
-                                            {mods.length > 0 && (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {mods.map((mod, index) => (
-                                                        <span
-                                                            key={`${mod.target}-${index}`}
-                                                            className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                                                                mod.value >= 0
-                                                                    ? "border-emerald-500/50 text-emerald-700 bg-emerald-50"
-                                                                    : "border-rose-500/50 text-rose-700 bg-rose-50"
-                                                            }`}
-                                                        >
-                                                            {getTargetLabel(mod.target)}{" "}
-                                                            {mod.value >= 0 ? `+${mod.value}` : mod.value}
-                                                            {mod.note ? ` · ${mod.note}` : ""}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {desc && (
-                                                <Markdown content={desc} className="text-ink-muted text-xs" />
-                                            )}
-                                        </div>
+                                        {mods.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                {mods.map((mod, index) => (
+                                                    <span
+                                                        key={`${mod.target}-${index}`}
+                                                        className="text-[10px] px-2 py-0.5 rounded-full border border-ring text-ink"
+                                                    >
+                                                        {getTargetLabel(mod.target, locale)}{" "}
+                                                        {mod.value >= 0 ? `+${mod.value}` : mod.value}
+                                                        {mod.note ? ` · ${mod.note}` : ""}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {desc && <Markdown content={desc} className="mt-2 text-ink-muted text-xs" />}
                                     </details>
                                 );
                             })}

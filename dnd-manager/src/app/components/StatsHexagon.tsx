@@ -125,12 +125,14 @@ export default function StatsHexagon({
                                          bonuses,
                                          bonusDetails,
                                          characterClass,
+                                         labels,
                                          size,
                                      }: {
     stats: Record<StatKey, number>;
     bonuses?: Record<StatKey, boolean>;
     bonusDetails?: Record<StatKey, BonusDetail[]>;
     characterClass?: string;
+    labels?: Partial<Record<StatKey, string>>;
     size?: number;
 }) {
     const baseSize = Math.max(220, Math.min(size ?? DEFAULT_SIZE, 520));
@@ -290,7 +292,7 @@ export default function StatsHexagon({
                                 }
                                 fontWeight="700"
                             >
-                                {stat}
+                                {labels?.[stat] ?? stat}
                             </text>
 
                             <text

@@ -238,7 +238,7 @@ export function ArmorAndWeaponSection({
             ) : (
                 <ul className="space-y-2">
                     {armors.map(
-                        (armor: Armor & { statAbility?: AbilityKey; statModifier?: number }, index: number) => (
+                        (armor: Armor, index: number) => (
                             <li
                                 key={index}
                                 className="flex flex-wrap items-start justify-between gap-2 rounded-md bg-white/80 px-2 py-2 border border-ring"

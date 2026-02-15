@@ -1,134 +1,93 @@
-﻿// src/app/api/dnd/spells/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { translateText } from "@/lib/translation/translator";
+﻿import { NextRequest, NextResponse } from "next/server";
+import {
+  getLocalDndClassLearning,
+  getLocalDndReference,
+  normalizeClassId,
+  normalizeLocale,
+} from "@/lib/dnd/localData";
 
-const BASE_URL = "https://www.dnd5eapi.co/api";
-
-type SpellRefList = {
-    results: { index: string; name: string; url: string }[];
-};
-
-// Modelo parcial de lo que devuelve la API pública
-type SpellDetail = {
-    index: string;
-    name: string;
-    level: number;
-    desc?: string[];
-    higher_level?: string[];
-    range?: string;
-    casting_time?: string;
-    duration?: string;
-    school?: { index: string; name: string; url: string };
-    components?: string[];
-    material?: string;
-    concentration?: boolean;
-    ritual?: boolean;
-};
-
-export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-    const classIndex = searchParams.get("class");
-    const levelStr = searchParams.get("level");
-    const locale = searchParams.get("locale") ?? "en";
-
-    if (!classIndex || !levelStr) {
-        return NextResponse.json(
-            { error: "Parámetros 'class' y 'level' requeridos" },
-            { status: 400 }
-        );
-    }
-
-    try {
-        // 1) Hechizos que un PJ de esa CLASE y NIVEL puede conocer
-        const spellsRes = await fetch(
-            `${BASE_URL}/classes/${classIndex}/levels/${levelStr}/spells`,
-            { next: { revalidate: 86400 } } // cache 1 día
-        );
-
-        if (!spellsRes.ok) {
-            return NextResponse.json(
-                { error: "No se han podido obtener los hechizos" },
-                { status: 500 }
-            );
-        }
-
-        const json = (await spellsRes.json()) as SpellRefList;
-
-        // 2) Detalles de cada hechizo (en paralelo)
-        const details = await Promise.all(
-            json.results.map(async (s) => {
-                const res = await fetch(`${BASE_URL}/spells/${s.index}`, {
-                    next: { revalidate: 86400 },
-                });
-                if (!res.ok) return null;
-                const data = (await res.json()) as SpellDetail;
-
-                const shortDesc = data.desc?.[0] ?? "";
-                const fullDescParts: string[] = [];
-                if (data.desc && data.desc.length > 0) {
-                    fullDescParts.push(...data.desc);
-                }
-                if (data.higher_level && data.higher_level.length > 0) {
-                    fullDescParts.push(
-                        "",
-                        "A niveles superiores:",
-                        ...data.higher_level
-                    );
-                }
-
-                const shouldTranslate = locale === "es";
-                const translate = (text?: string) =>
-                    text && shouldTranslate
-                        ? translateText({ text, target: "es", source: "en" })
-                        : Promise.resolve(text);
-
-                const [
-                    name,
-                    range,
-                    casting_time,
-                    duration,
-                    school,
-                    material,
-                    shortDescTranslated,
-                    fullDescTranslated,
-                ] = await Promise.all([
-                    translate(data.name),
-                    translate(data.range),
-                    translate(data.casting_time),
-                    translate(data.duration),
-                    translate(data.school?.name),
-                    translate(data.material),
-                    translate(shortDesc),
-                    translate(fullDescParts.join("\n")),
-                ]);
-
-                return {
-                    index: data.index,
-                    name,
-                    level: data.level,
-                    range,
-                    casting_time,
-                    duration,
-                    school,
-                    components: data.components,
-                    material,
-                    concentration: data.concentration,
-                    ritual: data.ritual,
-                    shortDesc: shortDescTranslated,
-                    fullDesc: fullDescTranslated,
-                    locale,
-                };
-            })
-        );
-
-        const filtered = details.filter(Boolean);
-        return NextResponse.json(filtered);
-    } catch (e) {
-        console.error(e);
-        return NextResponse.json(
-            { error: "Error interno obteniendo hechizos" },
-            { status: 500 }
-        );
-    }
+function toLevelNumber(rawLevel: string | null): number | null {
+  if (!rawLevel) return null;
+  const parsed = Number(rawLevel);
+  if (!Number.isFinite(parsed)) return null;
+  const asInt = Math.floor(parsed);
+  if (asInt < 1 || asInt > 20) return null;
+  return asInt;
 }
 
+function findClassRecord(classLearning: any, classId: string) {
+  const byIndex = classLearning?.classes?.byIndex;
+  if (byIndex && typeof byIndex === "object" && byIndex[classId]) {
+    return byIndex[classId];
+  }
+
+  const list = Array.isArray(classLearning?.classes?.results)
+    ? classLearning.classes.results
+    : [];
+  return list.find((entry: any) => entry?.index === classId) ?? null;
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const requestedClass = searchParams.get("class");
+  const requestedLevel = searchParams.get("level");
+  const locale = normalizeLocale(searchParams.get("locale"));
+
+  const classId = normalizeClassId(requestedClass);
+  const level = toLevelNumber(requestedLevel);
+
+  if (!classId || level == null) {
+    return NextResponse.json(
+      { error: "Parametros 'class' y 'level' requeridos" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const [reference, classLearning, fallbackReference, englishReference] =
+      await Promise.all([
+      getLocalDndReference(locale),
+      getLocalDndClassLearning(locale),
+      locale === "es" ? getLocalDndReference("en") : Promise.resolve(null),
+      getLocalDndReference("en"),
+    ]);
+
+    const classRecord = findClassRecord(classLearning, classId);
+    const levels = Array.isArray(classRecord?.levels) ? classRecord.levels : [];
+    const levelRecord = levels.find(
+      (entry: any) => Number(entry?.level ?? 0) === level
+    );
+
+    if (!levelRecord) {
+      return NextResponse.json([]);
+    }
+
+    const spellRefs = Array.isArray(levelRecord.learnableSpells)
+      ? levelRecord.learnableSpells
+      : [];
+
+    const spellsByIndex = reference?.spells?.byIndex ?? {};
+    const fallbackByIndex = fallbackReference?.spells?.byIndex ?? spellsByIndex;
+    const englishByIndex = englishReference?.spells?.byIndex ?? {};
+
+    const details = spellRefs
+      .map((ref: any) => spellsByIndex[ref.index] ?? fallbackByIndex[ref.index])
+      .filter(Boolean)
+      .map((spell: any) => ({
+        ...spell,
+        name: englishByIndex?.[spell.index]?.name ?? spell.name,
+      }))
+      .sort((a: any, b: any) => {
+        if (a.level !== b.level) return Number(a.level) - Number(b.level);
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
+
+    return NextResponse.json(details);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Error interno obteniendo hechizos locales" },
+      { status: 500 }
+    );
+  }
+}

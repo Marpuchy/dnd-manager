@@ -37,7 +37,9 @@ export default function RootLayout({
       <body
         className={`${bodyFont.variable} ${displayFont.variable} ${monoFont.variable} antialiased`}
       >
-        <SettingsProvider>{children}</SettingsProvider>
+        <SettingsProvider>
+          {children}
+        </SettingsProvider>
       </body>
     </html>
   );

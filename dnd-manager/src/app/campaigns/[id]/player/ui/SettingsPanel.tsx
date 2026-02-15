@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useUserSettings } from "@/app/components/SettingsProvider";
 import { X } from "lucide-react";
+import { tr } from "@/lib/i18n/translate";
 
 type SettingsPanelProps = {
     open: boolean;
@@ -13,6 +14,8 @@ type SettingsPanelProps = {
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     const router = useRouter();
     const { settings, updateSettings, loading } = useUserSettings();
+    const locale = settings?.locale ?? "es";
+    const t = (es: string, en: string) => tr(locale, es, en);
 
     if (!open) return null;
 
@@ -25,14 +28,15 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             <div className="relative w-full max-w-md rounded-2xl border border-ring bg-panel/95 p-4 shadow-[0_18px_40px_rgba(0,0,0,0.2)]">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <h3 className="text-sm font-semibold text-ink">Ajustes</h3>
+                        <h3 className="text-sm font-semibold text-ink">{t("Ajustes", "Settings")}</h3>
                         <p className="text-[11px] text-ink-muted">
-                            Personaliza tu vista de jugador.
+                            {t("Personaliza tu vista de jugador.", "Customize your player view.")}
                         </p>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
+                        aria-label={t("Cerrar ajustes", "Close settings")}
                         className="rounded-full border border-ring bg-white/70 p-1.5 hover:bg-white"
                     >
                         <X className="h-4 w-4 text-ink" />
@@ -41,7 +45,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
                 <div className="mt-4 space-y-3 text-sm">
                     <div className="space-y-1">
-                        <label className="text-xs text-ink-muted">Tema</label>
+                        <label className="text-xs text-ink-muted">{t("Tema", "Theme")}</label>
                         <select
                             value={settings.theme}
                             onChange={(event) =>
@@ -50,14 +54,14 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                             disabled={loading}
                         >
-                            <option value="normal">Normal</option>
-                            <option value="light">Claro</option>
-                            <option value="dark">Oscuro</option>
+                            <option value="normal">{t("Normal", "Normal")}</option>
+                            <option value="light">{t("Claro", "Light")}</option>
+                            <option value="dark">{t("Oscuro", "Dark")}</option>
                         </select>
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-xs text-ink-muted">Idioma por defecto</label>
+                        <label className="text-xs text-ink-muted">{t("Idioma por defecto", "Default language")}</label>
                         <select
                             value={settings.locale}
                             onChange={(event) =>
@@ -66,14 +70,14 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                             disabled={loading}
                         >
-                            <option value="es">Español</option>
-                            <option value="en">Inglés</option>
+                            <option value="es">{t("Espanol", "Spanish")}</option>
+                            <option value="en">{t("Ingles", "English")}</option>
                         </select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                            <label className="text-xs text-ink-muted">Densidad</label>
+                            <label className="text-xs text-ink-muted">{t("Densidad", "Density")}</label>
                             <select
                                 value={settings.density}
                                 onChange={(event) =>
@@ -82,12 +86,12 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 className="w-full rounded-md bg-white/80 border border-ring px-2 py-2 text-sm text-ink outline-none focus:border-accent"
                                 disabled={loading}
                             >
-                                <option value="comfortable">Cómoda</option>
-                                <option value="compact">Compacta</option>
+                                <option value="comfortable">{t("Comoda", "Comfortable")}</option>
+                                <option value="compact">{t("Compacta", "Compact")}</option>
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-ink-muted">Tamaño de fuente</label>
+                            <label className="text-xs text-ink-muted">{t("Tamano de fuente", "Font size")}</label>
                             <select
                                 value={settings.fontScale}
                                 onChange={(event) =>
@@ -96,9 +100,9 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 className="w-full rounded-md bg-white/80 border border-ring px-2 py-2 text-sm text-ink outline-none focus:border-accent"
                                 disabled={loading}
                             >
-                                <option value="sm">Pequeño</option>
-                                <option value="md">Medio</option>
-                                <option value="lg">Grande</option>
+                                <option value="sm">{t("Pequeno", "Small")}</option>
+                                <option value="md">{t("Medio", "Medium")}</option>
+                                <option value="lg">{t("Grande", "Large")}</option>
                             </select>
                         </div>
                     </div>
@@ -113,7 +117,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 }
                                 disabled={loading}
                             />
-                            Animaciones
+                            {t("Animaciones", "Animations")}
                         </label>
                         <label className="flex items-center gap-2 text-xs text-ink-muted">
                             <input
@@ -124,7 +128,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 }
                                 disabled={loading}
                             />
-                            Mostrar ayudas
+                            {t("Mostrar ayudas", "Show hints")}
                         </label>
                     </div>
 
@@ -134,7 +138,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                             onClick={() => router.push("/campaigns")}
                             className="w-full text-xs px-3 py-2 rounded-md border border-ring bg-white/70 hover:bg-white"
                         >
-                            Cambiar rol
+                            {t("Cambiar rol", "Switch role")}
                         </button>
                     </div>
                 </div>

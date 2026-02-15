@@ -1,29 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BASE_URL = "https://www.dnd5eapi.co/api";
+import { getLocalDndReference, normalizeLocale } from "@/lib/dnd/localData";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const name = searchParams.get("name");
+  const name = (searchParams.get("name") || "").trim();
+  const locale = normalizeLocale(searchParams.get("locale"));
 
   if (!name) {
     return NextResponse.json({ error: "Missing name" }, { status: 400 });
   }
 
   try {
-    const res = await fetch(
-      `${BASE_URL}/spells?name=${encodeURIComponent(name)}`,
-      { next: { revalidate: 86400 } }
-    );
+    const reference = await getLocalDndReference(locale);
+    const englishReference = await getLocalDndReference("en");
+    const fallback = locale === "es" ? englishReference : reference;
 
-    if (!res.ok) {
-      return NextResponse.json({ results: [] });
-    }
+    const term = name.toLowerCase();
+    const spells = Array.isArray(reference?.spells?.results)
+      ? reference.spells.results
+      : [];
+    const fallbackByIndex = fallback?.spells?.byIndex ?? {};
 
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (e) {
-    console.error(e);
+    const results = spells
+      .filter((spell: any) => {
+        const localizedName = String(spell?.name ?? "").toLowerCase();
+        const englishName = String(
+          fallbackByIndex?.[spell?.index]?.name ?? ""
+        ).toLowerCase();
+        return localizedName.includes(term) || englishName.includes(term);
+      })
+      .map((spell: any) => ({
+        index: spell.index,
+        name: englishReference?.spells?.byIndex?.[spell?.index]?.name ?? spell.name,
+        url: spell.url,
+      }));
+
+    return NextResponse.json({ count: results.length, results });
+  } catch (error) {
+    console.error(error);
     return NextResponse.json({ results: [] });
   }
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Markdown from "@/app/components/Markdown";
 import { useUserSettings } from "@/app/components/SettingsProvider";
+import { tr } from "@/lib/i18n/translate";
 
 // src/app/campaigns/[id]/player/ui/FormFields.tsx
 type TextFieldProps = {
@@ -103,6 +104,7 @@ export function MarkdownField({
                               }: MarkdownFieldProps) {
     const [preview, setPreview] = useState(false);
     const { settings } = useUserSettings();
+    const locale = settings?.locale ?? "es";
 
     return (
         <div className="space-y-2">
@@ -113,7 +115,9 @@ export function MarkdownField({
                     onClick={() => setPreview((v) => !v)}
                     className="text-[11px] px-2 py-0.5 rounded-md border border-ring bg-white/70 text-ink hover:bg-white"
                 >
-                    {preview ? "Editar" : "Previsualizar"}
+                    {preview
+                        ? tr(locale, "Editar", "Edit")
+                        : tr(locale, "Previsualizar", "Preview")}
                 </button>
             </div>
 
@@ -123,7 +127,10 @@ export function MarkdownField({
 
             {preview ? (
                 <div className="rounded-md border border-ring bg-white/80 p-3">
-                    <Markdown content={value || "_Sin contenido_"} className="text-ink-muted text-xs" />
+                    <Markdown
+                        content={value || tr(locale, "_Sin contenido_", "_No content_")}
+                        className="text-ink-muted text-xs"
+                    />
                 </div>
             ) : (
                 <textarea

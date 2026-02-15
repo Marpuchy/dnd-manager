@@ -4,11 +4,32 @@ export type ClassAbility = {
     class: string;
     level: number;
 
-    activation?: string;   // Acción, reacción, pasiva, etc.
-    range?: string;        // Touch, Self, 30 ft…
-    duration?: string;     // Instantáneo, 1 min…
-    components?: string[]; // V, S, M (si aplica)
-    uses?: string;         // X/descanso, slots, etc.
+    activation?: string;
+    range?: string;
+    duration?: string;
+    components?: string[];
+    uses?: string;
+    description?: string;
 
-    description?: string;  // Resumen (no texto PHB)
+    subclassId?: string;
+    subclassName?: string;
+    source?: string;
+};
+
+export type ClassSubclass = {
+    id: string;
+    name: string;
+    classId: string;
+    unlockLevel: number;
+    source?: string;
+    features: ClassAbility[];
+};
+
+export type ClassProgression = {
+    classId: string;
+    className: string;
+    source?: string;
+    subclassUnlockLevel?: number;
+    classFeatures: ClassAbility[];
+    subclasses: ClassSubclass[];
 };

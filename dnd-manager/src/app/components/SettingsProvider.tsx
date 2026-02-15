@@ -145,6 +145,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (typeof document === "undefined") return;
         const root = document.documentElement;
+        root.lang = settings.locale;
         root.dataset.theme = settings.theme;
         root.dataset.locale = settings.locale;
         root.dataset.density = settings.density;

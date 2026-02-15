@@ -3,4 +3,9 @@ export type Member = {
 };
 
 export type Mode = "view" | "create" | "edit";
-export type Tab = "stats" | "spells" | "inventory" | "companions";
+export type Tab =
+    | "stats"
+    | "spells"
+    | "classFeatures"
+    | "inventory"
+    | "companions";

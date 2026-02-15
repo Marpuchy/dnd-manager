@@ -161,17 +161,18 @@ export function ImageCropModal({ src, aspect = 3 / 4, onClose, onSave }: ImageCr
               Vista final
             </p>
             <div className="relative w-full aspect-[3/4] rounded-xl overflow-hidden border border-ring bg-white/80 max-h-[45vh]">
-              <Cropper
-                image={src}
-                crop={crop}
-                zoom={zoom}
-                aspect={aspectRatio}
-                onCropChange={() => {}}
-                onZoomChange={() => {}}
-                onCropComplete={() => {}}
-                objectFit="contain"
-                className="pointer-events-none"
-              />
+              <div className="pointer-events-none">
+                <Cropper
+                  image={src}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={aspectRatio}
+                  onCropChange={() => {}}
+                  onZoomChange={() => {}}
+                  onCropComplete={() => {}}
+                  objectFit="contain"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -12,44 +12,50 @@ import {
     getLocalizedText,
     normalizeLocalizedText,
 } from "@/lib/character/items";
+import { tr } from "@/lib/i18n/translate";
 
 type FormType = "spell" | "cantrip" | "trait" | "classAbility";
+const ALL_FORM_TYPES: FormType[] = ["spell", "cantrip", "trait", "classAbility"];
 
 const SPELL_SCHOOLS = [
-    "Abjuración",
-    "Adivinación",
-    "Conjuración",
-    "Encantamiento",
-    "Evocación",
-    "Ilusión",
-    "Nigromancia",
-    "Transmutación",
+    { es: "Abjuración", en: "Abjuration" },
+    { es: "Adivinación", en: "Divination" },
+    { es: "Conjuración", en: "Conjuration" },
+    { es: "Encantamiento", en: "Enchantment" },
+    { es: "Evocación", en: "Evocation" },
+    { es: "Ilusión", en: "Illusion" },
+    { es: "Nigromancia", en: "Necromancy" },
+    { es: "Transmutación", en: "Transmutation" },
 ];
 
 const CASTING_TIME_OPTIONS = [
-    "Acción",
-    "Acción adicional",
-    "Reacción",
-    "1 minuto",
-    "10 minutos",
-    "1 hora",
-    "Especial",
+    { es: "Acción", en: "Action" },
+    { es: "Acción adicional", en: "Bonus action" },
+    { es: "Reacción", en: "Reaction" },
+    { es: "1 minuto", en: "1 minute" },
+    { es: "10 minutos", en: "10 minutes" },
+    { es: "1 hora", en: "1 hour" },
+    { es: "Especial", en: "Special" },
 ];
 
-const ACTION_TYPES: { value: CustomFeatureEntry["actionType"]; label: string }[] = [
-    { value: "action", label: "Acción" },
-    { value: "bonus", label: "Acción bonus" },
-    { value: "reaction", label: "Reacción" },
-    { value: "passive", label: "Pasiva" },
+const ACTION_TYPES: {
+    value: CustomFeatureEntry["actionType"];
+    es: string;
+    en: string;
+}[] = [
+    { value: "action", es: "Acción", en: "Action" },
+    { value: "bonus", es: "Acción bonus", en: "Bonus action" },
+    { value: "reaction", es: "Reacción", en: "Reaction" },
+    { value: "passive", es: "Pasiva", en: "Passive" },
 ];
 
-const SAVE_ABILITIES: { value: AbilityKey; label: string }[] = [
-    { value: "STR", label: "Fuerza (STR)" },
-    { value: "DEX", label: "Destreza (DEX)" },
-    { value: "CON", label: "Constitución (CON)" },
-    { value: "INT", label: "Inteligencia (INT)" },
-    { value: "WIS", label: "Sabiduría (WIS)" },
-    { value: "CHA", label: "Carisma (CHA)" },
+const SAVE_ABILITIES: { value: AbilityKey; es: string; en: string }[] = [
+    { value: "STR", es: "Fuerza (STR)", en: "Strength (STR)" },
+    { value: "DEX", es: "Destreza (DEX)", en: "Dexterity (DEX)" },
+    { value: "CON", es: "Constitución (CON)", en: "Constitution (CON)" },
+    { value: "INT", es: "Inteligencia (INT)", en: "Intelligence (INT)" },
+    { value: "WIS", es: "Sabiduría (WIS)", en: "Wisdom (WIS)" },
+    { value: "CHA", es: "Carisma (CHA)", en: "Charisma (CHA)" },
 ];
 
 type CustomContentManagerProps = {
@@ -64,6 +70,10 @@ type CustomContentManagerProps = {
     setCustomClassAbilities: (v: CustomFeatureEntry[]) => void;
     createOpen?: boolean;
     onToggleCreate?: (open: boolean) => void;
+    createAsModal?: boolean;
+    allowedTypes?: FormType[];
+    defaultFormType?: FormType;
+    subclassOptions?: { id: string; name: string }[];
 };
 
 function buildLocalized(text: string, locale: string): LocalizedText | undefined {
@@ -82,7 +92,12 @@ export default function CustomContentManager({
                                                  setCustomClassAbilities,
                                                  createOpen,
                                                  onToggleCreate,
+                                                 createAsModal = false,
+                                                 allowedTypes,
+                                                 defaultFormType,
+                                                 subclassOptions = [],
                                              }: CustomContentManagerProps) {
+    const t = (es: string, en: string) => tr(locale, es, en);
     const [internalCreateOpen, setInternalCreateOpen] = useState(true);
     const isCreateControlled = typeof createOpen === "boolean";
     const isCreateOpen = isCreateControlled ? createOpen : internalCreateOpen;
@@ -96,7 +111,24 @@ export default function CustomContentManager({
         setInternalCreateOpen(next);
         onToggleCreate?.(next);
     }
-    const [formType, setFormType] = useState<FormType>("spell");
+    const allowedFormTypes = useMemo<FormType[]>(() => {
+        if (!Array.isArray(allowedTypes) || allowedTypes.length === 0) {
+            return ALL_FORM_TYPES;
+        }
+        const filtered = allowedTypes.filter((type): type is FormType =>
+            ALL_FORM_TYPES.includes(type)
+        );
+        return filtered.length > 0 ? filtered : ALL_FORM_TYPES;
+    }, [allowedTypes]);
+
+    const initialFormType: FormType = useMemo(() => {
+        if (defaultFormType && allowedFormTypes.includes(defaultFormType)) {
+            return defaultFormType;
+        }
+        return allowedFormTypes[0] ?? "spell";
+    }, [allowedFormTypes, defaultFormType]);
+
+    const [formType, setFormType] = useState<FormType>(initialFormType);
     const [editing, setEditing] = useState<{ id: string; type: FormType } | null>(
         null
     );
@@ -107,7 +139,7 @@ export default function CustomContentManager({
     const [description, setDescription] = useState("");
 
     // Spell fields
-    const [castingTime, setCastingTime] = useState(CASTING_TIME_OPTIONS[0]);
+    const [castingTime, setCastingTime] = useState(CASTING_TIME_OPTIONS[0].es);
     const [castingTimeNote, setCastingTimeNote] = useState("");
     const [range, setRange] = useState("");
     const [components, setComponents] = useState({
@@ -142,31 +174,55 @@ export default function CustomContentManager({
     const [abilityPoints, setAbilityPoints] = useState("");
     const [requirements, setRequirements] = useState("");
     const [effect, setEffect] = useState("");
+    const [abilitySubclassId, setAbilitySubclassId] = useState("");
+
+    const subclassNameById = useMemo(
+        () =>
+            Object.fromEntries(
+                (Array.isArray(subclassOptions) ? subclassOptions : [])
+                    .filter(
+                        (option) =>
+                            typeof option?.id === "string" &&
+                            option.id &&
+                            typeof option?.name === "string" &&
+                            option.name.trim().length > 0
+                    )
+                    .map((option) => [option.id, option.name.trim()])
+            ) as Record<string, string>,
+        [subclassOptions]
+    );
 
     const title = useMemo(() => {
         switch (formType) {
             case "spell":
-                return "Hechizo";
+                return t("Hechizo", "Spell");
             case "cantrip":
-                return "Truco";
+                return t("Truco", "Cantrip");
             case "trait":
-                return "Rasgo";
+                return t("Rasgo", "Trait");
             case "classAbility":
-                return "Habilidad";
+                return t("Habilidad", "Ability");
             default:
-                return "Contenido";
+                return t("Contenido", "Content");
         }
-    }, [formType]);
+    }, [formType, t]);
 
     const isSpellForm = formType === "spell" || formType === "cantrip";
     const isAbilityForm = formType === "classAbility";
 
+    React.useEffect(() => {
+        if (!allowedFormTypes.includes(formType)) {
+            setFormType(initialFormType);
+        }
+    }, [allowedFormTypes, formType, initialFormType]);
+
     function resetForm() {
+        setFormType(initialFormType);
         setName("");
         setLevel(1);
         setSchool("");
         setDescription("");
-        setCastingTime(CASTING_TIME_OPTIONS[0]);
+        setCastingTime(CASTING_TIME_OPTIONS[0].es);
         setCastingTimeNote("");
         setRange("");
         setComponents({ verbal: false, somatic: false, material: false });
@@ -195,6 +251,7 @@ export default function CustomContentManager({
         setAbilityPoints("");
         setRequirements("");
         setEffect("");
+        setAbilitySubclassId("");
         setEditing(null);
     }
 
@@ -222,13 +279,13 @@ export default function CustomContentManager({
 
             const casting = (spell as any).castingTime;
             if (casting && typeof casting === "object") {
-                setCastingTime(casting.value ?? CASTING_TIME_OPTIONS[0]);
+                setCastingTime(casting.value ?? CASTING_TIME_OPTIONS[0].es);
                 setCastingTimeNote(casting.note ?? "");
             } else if (typeof casting === "string") {
                 setCastingTime(casting);
                 setCastingTimeNote("");
             } else {
-                setCastingTime(CASTING_TIME_OPTIONS[0]);
+                setCastingTime(CASTING_TIME_OPTIONS[0].es);
                 setCastingTimeNote("");
             }
 
@@ -275,6 +332,7 @@ export default function CustomContentManager({
         if (type === "classAbility") {
             const ability = entry as CustomFeatureEntry;
             setLevel(typeof ability.level === "number" ? ability.level : 1);
+            setAbilitySubclassId(ability.subclassId ?? "");
             setAbilityActionType(ability.actionType ?? "action");
             const cost = ability.resourceCost;
             setAbilityUsesSlot(!!cost?.usesSpellSlot);
@@ -325,7 +383,7 @@ export default function CustomContentManager({
             const castingTimePayload =
                 castingTime || castingTimeNote
                     ? {
-                        value: castingTime || CASTING_TIME_OPTIONS[0],
+                        value: castingTime || CASTING_TIME_OPTIONS[0].es,
                         note: castingTimeNote.trim() || undefined,
                     }
                     : undefined;
@@ -409,6 +467,14 @@ export default function CustomContentManager({
                 name: trimmed,
                 level: formType === "classAbility" ? Number(level) || undefined : undefined,
                 description: desc,
+                subclassId:
+                    formType === "classAbility" && abilitySubclassId
+                        ? abilitySubclassId
+                        : undefined,
+                subclassName:
+                    formType === "classAbility" && abilitySubclassId
+                        ? subclassNameById[abilitySubclassId]
+                        : undefined,
                 actionType: formType === "classAbility" ? abilityActionType : undefined,
                 resourceCost: formType === "classAbility" ? abilityCost : undefined,
                 requirements: formType === "classAbility" ? requirements.trim() || undefined : undefined,
@@ -451,6 +517,11 @@ export default function CustomContentManager({
         setCustomClassAbilities(customClassAbilities.filter((item) => item.id !== id));
     }
 
+    function closeCreatePanel() {
+        resetForm();
+        setCreateOpen(false);
+    }
+
     function renderList(
         label: string,
         entries: Array<CustomSpellEntry | CustomFeatureEntry>,
@@ -479,12 +550,18 @@ export default function CustomContentManager({
                                             </p>
                                             {"level" in entry && entry.level != null && (
                                                 <p className="text-[11px] text-ink-muted">
-                                                    Nivel {entry.level}
+                                                    {t("Nivel", "Level")} {entry.level}
                                                     {"school" in entry && entry.school
                                                         ? ` · ${entry.school}`
                                                         : ""}
                                                 </p>
                                             )}
+                                            {"subclassName" in entry &&
+                                                (entry as CustomFeatureEntry).subclassName && (
+                                                    <p className="text-[11px] text-ink-muted">
+                                                        {(entry as CustomFeatureEntry).subclassName}
+                                                    </p>
+                                                )}
                                         </div>
                                         <div className="flex gap-2">
                                             <button
@@ -495,7 +572,7 @@ export default function CustomContentManager({
                                                 }}
                                                 className="text-[10px] px-2 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                                             >
-                                                Editar
+                                                {t("Editar", "Edit")}
                                             </button>
                                             <button
                                                 type="button"
@@ -505,7 +582,7 @@ export default function CustomContentManager({
                                                 }}
                                                 className="text-[10px] px-2 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
                                             >
-                                                Eliminar
+                                                {t("Eliminar", "Delete")}
                                             </button>
                                         </div>
                                     </div>
@@ -519,7 +596,7 @@ export default function CustomContentManager({
                                     </div>
                                 ) : (
                                     <p className="mt-2 text-[11px] text-ink-muted">
-                                        Sin descripción.
+                                        {t("Sin descripcion.", "No description.")}
                                     </p>
                                 )}
                             </details>
@@ -532,28 +609,40 @@ export default function CustomContentManager({
 
     return (
         <section className="space-y-4">
+            {isCreateOpen && createAsModal && (
+                <button
+                    type="button"
+                    aria-label={t("Cerrar creador personalizado", "Close custom creator")}
+                    onClick={closeCreatePanel}
+                    className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm"
+                />
+            )}
             {isCreateOpen && (
-                <div className="rounded-2xl border border-ring bg-panel/80 p-3 space-y-3">
+                <div
+                    className={`rounded-2xl border border-ring bg-panel/80 p-3 space-y-3 ${
+                        createAsModal
+                            ? "fixed inset-x-3 top-4 bottom-4 z-[60] overflow-y-auto styled-scrollbar shadow-[0_18px_50px_rgba(0,0,0,0.35)]"
+                            : ""
+                    }`}
+                    onClick={createAsModal ? (event) => event.stopPropagation() : undefined}
+                >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <p className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
-                            Crear
+                            {t("Crear", "Create")}
                         </p>
                         <h3 className="text-sm font-semibold text-ink">
-                            {editing ? `Editar ${title}` : `Nuevo ${title}`}
+                            {editing ? `${t("Editar", "Edit")} ${title}` : `${t("Nuevo", "New")} ${title}`}
                         </h3>
                     </div>
                     <div className="flex items-center gap-2">
                         {showCreateToggle && (
                             <button
                                 type="button"
-                                onClick={() => {
-                                    resetForm();
-                                    setCreateOpen(false);
-                                }}
+                                onClick={closeCreatePanel}
                                 className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                             >
-                                Cerrar
+                                {t("Cerrar", "Close")}
                             </button>
                         )}
                         {editing && (
@@ -562,7 +651,7 @@ export default function CustomContentManager({
                                 onClick={resetForm}
                                 className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                             >
-                                Cancelar edición
+                                {t("Cancelar edicion", "Cancel edit")}
                             </button>
                         )}
                         <button
@@ -570,32 +659,41 @@ export default function CustomContentManager({
                             onClick={handleSave}
                             className="text-[11px] px-3 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
                         >
-                            {editing ? "Guardar cambios" : "Crear"}
+                            {editing ? t("Guardar cambios", "Save changes") : t("Crear", "Create")}
                         </button>
                     </div>
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-1">
-                        <label className="text-xs text-ink-muted">Tipo</label>
+                        <label className="text-xs text-ink-muted">{t("Tipo", "Type")}</label>
                         <select
                             value={formType}
                             onChange={(event) => {
                                 const next = event.target.value as FormType;
+                                if (!allowedFormTypes.includes(next)) return;
                                 setFormType(next);
                                 if (next === "cantrip") setLevel(0);
                                 if (next === "spell" && level === 0) setLevel(1);
                             }}
                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                         >
-                            <option value="spell">Hechizo</option>
-                            <option value="cantrip">Truco</option>
-                            <option value="trait">Rasgo</option>
-                            <option value="classAbility">Habilidad</option>
+                            {allowedFormTypes.includes("spell") && (
+                                <option value="spell">{t("Hechizo", "Spell")}</option>
+                            )}
+                            {allowedFormTypes.includes("cantrip") && (
+                                <option value="cantrip">{t("Truco", "Cantrip")}</option>
+                            )}
+                            {allowedFormTypes.includes("trait") && (
+                                <option value="trait">{t("Rasgo", "Trait")}</option>
+                            )}
+                            {allowedFormTypes.includes("classAbility") && (
+                                <option value="classAbility">{t("Habilidad", "Ability")}</option>
+                            )}
                         </select>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs text-ink-muted">Nombre</label>
+                        <label className="text-xs text-ink-muted">{t("Nombre", "Name")}</label>
                         <input
                             type="text"
                             value={name}
@@ -609,7 +707,7 @@ export default function CustomContentManager({
                     <div className="grid gap-3 md:grid-cols-2">
                         <div className="space-y-1">
                             <label className="text-xs text-ink-muted">
-                                Nivel {isSpellForm ? "(0–9)" : "recomendado"}
+                                {t("Nivel", "Level")} {isSpellForm ? "(0-9)" : t("recomendado", "recommended")}
                             </label>
                             <input
                                 type="number"
@@ -625,16 +723,16 @@ export default function CustomContentManager({
                         </div>
                         {isSpellForm && (
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Escuela</label>
+                                <label className="text-xs text-ink-muted">{t("Escuela", "School")}</label>
                                 <select
                                     value={school}
                                     onChange={(event) => setSchool(event.target.value)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                 >
-                                    <option value="">Selecciona escuela</option>
+                                    <option value="">{t("Selecciona escuela", "Select school")}</option>
                                     {SPELL_SCHOOLS.map((s) => (
-                                        <option key={s} value={s}>
-                                            {s}
+                                        <option key={s.en} value={s.es}>
+                                            {locale === "en" ? s.en : s.es}
                                         </option>
                                     ))}
                                 </select>
@@ -642,7 +740,7 @@ export default function CustomContentManager({
                         )}
                         {isAbilityForm && (
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Tipo de acción</label>
+                                <label className="text-xs text-ink-muted">{t("Tipo de accion", "Action type")}</label>
                                 <select
                                     value={abilityActionType ?? "action"}
                                     onChange={(event) =>
@@ -654,7 +752,26 @@ export default function CustomContentManager({
                                 >
                                     {ACTION_TYPES.map((action) => (
                                         <option key={action.value} value={action.value}>
-                                            {action.label}
+                                            {locale === "en" ? action.en : action.es}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        {isAbilityForm && Object.keys(subclassNameById).length > 0 && (
+                            <div className="space-y-1">
+                                <label className="text-xs text-ink-muted">
+                                    {t("Subclase (opcional)", "Subclass (optional)")}
+                                </label>
+                                <select
+                                    value={abilitySubclassId}
+                                    onChange={(event) => setAbilitySubclassId(event.target.value)}
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                                >
+                                    <option value="">{t("General de clase", "General class")}</option>
+                                    {Object.entries(subclassNameById).map(([id, optionName]) => (
+                                        <option key={id} value={id}>
+                                            {optionName}
                                         </option>
                                     ))}
                                 </select>
@@ -667,61 +784,61 @@ export default function CustomContentManager({
                     <>
                         <div className="grid gap-3 md:grid-cols-3">
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Tiempo de lanzamiento</label>
+                                <label className="text-xs text-ink-muted">{t("Tiempo de lanzamiento", "Casting time")}</label>
                                 <select
                                     value={castingTime}
                                     onChange={(event) => setCastingTime(event.target.value)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                 >
                                     {CASTING_TIME_OPTIONS.map((option) => (
-                                        <option key={option} value={option}>
-                                            {option}
+                                        <option key={option.en} value={option.es}>
+                                            {locale === "en" ? option.en : option.es}
                                         </option>
                                     ))}
                                 </select>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Detalle (opcional)</label>
+                                <label className="text-xs text-ink-muted">{t("Detalle (opcional)", "Detail (optional)")}</label>
                                 <input
                                     type="text"
                                     value={castingTimeNote}
                                     onChange={(event) => setCastingTimeNote(event.target.value)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                    placeholder="Acción adicional, reacción al ser atacado..."
+                                    placeholder={t("Accion adicional, reaccion al ser atacado...", "Bonus action, reaction on being attacked...")}
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Alcance</label>
+                                <label className="text-xs text-ink-muted">{t("Alcance", "Range")}</label>
                                 <input
                                     type="text"
                                     value={range}
                                     onChange={(event) => setRange(event.target.value)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                    placeholder="Toque, 30 ft, 60 ft..."
+                                    placeholder={t("Toque, 30 ft, 60 ft...", "Touch, 30 ft, 60 ft...")}
                                 />
                             </div>
                         </div>
 
                         <div className="grid gap-3 md:grid-cols-2">
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Duración</label>
+                                <label className="text-xs text-ink-muted">{t("Duracion", "Duration")}</label>
                                 <input
                                     type="text"
                                     value={duration}
                                     onChange={(event) => setDuration(event.target.value)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                    placeholder="Instantánea, 1 minuto..."
+                                    placeholder={t("Instantanea, 1 minuto...", "Instantaneous, 1 minute...")}
                                 />
                             </div>
                             {components.material && (
                                 <div className="space-y-1">
-                                    <label className="text-xs text-ink-muted">Materiales</label>
+                                    <label className="text-xs text-ink-muted">{t("Materiales", "Materials")}</label>
                                     <input
                                         type="text"
                                         value={materials}
                                         onChange={(event) => setMaterials(event.target.value)}
                                         className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                        placeholder="Componentes materiales (opcional)"
+                                        placeholder={t("Componentes materiales (opcional)", "Material components (optional)")}
                                     />
                                 </div>
                             )}
@@ -739,7 +856,7 @@ export default function CustomContentManager({
                                         }))
                                     }
                                 />
-                                V (verbal)
+                                {t("V (verbal)", "V (verbal)")}
                             </label>
                             <label className="flex items-center gap-2">
                                 <input
@@ -752,7 +869,7 @@ export default function CustomContentManager({
                                         }))
                                     }
                                 />
-                                S (somático)
+                                {t("S (somatico)", "S (somatic)")}
                             </label>
                             <label className="flex items-center gap-2">
                                 <input
@@ -773,7 +890,7 @@ export default function CustomContentManager({
                                     checked={concentration}
                                     onChange={(event) => setConcentration(event.target.checked)}
                                 />
-                                Concentración
+                                {t("Concentracion", "Concentration")}
                             </label>
                             <label className="flex items-center gap-2">
                                 <input
@@ -781,13 +898,13 @@ export default function CustomContentManager({
                                     checked={ritual}
                                     onChange={(event) => setRitual(event.target.checked)}
                                 />
-                                Ritual
+                                {t("Ritual", "Ritual")}
                             </label>
                         </div>
 
                         <details className="rounded-xl border border-ring bg-white/80 p-3">
                             <summary className="cursor-pointer text-xs text-ink-muted">
-                                Coste / recursos al usar
+                                {t("Coste / recursos al usar", "Cost / resources on use")}
                             </summary>
                             <div className="mt-3 space-y-3">
                                 <label className="flex items-center gap-2 text-xs text-ink">
@@ -796,12 +913,12 @@ export default function CustomContentManager({
                                         checked={costUsesSlot}
                                         onChange={(event) => setCostUsesSlot(event.target.checked)}
                                     />
-                                    Gasta espacio de conjuro
+                                    {t("Gasta espacio de conjuro", "Spend spell slot")}
                                 </label>
                                 {costUsesSlot && (
                                     <div className="space-y-1">
                                         <label className="text-[11px] text-ink-muted">
-                                            Nivel de espacio a gastar
+                                            {t("Nivel de espacio a gastar", "Slot level to spend")}
                                         </label>
                                         <input
                                             type="number"
@@ -818,7 +935,7 @@ export default function CustomContentManager({
                                 <div className="grid gap-3 md:grid-cols-2">
                                     <div className="space-y-1">
                                         <label className="text-[11px] text-ink-muted">
-                                            Cargas (opcional)
+                                            {t("Cargas (opcional)", "Charges (optional)")}
                                         </label>
                                         <input
                                             type="number"
@@ -830,7 +947,7 @@ export default function CustomContentManager({
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[11px] text-ink-muted">
-                                            Puntos (opcional)
+                                            {t("Puntos (opcional)", "Points (optional)")}
                                         </label>
                                         <input
                                             type="number"
@@ -846,11 +963,11 @@ export default function CustomContentManager({
 
                         <details className="rounded-xl border border-ring bg-white/80 p-3">
                             <summary className="cursor-pointer text-xs text-ink-muted">
-                                Tirada / salvación
+                                {t("Tirada / salvacion", "Roll / save")}
                             </summary>
                             <div className="mt-3 space-y-3">
                                 <div className="space-y-1">
-                                    <label className="text-[11px] text-ink-muted">Tipo</label>
+                                    <label className="text-[11px] text-ink-muted">{t("Tipo", "Type")}</label>
                                     <select
                                         value={saveType}
                                         onChange={(event) =>
@@ -858,16 +975,16 @@ export default function CustomContentManager({
                                         }
                                         className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                     >
-                                        <option value="none">Ninguno</option>
-                                        <option value="attack">Ataque</option>
-                                        <option value="save">Salvación</option>
+                                        <option value="none">{t("Ninguno", "None")}</option>
+                                        <option value="attack">{t("Ataque", "Attack")}</option>
+                                        <option value="save">{t("Salvacion", "Saving throw")}</option>
                                     </select>
                                 </div>
 
                                 {saveType === "save" && (
                                     <div className="grid gap-3 md:grid-cols-2">
                                         <div className="space-y-1">
-                                            <label className="text-[11px] text-ink-muted">Atributo</label>
+                                            <label className="text-[11px] text-ink-muted">{t("Atributo", "Attribute")}</label>
                                             <select
                                                 value={saveAbility}
                                                 onChange={(event) =>
@@ -877,7 +994,7 @@ export default function CustomContentManager({
                                             >
                                                 {SAVE_ABILITIES.map((ability) => (
                                                     <option key={ability.value} value={ability.value}>
-                                                        {ability.label}
+                                                        {locale === "en" ? ability.en : ability.es}
                                                     </option>
                                                 ))}
                                             </select>
@@ -891,13 +1008,13 @@ export default function CustomContentManager({
                                                 }
                                                 className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                             >
-                                                <option value="stat">Basada en stat</option>
-                                                <option value="fixed">Fija</option>
+                                                <option value="stat">{t("Basada en stat", "Based on stat")}</option>
+                                                <option value="fixed">{t("Fija", "Fixed")}</option>
                                             </select>
                                         </div>
                                         {dcType === "fixed" && (
                                             <div className="space-y-1">
-                                                <label className="text-[11px] text-ink-muted">CD fija</label>
+                                                <label className="text-[11px] text-ink-muted">{t("CD fija", "Fixed DC")}</label>
                                                 <input
                                                     type="number"
                                                     min={0}
@@ -909,7 +1026,7 @@ export default function CustomContentManager({
                                         )}
                                         {dcType === "stat" && (
                                             <div className="space-y-1">
-                                                <label className="text-[11px] text-ink-muted">Stat base</label>
+                                                <label className="text-[11px] text-ink-muted">{t("Stat base", "Base stat")}</label>
                                                 <select
                                                     value={dcStat}
                                                     onChange={(event) =>
@@ -919,7 +1036,7 @@ export default function CustomContentManager({
                                                 >
                                                     {SAVE_ABILITIES.map((ability) => (
                                                         <option key={ability.value} value={ability.value}>
-                                                            {ability.label}
+                                                            {locale === "en" ? ability.en : ability.es}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -931,20 +1048,20 @@ export default function CustomContentManager({
                         </details>
 
                         <details className="rounded-xl border border-ring bg-white/80 p-3">
-                            <summary className="cursor-pointer text-xs text-ink-muted">Daño</summary>
+                            <summary className="cursor-pointer text-xs text-ink-muted">{t("Dano", "Damage")}</summary>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
                                 <div className="space-y-1">
-                                    <label className="text-[11px] text-ink-muted">Tipo de daño</label>
+                                    <label className="text-[11px] text-ink-muted">{t("Tipo de dano", "Damage type")}</label>
                                     <input
                                         type="text"
                                         value={damageType}
                                         onChange={(event) => setDamageType(event.target.value)}
                                         className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                        placeholder="fuego, frío, radiante..."
+                                        placeholder={t("fuego, frio, radiante...", "fire, cold, radiant...")}
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[11px] text-ink-muted">Dados</label>
+                                    <label className="text-[11px] text-ink-muted">{t("Dados", "Dice")}</label>
                                     <input
                                         type="text"
                                         value={damageDice}
@@ -954,13 +1071,13 @@ export default function CustomContentManager({
                                     />
                                 </div>
                                 <div className="space-y-1 md:col-span-2">
-                                    <label className="text-[11px] text-ink-muted">Escalado</label>
+                                    <label className="text-[11px] text-ink-muted">{t("Escalado", "Scaling")}</label>
                                     <input
                                         type="text"
                                         value={damageScaling}
                                         onChange={(event) => setDamageScaling(event.target.value)}
                                         className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                        placeholder="+1d6 por nivel, +1d8 cada 2 niveles..."
+                                        placeholder={t("+1d6 por nivel, +1d8 cada 2 niveles...", "+1d6 per level, +1d8 every 2 levels...")}
                                     />
                                 </div>
                             </div>
@@ -972,7 +1089,7 @@ export default function CustomContentManager({
                     <>
                         <details className="rounded-xl border border-ring bg-white/80 p-3">
                             <summary className="cursor-pointer text-xs text-ink-muted">
-                                Coste / recursos
+                                {t("Coste / recursos", "Cost / resources")}
                             </summary>
                             <div className="mt-3 space-y-3">
                                 <label className="flex items-center gap-2 text-xs text-ink">
@@ -981,11 +1098,11 @@ export default function CustomContentManager({
                                         checked={abilityUsesSlot}
                                         onChange={(event) => setAbilityUsesSlot(event.target.checked)}
                                     />
-                                    Usa espacio de conjuro
+                                    {t("Usa espacio de conjuro", "Use spell slot")}
                                 </label>
                                 {abilityUsesSlot && (
                                     <div className="space-y-1">
-                                        <label className="text-[11px] text-ink-muted">Nivel a gastar</label>
+                                        <label className="text-[11px] text-ink-muted">{t("Nivel a gastar", "Slot level to spend")}</label>
                                         <input
                                             type="number"
                                             min={0}
@@ -1000,7 +1117,7 @@ export default function CustomContentManager({
                                 )}
                                 <div className="grid gap-3 md:grid-cols-2">
                                     <div className="space-y-1">
-                                        <label className="text-[11px] text-ink-muted">Cargas máximas</label>
+                                        <label className="text-[11px] text-ink-muted">{t("Cargas maximas", "Max charges")}</label>
                                         <input
                                             type="number"
                                             min={0}
@@ -1010,7 +1127,7 @@ export default function CustomContentManager({
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[11px] text-ink-muted">Recarga</label>
+                                        <label className="text-[11px] text-ink-muted">{t("Recarga", "Recharge")}</label>
                                         <select
                                             value={abilityRecharge}
                                             onChange={(event) =>
@@ -1018,22 +1135,22 @@ export default function CustomContentManager({
                                             }
                                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                         >
-                                            <option value="short">Descanso corto</option>
-                                            <option value="long">Descanso largo</option>
+                                            <option value="short">{t("Descanso corto", "Short rest")}</option>
+                                            <option value="long">{t("Descanso largo", "Long rest")}</option>
                                         </select>
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[11px] text-ink-muted">Puntos (nombre)</label>
+                                        <label className="text-[11px] text-ink-muted">{t("Puntos (nombre)", "Points (name)")}</label>
                                         <input
                                             type="text"
                                             value={abilityPointsLabel}
                                             onChange={(event) => setAbilityPointsLabel(event.target.value)}
                                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                            placeholder="ki, sorcery points..."
+                                            placeholder={t("ki, puntos de hechiceria...", "ki, sorcery points...")}
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[11px] text-ink-muted">Puntos (cantidad)</label>
+                                        <label className="text-[11px] text-ink-muted">{t("Puntos (cantidad)", "Points (amount)")}</label>
                                         <input
                                             type="number"
                                             min={0}
@@ -1048,7 +1165,7 @@ export default function CustomContentManager({
 
                         <div className="grid gap-3 md:grid-cols-2">
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Requisitos / condiciones</label>
+                                <label className="text-xs text-ink-muted">{t("Requisitos / condiciones", "Requirements / conditions")}</label>
                                 <input
                                     type="text"
                                     value={requirements}
@@ -1057,7 +1174,7 @@ export default function CustomContentManager({
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">Efecto</label>
+                                <label className="text-xs text-ink-muted">{t("Efecto", "Effect")}</label>
                                 <input
                                     type="text"
                                     value={effect}
@@ -1071,7 +1188,7 @@ export default function CustomContentManager({
 
                 <details className="rounded-xl border border-ring bg-white/80 p-3">
                     <summary className="cursor-pointer text-xs text-ink-muted">
-                        Descripción (Markdown)
+                        {t("Descripcion (Markdown)", "Description (Markdown)")}
                     </summary>
                     <div className="mt-2">
                         <textarea
@@ -1086,10 +1203,18 @@ export default function CustomContentManager({
             )}
 
             <div className="space-y-4">
-                {renderList("Trucos personalizados", customCantrips, "cantrip")}
-                {renderList("Hechizos personalizados", customSpells, "spell")}
-                {renderList("Rasgos personalizados", customTraits, "trait")}
-                {renderList("Habilidades personalizadas", customClassAbilities, "classAbility")}
+                {allowedFormTypes.includes("cantrip") &&
+                    renderList(t("Trucos personalizados", "Custom cantrips"), customCantrips, "cantrip")}
+                {allowedFormTypes.includes("spell") &&
+                    renderList(t("Hechizos personalizados", "Custom spells"), customSpells, "spell")}
+                {allowedFormTypes.includes("trait") &&
+                    renderList(t("Rasgos personalizados", "Custom traits"), customTraits, "trait")}
+                {allowedFormTypes.includes("classAbility") &&
+                    renderList(
+                        t("Habilidades personalizadas", "Custom abilities"),
+                        customClassAbilities,
+                        "classAbility"
+                    )}
             </div>
         </section>
     );
