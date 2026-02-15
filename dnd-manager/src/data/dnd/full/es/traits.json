@@ -1,0 +1,1782 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "traits",
+  "endpoint": "/api/2014/traits",
+  "count": 38,
+  "results": [
+    {
+      "index": "artificers-lore",
+      "races": [],
+      "subraces": [
+        {
+          "index": "rock-gnome",
+          "name": "Gnomo de roca",
+          "url": "/api/2014/subraces/rock-gnome"
+        }
+      ],
+      "name": "Conocimiento del artífice",
+      "desc": [
+        "Siempre que realices una prueba de Inteligencia (Historia) relacionada con objetos mágicos, objetos alquímicos o dispositivos tecnológicos, puedes agregar el doble de tu bonificación de competencia, en lugar de cualquier bonificación de competencia que normalmente aplicas."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/artificers-lore",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "brave",
+      "races": [
+        {
+          "index": "halfling",
+          "name": "Mediano",
+          "url": "/api/2014/races/halfling"
+        }
+      ],
+      "subraces": [],
+      "name": "Corajudo",
+      "desc": [
+        "Tienes ventaja en la tirada de salvación contra el miedo."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/brave",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "breath-weapon",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Arma de aliento",
+      "desc": [
+        "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación.",
+        "Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica. La CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito.\n\nEl daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.",
+        "Después de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/breath-weapon",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "damage-resistance",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Resistencia al daño",
+      "desc": [
+        "Tienes resistencia al tipo de daño asociado con tu ascendencia dracónica."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/damage-resistance",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "darkvision",
+      "races": [
+        {
+          "index": "dwarf",
+          "name": "Enano",
+          "url": "/api/2014/races/dwarf"
+        },
+        {
+          "index": "elf",
+          "name": "Duende",
+          "url": "/api/2014/races/elf"
+        },
+        {
+          "index": "gnome",
+          "name": "Gnomo",
+          "url": "/api/2014/races/gnome"
+        },
+        {
+          "index": "half-elf",
+          "name": "Semielfo",
+          "url": "/api/2014/races/half-elf"
+        },
+        {
+          "index": "half-orc",
+          "name": "Semiorco",
+          "url": "/api/2014/races/half-orc"
+        },
+        {
+          "index": "tiefling",
+          "name": "tiflin",
+          "url": "/api/2014/races/tiefling"
+        }
+      ],
+      "subraces": [],
+      "name": "Visión oscura",
+      "desc": [
+        "Tienes una visión superior en condiciones de oscuridad y poca luz. Puedes ver en condiciones de poca luz a una distancia de 60 pies de ti como si fuera una luz brillante, y en la oscuridad como si fuera una luz tenue. No se pueden discernir colores en la oscuridad, sólo matices de gris."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/darkvision",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "proficiencies": [],
+      "trait_specific": {
+        "subtrait_options": {
+          "choose": 1,
+          "from": {
+            "option_set_type": "options_array",
+            "options": [
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-black",
+                  "name": "Ascendencia dracónica (negro)",
+                  "url": "/api/2014/traits/draconic-ancestry-black"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-blue",
+                  "name": "Ascendencia dracónica (azul)",
+                  "url": "/api/2014/traits/draconic-ancestry-blue"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-brass",
+                  "name": "Ascendencia dracónica (latón)",
+                  "url": "/api/2014/traits/draconic-ancestry-brass"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-bronze",
+                  "name": "Ascendencia dracónica (Bronce)",
+                  "url": "/api/2014/traits/draconic-ancestry-bronze"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-copper",
+                  "name": "Ascendencia dracónica (cobre)",
+                  "url": "/api/2014/traits/draconic-ancestry-copper"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-gold",
+                  "name": "Ascendencia dracónica (oro)",
+                  "url": "/api/2014/traits/draconic-ancestry-gold"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-green",
+                  "name": "Ascendencia dracónica (verde)",
+                  "url": "/api/2014/traits/draconic-ancestry-green"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-red",
+                  "name": "Ascendencia dracónica (rojo)",
+                  "url": "/api/2014/traits/draconic-ancestry-red"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-silver",
+                  "name": "Ascendencia dracónica (Plata)",
+                  "url": "/api/2014/traits/draconic-ancestry-silver"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "draconic-ancestry-white",
+                  "name": "Ascendencia dracónica (blanco)",
+                  "url": "/api/2014/traits/draconic-ancestry-white"
+                }
+              }
+            ]
+          },
+          "type": "rasgo"
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-black",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (negro)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "acid",
+          "name": "Ácido",
+          "url": "/api/2014/damage-types/acid"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 30,
+            "type": "línea"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "acid",
+                "name": "Ácido",
+                "url": "/api/2014/damage-types/acid"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-black",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-blue",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (azul)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "lightning",
+          "name": "Iluminación",
+          "url": "/api/2014/damage-types/lightning"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 30,
+            "type": "línea"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "lightning",
+                "name": "Iluminación",
+                "url": "/api/2014/damage-types/lightning"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-blue",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-brass",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (latón)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "fire",
+          "name": "Fuego",
+          "url": "/api/2014/damage-types/fire"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 30,
+            "type": "línea"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "fire",
+                "name": "Fuego",
+                "url": "/api/2014/damage-types/fire"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-brass",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-bronze",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (Bronce)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "lightning",
+          "name": "Iluminación",
+          "url": "/api/2014/damage-types/lightning"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 30,
+            "type": "línea"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "lightning",
+                "name": "Iluminación",
+                "url": "/api/2014/damage-types/lightning"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-bronze",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-copper",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (cobre)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "acid",
+          "name": "Ácido",
+          "url": "/api/2014/damage-types/acid"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 30,
+            "type": "línea"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "acid",
+                "name": "Ácido",
+                "url": "/api/2014/damage-types/acid"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-copper",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-gold",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (oro)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "fire",
+          "name": "Fuego",
+          "url": "/api/2014/damage-types/fire"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 15,
+            "type": "cono"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "fire",
+                "name": "Fuego",
+                "url": "/api/2014/damage-types/fire"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-gold",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-green",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (verde)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "poison",
+          "name": "Veneno",
+          "url": "/api/2014/damage-types/poison"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 15,
+            "type": "cono"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "con",
+              "name": "CON",
+              "url": "/api/2014/ability-scores/con"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "poison",
+                "name": "Veneno",
+                "url": "/api/2014/damage-types/poison"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-green",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-red",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (rojo)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "fire",
+          "name": "Fuego",
+          "url": "/api/2014/damage-types/fire"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 15,
+            "type": "cono"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "dex",
+              "name": "DEX",
+              "url": "/api/2014/ability-scores/dex"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "fire",
+                "name": "Fuego",
+                "url": "/api/2014/damage-types/fire"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-red",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-silver",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (Plata)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "cold",
+          "name": "Frío",
+          "url": "/api/2014/damage-types/cold"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 15,
+            "type": "cono"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "con",
+              "name": "CON",
+              "url": "/api/2014/ability-scores/con"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "cold",
+                "name": "Frío",
+                "url": "/api/2014/damage-types/cold"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-silver",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "draconic-ancestry-white",
+      "races": [
+        {
+          "index": "dragonborn",
+          "name": "nacido de dragón",
+          "url": "/api/2014/races/dragonborn"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia dracónica (blanco)",
+      "desc": [
+        "Tienes ascendencia dracónica. Elige un tipo de dragón de la tabla Draconic Ancestry. Tu arma de aliento y tu resistencia al daño están determinadas por el tipo de dragón, como se muestra en la tabla."
+      ],
+      "parent": {
+        "index": "draconic-ancestry",
+        "name": "Ascendencia dracónica",
+        "url": "/api/2014/traits/draconic-ancestry"
+      },
+      "proficiencies": [],
+      "trait_specific": {
+        "damage_type": {
+          "index": "cold",
+          "name": "Frío",
+          "url": "/api/2014/damage-types/cold"
+        },
+        "breath_weapon": {
+          "name": "Arma de aliento",
+          "desc": "Puedes usar tu acción para exhalar energía destructiva. Tu ascendencia dracónica determina el tamaño, la forma y el tipo de daño de la exhalación. Cuando usas tu arma de aliento, cada criatura en el área de la exhalación debe realizar una tirada de salvación, cuyo tipo está determinado por tu ascendencia dracónica.\n\nLa CD para esta tirada de salvación es igual a 8 + tu modificador de Constitución + tu bonificación de competencia. Una criatura sufre 2d6 de daño si falla una salvación y la mitad de daño si tiene éxito. El daño aumenta a 3d6 en el nivel 6, 4d6 en el nivel 11 y 5d6 en el nivel 16.\n\nDespués de usar tu arma de aliento, no podrás volver a usarla hasta que completes un descanso corto o largo.",
+          "area_of_effect": {
+            "size": 15,
+            "type": "cono"
+          },
+          "usage": {
+            "type": "por descanso",
+            "times": 1
+          },
+          "dc": {
+            "dc_type": {
+              "index": "con",
+              "name": "CON",
+              "url": "/api/2014/ability-scores/con"
+            },
+            "success_type": "medio"
+          },
+          "damage": [
+            {
+              "damage_type": {
+                "index": "cold",
+                "name": "Frío",
+                "url": "/api/2014/damage-types/cold"
+              },
+              "damage_at_character_level": {
+                "1": "2d6",
+                "6": "3d6",
+                "11": "4d6",
+                "16": "5d6"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/draconic-ancestry-white",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "dwarven-combat-training",
+      "races": [
+        {
+          "index": "dwarf",
+          "name": "Enano",
+          "url": "/api/2014/races/dwarf"
+        }
+      ],
+      "subraces": [],
+      "name": "Entrenamiento de combate enano",
+      "desc": [
+        "Tienes competencia con el hacha de batalla, el hacha de mano, el martillo ligero y el martillo de guerra."
+      ],
+      "proficiencies": [
+        {
+          "index": "battleaxes",
+          "name": "Hachas de batalla",
+          "url": "/api/2014/proficiencies/battleaxes"
+        },
+        {
+          "index": "handaxes",
+          "name": "hachas de mano",
+          "url": "/api/2014/proficiencies/handaxes"
+        },
+        {
+          "index": "light-hammers",
+          "name": "Martillos ligeros",
+          "url": "/api/2014/proficiencies/light-hammers"
+        },
+        {
+          "index": "warhammers",
+          "name": "Martillos de guerra",
+          "url": "/api/2014/proficiencies/warhammers"
+        }
+      ],
+      "url": "/api/2014/traits/dwarven-combat-training",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "dwarven-resilience",
+      "races": [
+        {
+          "index": "dwarf",
+          "name": "Enano",
+          "url": "/api/2014/races/dwarf"
+        }
+      ],
+      "subraces": [],
+      "name": "Resiliencia enana",
+      "desc": [
+        "Tienes ventaja en las tiradas de salvación contra el veneno y tienes resistencia contra el daño del veneno."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/dwarven-resilience",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "dwarven-toughness",
+      "races": [],
+      "subraces": [
+        {
+          "index": "hill-dwarf",
+          "name": "Enano de la colina",
+          "url": "/api/2014/subraces/hill-dwarf"
+        }
+      ],
+      "name": "Dureza enana",
+      "desc": [
+        "Tu máximo de puntos de vida aumenta en 1 y aumenta en 1 cada vez que subes de nivel."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/dwarven-toughness",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "elf-weapon-training",
+      "races": [],
+      "subraces": [
+        {
+          "index": "high-elf",
+          "name": "Alto Elfo",
+          "url": "/api/2014/subraces/high-elf"
+        }
+      ],
+      "name": "Entrenamiento con armas de elfos",
+      "desc": [
+        "Tienes competencia con la espada larga, la espada corta, el arco corto y el arco largo."
+      ],
+      "proficiencies": [
+        {
+          "index": "longswords",
+          "name": "espadas largas",
+          "url": "/api/2014/proficiencies/longswords"
+        },
+        {
+          "index": "shortswords",
+          "name": "Espadas cortas",
+          "url": "/api/2014/proficiencies/shortswords"
+        },
+        {
+          "index": "shortbows",
+          "name": "Arcos cortos",
+          "url": "/api/2014/proficiencies/shortbows"
+        },
+        {
+          "index": "longbows",
+          "name": "Arcos largos",
+          "url": "/api/2014/proficiencies/longbows"
+        }
+      ],
+      "url": "/api/2014/traits/elf-weapon-training",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "extra-language",
+      "races": [],
+      "subraces": [
+        {
+          "index": "high-elf",
+          "name": "Alto Elfo",
+          "url": "/api/2014/subraces/high-elf"
+        }
+      ],
+      "name": "Idioma adicional",
+      "desc": [
+        "Puede hablar, leer y escribir un idioma adicional de su elección."
+      ],
+      "proficiencies": [],
+      "language_options": {
+        "choose": 1,
+        "type": "idiomas",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "dwarvish",
+                "name": "enano",
+                "url": "/api/2014/languages/dwarvish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "giant",
+                "name": "Gigante",
+                "url": "/api/2014/languages/giant"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "gnomish",
+                "name": "gnomo",
+                "url": "/api/2014/languages/gnomish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "goblin",
+                "name": "Duende",
+                "url": "/api/2014/languages/goblin"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "halfling",
+                "name": "Mediano",
+                "url": "/api/2014/languages/halfling"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "orc",
+                "name": "orco",
+                "url": "/api/2014/languages/orc"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "abyssal",
+                "name": "Abisal",
+                "url": "/api/2014/languages/abyssal"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "celestial",
+                "name": "Celestial",
+                "url": "/api/2014/languages/celestial"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "draconic",
+                "name": "dracónico",
+                "url": "/api/2014/languages/draconic"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "deep-speech",
+                "name": "discurso profundo",
+                "url": "/api/2014/languages/deep-speech"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "infernal",
+                "name": "Infernal",
+                "url": "/api/2014/languages/infernal"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "primordial",
+                "name": "Primordial",
+                "url": "/api/2014/languages/primordial"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "sylvan",
+                "name": "Selvático",
+                "url": "/api/2014/languages/sylvan"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "undercommon",
+                "name": "poco común",
+                "url": "/api/2014/languages/undercommon"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/extra-language",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "fey-ancestry",
+      "races": [
+        {
+          "index": "elf",
+          "name": "Duende",
+          "url": "/api/2014/races/elf"
+        },
+        {
+          "index": "half-elf",
+          "name": "Semielfo",
+          "url": "/api/2014/races/half-elf"
+        }
+      ],
+      "subraces": [],
+      "name": "Ascendencia Fey",
+      "desc": [
+        "Tienes ventaja en las tiradas de salvación contra ser encantado y la magia no puede hacerte dormir."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/fey-ancestry",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "gnome-cunning",
+      "races": [
+        {
+          "index": "gnome",
+          "name": "Gnomo",
+          "url": "/api/2014/races/gnome"
+        }
+      ],
+      "subraces": [],
+      "name": "Gnomo astuto",
+      "desc": [
+        "Tienes ventaja en todas las tiradas de salvación de Inteligencia, Sabiduría y Carisma contra la magia."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/gnome-cunning",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "halfling-nimbleness",
+      "races": [
+        {
+          "index": "halfling",
+          "name": "Mediano",
+          "url": "/api/2014/races/halfling"
+        }
+      ],
+      "subraces": [],
+      "name": "Agilidad del mediano",
+      "desc": [
+        "Podrás moverte por el espacio de cualquier criatura que sea de un tamaño mayor que el tuyo."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/halfling-nimbleness",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "hellish-resistance",
+      "races": [
+        {
+          "index": "tiefling",
+          "name": "tiflin",
+          "url": "/api/2014/races/tiefling"
+        }
+      ],
+      "subraces": [],
+      "name": "Resistencia infernal",
+      "desc": [
+        "Tienes resistencia al daño por fuego."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/hellish-resistance",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "high-elf-cantrip",
+      "races": [],
+      "subraces": [
+        {
+          "index": "high-elf",
+          "name": "Alto Elfo",
+          "url": "/api/2014/subraces/high-elf"
+        }
+      ],
+      "name": "Truco de los altos elfos",
+      "desc": [
+        "Conoces un truco de tu elección de la lista de hechizos del mago. La inteligencia es tu habilidad para lanzar hechizos."
+      ],
+      "proficiencies": [],
+      "trait_specific": {
+        "spell_options": {
+          "choose": 1,
+          "from": {
+            "option_set_type": "options_array",
+            "options": [
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "light",
+                  "name": "Light",
+                  "url": "/api/2014/spells/light"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "mage-hand",
+                  "name": "Mage Hand",
+                  "url": "/api/2014/spells/mage-hand"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "mending",
+                  "name": "Mending",
+                  "url": "/api/2014/spells/mending"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "message",
+                  "name": "Message",
+                  "url": "/api/2014/spells/message"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "minor-illusion",
+                  "name": "Minor Illusion",
+                  "url": "/api/2014/spells/minor-illusion"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "acid-splash",
+                  "name": "Acid Splash",
+                  "url": "/api/2014/spells/acid-splash"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "prestidigitation",
+                  "name": "Prestidigitation",
+                  "url": "/api/2014/spells/prestidigitation"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "ray-of-frost",
+                  "name": "Ray of Frost",
+                  "url": "/api/2014/spells/ray-of-frost"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "shocking-grasp",
+                  "name": "Shocking Grasp",
+                  "url": "/api/2014/spells/shocking-grasp"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "true-strike",
+                  "name": "True Strike",
+                  "url": "/api/2014/spells/true-strike"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "chill-touch",
+                  "name": "Chill Touch",
+                  "url": "/api/2014/spells/chill-touch"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "dancing-lights",
+                  "name": "Dancing Lights",
+                  "url": "/api/2014/spells/dancing-lights"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "fire-bolt",
+                  "name": "Fire Bolt",
+                  "url": "/api/2014/spells/fire-bolt"
+                }
+              },
+              {
+                "option_type": "referencia",
+                "item": {
+                  "index": "poison-spray",
+                  "name": "Poison Spray",
+                  "url": "/api/2014/spells/poison-spray"
+                }
+              }
+            ]
+          },
+          "type": "deletrear"
+        }
+      },
+      "url": "/api/2014/traits/high-elf-cantrip",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "infernal-legacy",
+      "races": [
+        {
+          "index": "tiefling",
+          "name": "tiflin",
+          "url": "/api/2014/races/tiefling"
+        }
+      ],
+      "subraces": [],
+      "name": "Legado Infernal",
+      "desc": [
+        "Ya conoces el truco de taumaturgia. Cuando alcanzas el nivel 3, puedes lanzar el hechizo de reprimenda infernal como un hechizo de nivel 2 una vez con este rasgo y recuperar la capacidad de hacerlo cuando termines un descanso prolongado. Cuando alcances el nivel 5, podrás lanzar el hechizo de oscuridad una vez con este rasgo y recuperar la capacidad de hacerlo cuando termines un descanso prolongado.\n\nEl carisma es tu habilidad para lanzar hechizos para estos hechizos."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/infernal-legacy",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "keen-senses",
+      "races": [
+        {
+          "index": "elf",
+          "name": "Duende",
+          "url": "/api/2014/races/elf"
+        }
+      ],
+      "subraces": [],
+      "name": "Sentidos agudos",
+      "desc": [
+        "Tienes competencia en la habilidad de Percepción."
+      ],
+      "proficiencies": [
+        {
+          "index": "skill-perception",
+          "name": "Habilidad: Percepción",
+          "url": "/api/2014/proficiencies/skill-perception"
+        }
+      ],
+      "url": "/api/2014/traits/keen-senses",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "lucky",
+      "races": [
+        {
+          "index": "halfling",
+          "name": "Mediano",
+          "url": "/api/2014/races/halfling"
+        }
+      ],
+      "subraces": [],
+      "name": "Afortunado",
+      "desc": [
+        "Cuando sacas un 1 en el d20 para una tirada de ataque, prueba de habilidad o tirada de salvación, puedes volver a tirar el dado y debes usar la nueva tirada."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/lucky",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "menacing",
+      "races": [
+        {
+          "index": "half-orc",
+          "name": "Semiorco",
+          "url": "/api/2014/races/half-orc"
+        }
+      ],
+      "subraces": [],
+      "name": "Amenazador",
+      "desc": [
+        "Obtienes competencia en la habilidad Intimidación."
+      ],
+      "proficiencies": [
+        {
+          "index": "skill-intimidation",
+          "name": "Habilidad: Intimidación",
+          "url": "/api/2014/proficiencies/skill-intimidation"
+        }
+      ],
+      "url": "/api/2014/traits/menacing",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "naturally-stealthy",
+      "races": [],
+      "subraces": [
+        {
+          "index": "lightfoot-halfling",
+          "name": "Mediano pies ligeros",
+          "url": "/api/2014/subraces/lightfoot-halfling"
+        }
+      ],
+      "name": "Naturalmente sigiloso",
+      "desc": [
+        "Puedes intentar esconderte incluso cuando estés oscurecido sólo por una criatura que sea al menos un tamaño más grande que tú."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/naturally-stealthy",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "relentless-endurance",
+      "races": [
+        {
+          "index": "half-orc",
+          "name": "Semiorco",
+          "url": "/api/2014/races/half-orc"
+        }
+      ],
+      "subraces": [],
+      "name": "Resistencia implacable",
+      "desc": [
+        "Cuando te reducen a 0 puntos de vida pero no te matan directamente, puedes bajar a 1 punto de vida. No puedes volver a utilizar esta función hasta que termines un descanso prolongado."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/relentless-endurance",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "savage-attacks",
+      "races": [
+        {
+          "index": "half-orc",
+          "name": "Semiorco",
+          "url": "/api/2014/races/half-orc"
+        }
+      ],
+      "subraces": [],
+      "name": "Ataques salvajes",
+      "desc": [
+        "Cuando logras un golpe crítico con un ataque con arma cuerpo a cuerpo, puedes tirar uno de los dados de daño del arma una vez más y agregarlo al daño adicional del golpe crítico."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/savage-attacks",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "skill-versatility",
+      "races": [
+        {
+          "index": "half-elf",
+          "name": "Semielfo",
+          "url": "/api/2014/races/half-elf"
+        }
+      ],
+      "subraces": [],
+      "name": "Versatilidad de habilidades",
+      "desc": [
+        "Obtienes competencia en dos habilidades de tu elección."
+      ],
+      "proficiencies": [],
+      "proficiency_choices": {
+        "choose": 2,
+        "type": "competencias",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-acrobatics",
+                "name": "Habilidad: Acrobacias",
+                "url": "/api/2014/proficiencies/skill-acrobatics"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-animal-handling",
+                "name": "Habilidad: Manejo de animales",
+                "url": "/api/2014/proficiencies/skill-animal-handling"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-arcana",
+                "name": "Habilidad: Arcanos",
+                "url": "/api/2014/proficiencies/skill-arcana"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-athletics",
+                "name": "Habilidad: Atletismo",
+                "url": "/api/2014/proficiencies/skill-athletics"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-deception",
+                "name": "Habilidad: Engaño",
+                "url": "/api/2014/proficiencies/skill-deception"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-history",
+                "name": "Habilidad: Historia",
+                "url": "/api/2014/proficiencies/skill-history"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-insight",
+                "name": "Habilidad: Perspicacia",
+                "url": "/api/2014/proficiencies/skill-insight"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-intimidation",
+                "name": "Habilidad: Intimidación",
+                "url": "/api/2014/proficiencies/skill-intimidation"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-investigation",
+                "name": "Habilidad: Investigación",
+                "url": "/api/2014/proficiencies/skill-investigation"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-medicine",
+                "name": "Habilidad: Medicina",
+                "url": "/api/2014/proficiencies/skill-medicine"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-nature",
+                "name": "Habilidad: Naturaleza",
+                "url": "/api/2014/proficiencies/skill-nature"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-perception",
+                "name": "Habilidad: Percepción",
+                "url": "/api/2014/proficiencies/skill-perception"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-performance",
+                "name": "Habilidad: Rendimiento",
+                "url": "/api/2014/proficiencies/skill-performance"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-persuasion",
+                "name": "Habilidad: Persuasión",
+                "url": "/api/2014/proficiencies/skill-persuasion"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-religion",
+                "name": "Habilidad: Religión",
+                "url": "/api/2014/proficiencies/skill-religion"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-sleight-of-hand",
+                "name": "Habilidad: Juego de manos",
+                "url": "/api/2014/proficiencies/skill-sleight-of-hand"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-stealth",
+                "name": "Habilidad: Sigilo",
+                "url": "/api/2014/proficiencies/skill-stealth"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "skill-survival",
+                "name": "Habilidad: Supervivencia",
+                "url": "/api/2014/proficiencies/skill-survival"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/skill-versatility",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "stonecunning",
+      "races": [
+        {
+          "index": "dwarf",
+          "name": "Enano",
+          "url": "/api/2014/races/dwarf"
+        }
+      ],
+      "subraces": [],
+      "name": "astucia de piedra",
+      "desc": [
+        "Siempre que realizas una prueba de Inteligencia (Historia) relacionada con el origen de la mampostería, se te considera competente en la habilidad Historia y añades el doble de tu bonificación de competencia a la prueba, en lugar de tu bonificación de competencia normal."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/stonecunning",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "tinker",
+      "races": [],
+      "subraces": [
+        {
+          "index": "rock-gnome",
+          "name": "Gnomo de roca",
+          "url": "/api/2014/subraces/rock-gnome"
+        }
+      ],
+      "name": "Gitano",
+      "desc": [
+        "Tienes dominio de las herramientas artesanales (herramientas de calderero). Usando esas herramientas, puedes gastar 1 hora y 10 po en materiales para construir un pequeño dispositivo de relojería (CA 5, 1 hp).\n\nEl dispositivo deja de funcionar después de 24 horas (a menos que pases 1 hora reparándolo para que siga funcionando), o cuando uses tu acción para desmantelarlo; en ese momento, podrás recuperar los materiales utilizados para crearlo. Puede tener hasta tres de estos dispositivos activos a la vez.",
+        "Cuando crea un dispositivo, elija una de las siguientes opciones:",
+        "Juguete mecánico: este juguete es un animal, monstruo o persona mecánico, como una rana, un ratón, un pájaro, un dragón o un soldado. Cuando se coloca en el suelo, el juguete se mueve 5 pies a través del suelo en cada uno de tus turnos en una dirección aleatoria. Hace ruidos apropiados a la criatura que representa.",
+        "Encendedor de fuego: el dispositivo produce una llama en miniatura, que puedes usar para encender una vela, una antorcha o una fogata. El uso del dispositivo requiere su acción.",
+        "Caja de música: cuando se abre, esta caja de música reproduce una sola canción a un volumen moderado. La caja deja de reproducirse cuando llega al final de la canción o cuando se cierra."
+      ],
+      "proficiencies": [
+        {
+          "index": "tinkers-tools",
+          "name": "Herramientas de hojalatero",
+          "url": "/api/2014/proficiencies/tinkers-tools"
+        }
+      ],
+      "url": "/api/2014/traits/tinker",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "tool-proficiency",
+      "races": [
+        {
+          "index": "dwarf",
+          "name": "Enano",
+          "url": "/api/2014/races/dwarf"
+        }
+      ],
+      "subraces": [],
+      "name": "Competencia con la herramienta",
+      "desc": [
+        "Obtienes competencia con las herramientas de artesano de tu elección: herramientas de herrero, suministros de cervecería o herramientas de albañil."
+      ],
+      "proficiencies": [],
+      "proficiency_choices": {
+        "choose": 1,
+        "type": "competencias",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "smiths-tools",
+                "name": "Herramientas de Smith",
+                "url": "/api/2014/proficiencies/smiths-tools"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "brewers-supplies",
+                "name": "Suministros de cervecería",
+                "url": "/api/2014/proficiencies/brewers-supplies"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "masons-tools",
+                "name": "Herramientas de albañil",
+                "url": "/api/2014/proficiencies/masons-tools"
+              }
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/traits/tool-proficiency",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    },
+    {
+      "index": "trance",
+      "races": [
+        {
+          "index": "elf",
+          "name": "Duende",
+          "url": "/api/2014/races/elf"
+        }
+      ],
+      "subraces": [],
+      "name": "Trance",
+      "desc": [
+        "Los elfos no necesitan dormir. En cambio, meditan profundamente, permaneciendo semiconscientes, durante 4 horas al día. (La palabra común para este tipo de meditación es \"trance\".) Mientras meditas, puedes soñar en cierto modo; Estos sueños son en realidad ejercicios mentales que se han vuelto reflexivos a través de años de práctica.\n\nDespués de descansar de esta manera, obtienes el mismo beneficio que un ser humano con 8 horas de sueño."
+      ],
+      "proficiencies": [],
+      "url": "/api/2014/traits/trance",
+      "updated_at": "2025-10-24T20:42:14.945Z"
+    }
+  ]
+}

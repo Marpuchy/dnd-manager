@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "alignments",
+  "endpoint": "/api/2014/alignments",
+  "count": 9,
+  "results": [
+    {
+      "index": "chaotic-evil",
+      "name": "Mal caótico",
+      "abbreviation": "CE",
+      "desc": "Las criaturas caóticas malvadas (CE) actúan con violencia arbitraria, impulsadas por su codicia, odio o sed de sangre. Los demonios, los dragones rojos y los orcos son caóticos y malvados.",
+      "url": "/api/2014/alignments/chaotic-evil",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "chaotic-good",
+      "name": "Bien caótico",
+      "abbreviation": "CG",
+      "desc": "Las criaturas caóticas buenas (CG) actúan según les indica su conciencia, sin tener en cuenta lo que los demás esperan. Los dragones de cobre, muchos elfos y los unicornios son caóticos.",
+      "url": "/api/2014/alignments/chaotic-good",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "chaotic-neutral",
+      "name": "Neutral caótico",
+      "abbreviation": "CN",
+      "desc": "Las criaturas caóticas neutrales (CN) siguen sus caprichos y mantienen su libertad personal por encima de todo. Muchos bárbaros y pícaros, y algunos bardos, son caóticos neutrales.",
+      "url": "/api/2014/alignments/chaotic-neutral",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "lawful-evil",
+      "name": "Maldad legal",
+      "abbreviation": "LE",
+      "desc": "Las criaturas legales malvadas (LE) toman metódicamente lo que quieren, dentro de los límites de un código de tradición, lealtad u orden. Los demonios, los dragones azules y los duendes son malvados legales.",
+      "url": "/api/2014/alignments/lawful-evil",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "lawful-good",
+      "name": "Bien lícito",
+      "abbreviation": "LG",
+      "desc": "Se puede contar con que las criaturas legítimas buenas (LG) harán lo correcto como lo espera la sociedad. Los dragones dorados, los paladines y la mayoría de los enanos son bienes legítimos.",
+      "url": "/api/2014/alignments/lawful-good",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "lawful-neutral",
+      "name": "Neutral legal",
+      "abbreviation": "LN",
+      "desc": "Los individuos neutrales legales (LN) actúan de acuerdo con la ley, la tradición o los códigos personales. Muchos monjes y algunos magos son legalmente neutrales.",
+      "url": "/api/2014/alignments/lawful-neutral",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "neutral",
+      "name": "Neutral",
+      "abbreviation": "N",
+      "desc": "Neutral (N) es el alineamiento de quienes prefieren mantenerse alejados de las cuestiones morales y no tomar partido, haciendo lo que les parece mejor en cada momento. Los hombres lagarto, la mayoría de los druidas y muchos humanos son neutrales.",
+      "url": "/api/2014/alignments/neutral",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "neutral-evil",
+      "name": "Maldad neutral",
+      "abbreviation": "NE",
+      "desc": "El mal neutral (NE) es el alineamiento de aquellos que hacen todo lo que pueden para salirse con la suya, sin compasión ni escrúpulos. Muchos drow, algunos gigantes de las nubes y duendes son malvados neutrales.",
+      "url": "/api/2014/alignments/neutral-evil",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    },
+    {
+      "index": "neutral-good",
+      "name": "Neutro Bueno",
+      "abbreviation": "NG",
+      "desc": "Las personas neutrales buenas (NG) hacen lo mejor que pueden para ayudar a los demás según sus necesidades. Muchos celestiales, algunos gigantes de las nubes y la mayoría de los gnomos son neutrales.",
+      "url": "/api/2014/alignments/neutral-good",
+      "updated_at": "2025-10-24T20:42:12.259Z"
+    }
+  ]
+}

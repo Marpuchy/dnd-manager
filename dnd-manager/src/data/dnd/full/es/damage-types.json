@@ -1,0 +1,128 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "damage-types",
+  "endpoint": "/api/2014/damage-types",
+  "count": 13,
+  "results": [
+    {
+      "index": "acid",
+      "name": "Ácido",
+      "desc": [
+        "El rocío corrosivo del aliento de un dragón negro y las enzimas disolventes secretadas por una morcilla causan daño ácido."
+      ],
+      "url": "/api/2014/damage-types/acid",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "bludgeoning",
+      "name": "contundente",
+      "desc": [
+        "Los ataques contundentes, las caídas, la constricción y similares causan un daño contundente."
+      ],
+      "url": "/api/2014/damage-types/bludgeoning",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "cold",
+      "name": "Frío",
+      "desc": [
+        "El frío infernal que irradia la lanza de un diablo de hielo y la ráfaga gélida del aliento de un dragón blanco causan daño por frío."
+      ],
+      "url": "/api/2014/damage-types/cold",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "fire",
+      "name": "Fuego",
+      "desc": [
+        "Los dragones rojos exhalan fuego y muchos hechizos conjuran llamas para causar daño por fuego."
+      ],
+      "url": "/api/2014/damage-types/fire",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "force",
+      "name": "Fuerza",
+      "desc": [
+        "La fuerza es energía mágica pura concentrada en una forma dañina. La mayoría de los efectos que causan daño de fuerza son hechizos, incluidos los misiles mágicos y las armas espirituales."
+      ],
+      "url": "/api/2014/damage-types/force",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "lightning",
+      "name": "Iluminación",
+      "desc": [
+        "Un hechizo de rayo y el aliento de un dragón azul causan daño de rayo."
+      ],
+      "url": "/api/2014/damage-types/lightning",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "necrotic",
+      "name": "necrótico",
+      "desc": [
+        "El daño necrótico, infligido por ciertos no-muertos y un hechizo como toque helado, marchita la materia e incluso el alma."
+      ],
+      "url": "/api/2014/damage-types/necrotic",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "piercing",
+      "name": "Perforación",
+      "desc": [
+        "Los ataques punzantes y empaladores, incluidas las lanzas y las mordeduras de monstruos, causan un daño penetrante."
+      ],
+      "url": "/api/2014/damage-types/piercing",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "poison",
+      "name": "Veneno",
+      "desc": [
+        "Las picaduras venenosas y el gas tóxico del aliento de un dragón verde causan daño por veneno."
+      ],
+      "url": "/api/2014/damage-types/poison",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "psychic",
+      "name": "Psíquico",
+      "desc": [
+        "Las habilidades mentales como una explosión psiónica causan daño psíquico."
+      ],
+      "url": "/api/2014/damage-types/psychic",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "radiant",
+      "name": "Radiante",
+      "desc": [
+        "El daño radiante, infligido por el hechizo de golpe de llamas de un clérigo o el arma de un ángel, quema la carne como fuego y sobrecarga el espíritu con poder."
+      ],
+      "url": "/api/2014/damage-types/radiant",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "slashing",
+      "name": "Cuchillada",
+      "desc": [
+        "Espadas, hachas y garras de monstruos causan daños cortantes."
+      ],
+      "url": "/api/2014/damage-types/slashing",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    },
+    {
+      "index": "thunder",
+      "name": "Trueno",
+      "desc": [
+        "Una ráfaga de sonido conmovedora, como el efecto del hechizo de onda de trueno, causa daño de trueno."
+      ],
+      "url": "/api/2014/damage-types/thunder",
+      "updated_at": "2025-10-24T20:42:12.729Z"
+    }
+  ]
+}

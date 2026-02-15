@@ -3,6 +3,8 @@
 import React, { useMemo } from "react";
 import { getSpellSlotsFor } from "@/lib/spellSlots";
 import { getClassColor } from "@/app/components/StatsHexagon";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import { tr } from "@/lib/i18n/translate";
 
 type ClassColor = { stroke: string; fill: string };
 
@@ -43,16 +45,22 @@ function getSpellSlotTone(level: number, classColor: ClassColor) {
 function SpellSlotOrb({
   level,
   classColor,
+  locale,
 }: {
   level: number;
   classColor: ClassColor;
+  locale: string;
 }) {
   const tone = getSpellSlotTone(level, classColor);
   return (
     <div
       className="h-4 w-4 rounded-full border"
       style={{ backgroundColor: tone.background, borderColor: tone.border }}
-      title={`Espacio de conjuro de nivel ${level}`}
+      title={tr(
+        locale,
+        `Espacio de conjuro de nivel ${level}`,
+        `Spell slot level ${level}`
+      )}
     />
   );
 }
@@ -62,6 +70,7 @@ export default function SpellSlotsPanel({
   characterLevel,
   className,
 }: Props) {
+  const locale = useClientLocale();
   const safeLevel = typeof characterLevel === "number" ? characterLevel : null;
   const spellSlots =
     characterClass && safeLevel ? getSpellSlotsFor(characterClass, safeLevel) : null;
@@ -107,11 +116,12 @@ export default function SpellSlotsPanel({
     <div className={panelClassName}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-display font-semibold text-ink">
-          Espacios de conjuro
+          {tr(locale, "Espacios de conjuro", "Spell slots")}
         </h3>
         {spellSlots && "slots" in spellSlots ? (
           <span className="text-[11px] text-ink-muted">
-            Brujo · nivel {(spellSlots as any).slotLevel}
+            {tr(locale, "Brujo", "Warlock")} · {tr(locale, "nivel", "level")}{" "}
+            {(spellSlots as any).slotLevel}
           </span>
         ) : null}
       </div>
@@ -119,17 +129,17 @@ export default function SpellSlotsPanel({
       <div className="mt-3">
         {!spellSlots ? (
           <p className="text-xs text-ink-muted">
-            Esta clase no tiene espacios de conjuro.
+            {tr(locale, "Esta clase no tiene espacios de conjuro.", "This class has no spell slots.")}
           </p>
         ) : visibleSpellSlots.length === 0 ? (
           <p className="text-xs text-ink-muted">
-            No hay espacios de conjuro desbloqueados.
+            {tr(locale, "No hay espacios de conjuro desbloqueados.", "No unlocked spell slots.")}
           </p>
         ) : (
           <div
             className="grid gap-2"
             style={{
-              gridTemplateColumns: `repeat(${gridColumns}, minmax(120px, 1fr))`,
+              gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
             }}
           >
             {visibleSpellSlots.map((entry) => (
@@ -138,7 +148,7 @@ export default function SpellSlotsPanel({
                 className="rounded-xl border border-ring bg-white/80 px-2 py-2"
               >
                 <div className="text-[10px] uppercase tracking-[0.25em] text-ink-muted">
-                  Nivel {entry.level}
+                  {tr(locale, "Nivel", "Level")} {entry.level}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {Array.from({ length: entry.slots }).map((_, i) => (
@@ -146,6 +156,7 @@ export default function SpellSlotsPanel({
                       key={i}
                       level={entry.level}
                       classColor={classColor}
+                      locale={locale}
                     />
                   ))}
                 </div>

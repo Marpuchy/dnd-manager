@@ -5,6 +5,7 @@ import type {
     CharacterItem,
     CharacterType,
     CustomFeatureEntry,
+    CustomSubclassEntry,
     CustomSpellEntry,
     LearnedSpellRef,
     PassiveModifier,
@@ -33,6 +34,8 @@ export type CharacterFormFields = {
     setCharacterType?: (v: CharacterType) => void;
     charClass: string;
     setCharClass: (v: string) => void;
+    classSubclassId?: string;
+    setClassSubclassId?: (v: string) => void;
     charLevel: number;
     setCharLevel: (v: number) => void;
     race: string;
@@ -101,6 +104,8 @@ export type CharacterFormFields = {
     setWeaponsExtra: (v: string) => void;
     notes: string;
     setNotes: (v: string) => void;
+    portraitNote?: string;
+    setPortraitNote?: (v: string) => void;
     background?: string;
     setBackground?: (v: string) => void;
     alignment?: string;
@@ -175,6 +180,8 @@ export type CharacterFormFields = {
     setCustomTraits: (v: CustomFeatureEntry[]) => void;
     customClassAbilities: CustomFeatureEntry[];
     setCustomClassAbilities: (v: CustomFeatureEntry[]) => void;
+    customSubclasses: CustomSubclassEntry[];
+    setCustomSubclasses: (v: CustomSubclassEntry[]) => void;
 
     // Spells by level
     spellsL0: string;
@@ -226,11 +233,28 @@ function spellsToText(value: string | LearnedSpellRef[] | undefined): string {
     return value.map((s) => s.name).join("\n");
 }
 
+function toAbilityKey(value: unknown): AbilityKey | null {
+    if (typeof value !== "string") return null;
+    const normalized = value.toUpperCase().trim();
+    if (
+        normalized === "STR" ||
+        normalized === "DEX" ||
+        normalized === "CON" ||
+        normalized === "INT" ||
+        normalized === "WIS" ||
+        normalized === "CHA"
+    ) {
+        return normalized as AbilityKey;
+    }
+    return null;
+}
+
 export function useCharacterForm(): UseCharacterFormResult {
     // Basic
     const [charName, setCharName] = useState("");
     const [characterType, setCharacterType] = useState<CharacterType>("character");
     const [charClass, setCharClass] = useState("");
+    const [classSubclassId, setClassSubclassId] = useState("");
     const [charLevel, setCharLevel] = useState<number>(1);
     const [race, setRace] = useState("");
     const [experience, setExperience] = useState<number>(0);
@@ -264,6 +288,7 @@ export function useCharacterForm(): UseCharacterFormResult {
     const [abilities, setAbilities] = useState("");
     const [weaponsExtra, setWeaponsExtra] = useState("");
     const [notes, setNotes] = useState("");
+    const [portraitNote, setPortraitNote] = useState("");
     const [background, setBackground] = useState("");
     const [alignment, setAlignment] = useState("");
     const [personalityTraits, setPersonalityTraits] = useState("");
@@ -301,6 +326,7 @@ export function useCharacterForm(): UseCharacterFormResult {
     const [customCantrips, setCustomCantrips] = useState<CustomSpellEntry[]>([]);
     const [customTraits, setCustomTraits] = useState<CustomFeatureEntry[]>([]);
     const [customClassAbilities, setCustomClassAbilities] = useState<CustomFeatureEntry[]>([]);
+    const [customSubclasses, setCustomSubclasses] = useState<CustomSubclassEntry[]>([]);
 
     // Custom class
     const [customClassName, setCustomClassName] = useState("");
@@ -337,6 +363,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setCharName("");
         setCharacterType("character");
         setCharClass("");
+        setClassSubclassId("");
         setCharLevel(1);
         setRace("");
         setExperience(0);
@@ -364,6 +391,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setAbilities("");
         setWeaponsExtra("");
         setNotes("");
+        setPortraitNote("");
         setBackground("");
         setAlignment("");
         setPersonalityTraits("");
@@ -399,6 +427,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setCustomCantrips([]);
         setCustomTraits([]);
         setCustomClassAbilities([]);
+        setCustomSubclasses([]);
         setSpellsL0("");
         setSpellsL1("");
         setSpellsL2("");
@@ -416,6 +445,7 @@ export function useCharacterForm(): UseCharacterFormResult {
     function loadFromCharacter(char: Character) {
         setCharName(char.name);
         setCharClass(normalizeClassForApi(char.class ?? "") || char.class || "");
+        setClassSubclassId(char.details?.classSubclassId ?? "");
         setCharLevel(char.level ?? 1);
         setRace(char.race ?? "");
         setExperience(char.experience ?? 0);
@@ -444,7 +474,30 @@ export function useCharacterForm(): UseCharacterFormResult {
         const details = char.details || {};
         const resolvedItems = migrateLegacyItems(details);
         setItems(sortItemsByOrder(resolvedItems));
-        setArmors(Array.isArray(details.armors) ? details.armors : []);
+        const normalizedArmors: ArmorForm[] = Array.isArray(details.armors)
+            ? details.armors.map((armor) => ({
+                name: armor.name ?? "",
+                bonus: typeof armor.bonus === "number" ? armor.bonus : 0,
+                ability: armor.ability ?? null,
+                statAbility: toAbilityKey(armor.statAbility ?? armor.stat_ability),
+                statModifier:
+                    typeof armor.statModifier === "number"
+                        ? armor.statModifier
+                        : typeof armor.stat_modifier === "number"
+                            ? armor.stat_modifier
+                            : null,
+                modifiers: Array.isArray(armor.modifiers)
+                    ? armor.modifiers
+                        .map((modifier) => ({
+                            ability: toAbilityKey(modifier.ability) ?? "STR",
+                            modifier: Number(modifier.modifier ?? 0),
+                            note: modifier.note,
+                        }))
+                        .filter((modifier) => Number.isFinite(modifier.modifier))
+                    : undefined,
+            }))
+            : [];
+        setArmors(normalizedArmors);
         setWeaponName(details.weaponEquipped?.name ?? "");
         setWeaponDamage(details.weaponEquipped?.damage ?? "");
         setWeaponDescription(details.weaponEquipped?.description ?? "");
@@ -470,6 +523,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setAbilities(details.abilities ?? "");
         setWeaponsExtra(details.weaponsExtra ?? "");
         setNotes(details.notes ?? "");
+        setPortraitNote(details.portraitNote ?? "");
         setBackground(details.background ?? "");
         setAlignment(details.alignment ?? "");
         setPersonalityTraits(details.personalityTraits ?? "");
@@ -543,6 +597,11 @@ export function useCharacterForm(): UseCharacterFormResult {
                 ? details.customClassAbilities
                 : []
         );
+        setCustomSubclasses(
+            Array.isArray(details.customSubclasses)
+                ? details.customSubclasses
+                : []
+        );
     }
 
     return {
@@ -553,6 +612,8 @@ export function useCharacterForm(): UseCharacterFormResult {
             setCharacterType,
             charClass,
             setCharClass,
+            classSubclassId,
+            setClassSubclassId,
             charLevel,
             setCharLevel,
             race,
@@ -609,6 +670,8 @@ export function useCharacterForm(): UseCharacterFormResult {
             setWeaponsExtra,
             notes,
             setNotes,
+            portraitNote,
+            setPortraitNote,
             background,
             setBackground,
             alignment,
@@ -679,6 +742,8 @@ export function useCharacterForm(): UseCharacterFormResult {
             setCustomTraits,
             customClassAbilities,
             setCustomClassAbilities,
+            customSubclasses,
+            setCustomSubclasses,
             spellsL0,
             setSpellsL0,
             spellsL1,

@@ -27,9 +27,14 @@ import {
   getModifierSources,
   normalizeTarget,
 } from "@/lib/character/items";
-import { getClientLocale } from "@/lib/i18n/getClientLocale";
-import { SKILL_DEFINITIONS, type SkillDefinition } from "@/lib/dnd/skills";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import {
+  SKILL_DEFINITIONS,
+  getSkillLabel,
+  type SkillDefinition,
+} from "@/lib/dnd/skills";
 import type { AbilityKey, SkillKey } from "@/lib/types/dnd";
+import { tr } from "@/lib/i18n/translate";
 
 type MetricCardProps = {
   label: string;
@@ -81,8 +86,55 @@ const targetLabelMap = new Map(
   MODIFIER_TARGETS.map((entry) => [entry.key, entry.label])
 );
 
-function getTargetLabel(target: string) {
+const targetLabelEnMap = new Map<string, string>([
+  ["STR", "Strength (STR)"],
+  ["DEX", "Dexterity (DEX)"],
+  ["CON", "Constitution (CON)"],
+  ["INT", "Intelligence (INT)"],
+  ["WIS", "Wisdom (WIS)"],
+  ["CHA", "Charisma (CHA)"],
+  ["AC", "Armor Class (AC)"],
+  ["HP_MAX", "Maximum HP"],
+  ["HP_CURRENT", "Current HP"],
+  ["SPEED", "Speed"],
+  ["INITIATIVE", "Initiative"],
+  ["PROFICIENCY", "Proficiency Bonus"],
+  ["PASSIVE_PERCEPTION", "Passive Perception"],
+  ["SPELL_ATTACK", "Spell Attack"],
+  ["SPELL_DC", "Spell DC"],
+  ["ATTACK_BONUS", "Attack Bonus"],
+  ["DAMAGE_BONUS", "Damage Bonus"],
+  ["SAVE_STR", "Saving Throw STR"],
+  ["SAVE_DEX", "Saving Throw DEX"],
+  ["SAVE_CON", "Saving Throw CON"],
+  ["SAVE_INT", "Saving Throw INT"],
+  ["SAVE_WIS", "Saving Throw WIS"],
+  ["SAVE_CHA", "Saving Throw CHA"],
+  ["SKILL_ACROBATICS", "Skill: Acrobatics"],
+  ["SKILL_ANIMAL_HANDLING", "Skill: Animal Handling"],
+  ["SKILL_ARCANA", "Skill: Arcana"],
+  ["SKILL_ATHLETICS", "Skill: Athletics"],
+  ["SKILL_DECEPTION", "Skill: Deception"],
+  ["SKILL_HISTORY", "Skill: History"],
+  ["SKILL_INSIGHT", "Skill: Insight"],
+  ["SKILL_INTIMIDATION", "Skill: Intimidation"],
+  ["SKILL_INVESTIGATION", "Skill: Investigation"],
+  ["SKILL_MEDICINE", "Skill: Medicine"],
+  ["SKILL_NATURE", "Skill: Nature"],
+  ["SKILL_PERCEPTION", "Skill: Perception"],
+  ["SKILL_PERFORMANCE", "Skill: Performance"],
+  ["SKILL_PERSUASION", "Skill: Persuasion"],
+  ["SKILL_RELIGION", "Skill: Religion"],
+  ["SKILL_SLEIGHT_OF_HAND", "Skill: Sleight of Hand"],
+  ["SKILL_STEALTH", "Skill: Stealth"],
+  ["SKILL_SURVIVAL", "Skill: Survival"],
+]);
+
+function getTargetLabel(target: string, locale: string) {
   const normalized = normalizeTarget(target);
+  if (locale === "en") {
+    return targetLabelEnMap.get(normalized) ?? target;
+  }
   return targetLabelMap.get(normalized) ?? target;
 }
 
@@ -125,12 +177,36 @@ export default function StatsPanel({
 }) {
   const items = Array.isArray(details?.items) ? details.items : [];
   const equippedItems = items.filter((item) => item.equipped);
-  const locale = getClientLocale();
+  const locale = useClientLocale();
+  const isEnglish = locale === "en";
   const customTraits = Array.isArray(details?.customTraits) ? details.customTraits : [];
   const customClassAbilities = Array.isArray(details?.customClassAbilities)
     ? details.customClassAbilities
     : [];
   const skillProficiencies = details?.skillProficiencies ?? {};
+
+  const classLabels: Record<string, { es: string; en: string }> = {
+    barbarian: { es: "Barbaro", en: "Barbarian" },
+    bard: { es: "Bardo", en: "Bard" },
+    cleric: { es: "Clerigo", en: "Cleric" },
+    druid: { es: "Druida", en: "Druid" },
+    fighter: { es: "Guerrero", en: "Fighter" },
+    monk: { es: "Monje", en: "Monk" },
+    paladin: { es: "Paladin", en: "Paladin" },
+    ranger: { es: "Explorador", en: "Ranger" },
+    rogue: { es: "Picaro", en: "Rogue" },
+    sorcerer: { es: "Hechicero", en: "Sorcerer" },
+    warlock: { es: "Brujo", en: "Warlock" },
+    wizard: { es: "Mago", en: "Wizard" },
+    artificer: { es: "Artificiero", en: "Artificer" },
+    custom: { es: "Clase personalizada", en: "Custom class" },
+  };
+  const classId = String(character?.class ?? "")
+    .toLowerCase()
+    .trim();
+  const localizedClassName =
+    classLabels[classId]?.[isEnglish ? "en" : "es"] ??
+    (character?.class || tr(locale, "Sin clase", "No class"));
 
   const abilityScores: Record<AbilityKey, number> = {
     STR: totalStr,
@@ -141,12 +217,12 @@ export default function StatsPanel({
     CHA: totalCha,
   };
   const abilityShort: Record<AbilityKey, string> = {
-    STR: "FUE",
-    DEX: "DES",
+    STR: isEnglish ? "STR" : "FUE",
+    DEX: isEnglish ? "DEX" : "DES",
     CON: "CON",
     INT: "INT",
-    WIS: "SAB",
-    CHA: "CAR",
+    WIS: isEnglish ? "WIS" : "SAB",
+    CHA: isEnglish ? "CHA" : "CAR",
   };
 
   const skillOrder: SkillKey[] = [
@@ -208,53 +284,97 @@ export default function StatsPanel({
   }
 
   const statEntries = [
-    { key: "FUE", label: "Fuerza", value: totalStr, raw: "STR", icon: Dumbbell },
-    { key: "DES", label: "Destreza", value: totalDex, raw: "DEX", icon: Feather },
-    { key: "CON", label: "Constitución", value: totalCon, raw: "CON", icon: Heart },
-    { key: "INT", label: "Inteligencia", value: totalInt, raw: "INT", icon: Brain },
-    { key: "SAB", label: "Sabiduría", value: totalWis, raw: "WIS", icon: Eye },
-    { key: "CAR", label: "Carisma", value: totalCha, raw: "CHA", icon: Star },
+    {
+      key: abilityShort.STR,
+      label: tr(locale, "Fuerza", "Strength"),
+      value: totalStr,
+      raw: "STR",
+      icon: Dumbbell,
+    },
+    {
+      key: abilityShort.DEX,
+      label: tr(locale, "Destreza", "Dexterity"),
+      value: totalDex,
+      raw: "DEX",
+      icon: Feather,
+    },
+    {
+      key: abilityShort.CON,
+      label: tr(locale, "Constitucion", "Constitution"),
+      value: totalCon,
+      raw: "CON",
+      icon: Heart,
+    },
+    {
+      key: abilityShort.INT,
+      label: tr(locale, "Inteligencia", "Intelligence"),
+      value: totalInt,
+      raw: "INT",
+      icon: Brain,
+    },
+    {
+      key: abilityShort.WIS,
+      label: tr(locale, "Sabiduria", "Wisdom"),
+      value: totalWis,
+      raw: "WIS",
+      icon: Eye,
+    },
+    {
+      key: abilityShort.CHA,
+      label: tr(locale, "Carisma", "Charisma"),
+      value: totalCha,
+      raw: "CHA",
+      icon: Star,
+    },
   ] as const;
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
+    <div className="space-y-6 min-w-0 overflow-x-hidden">
+      <section className="grid gap-4 lg:grid-cols-[240px_1fr]">
         <div className="rounded-3xl border border-ring bg-panel/90 p-4">
-          <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden bg-white/70 border border-ring">
+          <div className="w-full max-w-[220px] lg:max-w-none mx-auto aspect-[4/5] rounded-2xl overflow-hidden bg-white/70 border border-ring">
             {profileImage?.startsWith("http") ? (
               <img
                 src={profileImage}
-                alt="Imagen del personaje"
+                alt={tr(locale, "Imagen del personaje", "Character image")}
                 className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-xs text-ink-muted">
-                Sin imagen
+                {tr(locale, "Sin imagen", "No image")}
               </div>
             )}
           </div>
+          {details?.portraitNote && (
+            <div className="mt-3 rounded-xl border border-ring bg-white/70 p-2">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">
+                {tr(locale, "Nota personal", "Personal note")}
+              </p>
+              <Markdown content={details.portraitNote} className="text-xs text-ink mt-1" />
+            </div>
+          )}
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <div className="text-[10px] uppercase tracking-[0.35em] text-ink-muted">
-                  Hoja de personaje
+                  {tr(locale, "Hoja de personaje", "Character sheet")}
                 </div>
                 <h2 className="text-2xl font-display font-semibold text-ink">
-                  {character?.name ?? "Personaje"}
+                  {character?.name ?? tr(locale, "Personaje", "Character")}
                 </h2>
                 <p className="text-sm text-ink-muted">
-                  {character?.race ?? "Sin raza"} · {character?.class ?? "Sin clase"} · Nivel{" "}
+                  {character?.race ?? tr(locale, "Sin raza", "No race")} · {localizedClassName} · {tr(locale, "Nivel", "Level")}{" "}
                   {character?.level ?? "?"}
                 </p>
               </div>
-              <div className="grid gap-3 text-xs text-ink-muted sm:grid-cols-2">
+              <div className="grid gap-3 text-xs text-ink-muted sm:grid-cols-2 min-w-0">
                 {details?.background && (
                   <div>
                     <span className="text-[10px] uppercase tracking-[0.2em]">
-                      Trasfondo
+                      {tr(locale, "Trasfondo", "Background")}
                     </span>
                     <div className="text-ink">{details.background}</div>
                   </div>
@@ -262,7 +382,7 @@ export default function StatsPanel({
                 {details?.alignment && (
                   <div>
                     <span className="text-[10px] uppercase tracking-[0.2em]">
-                      Alineamiento
+                      {tr(locale, "Alineamiento", "Alignment")}
                     </span>
                     <div className="text-ink">{details.alignment}</div>
                   </div>
@@ -279,42 +399,42 @@ export default function StatsPanel({
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <MetricCardCompact
-              label="Clase de armadura"
+              label={tr(locale, "Clase de armadura", "Armor class")}
               value={totalAC}
               icon={<Shield className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Iniciativa"
+              label={tr(locale, "Iniciativa", "Initiative")}
               value={formatModifier(initiative)}
               icon={<Zap className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Velocidad"
+              label={tr(locale, "Velocidad", "Speed")}
               value={`${totalSpeed} ft`}
               icon={<Wind className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Competencia"
+              label={tr(locale, "Competencia", "Proficiency")}
               value={`+${proficiencyBonus}`}
               icon={<Award className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Vida actual"
+              label={tr(locale, "Vida actual", "Current life")}
               value={totalCurrentHp ?? "?"}
               icon={<HeartPulse className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Vida máxima"
+              label={tr(locale, "Vida maxima", "Maximum life")}
               value={totalMaxHp ?? "?"}
               icon={<Heart className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Percepción pasiva"
+              label={tr(locale, "Percepcion pasiva", "Passive perception")}
               value={passivePerception}
               icon={<Eye className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label="Dado de golpe"
+              label={tr(locale, "Dado de golpe", "Hit die")}
               value={`d${details?.hitDie?.sides ?? 8}`}
               icon={<Dice5 className="h-3.5 w-3.5" />}
             />
@@ -329,15 +449,19 @@ export default function StatsPanel({
 
       <section className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-display font-semibold text-ink">Atributos</h3>
-          <p className="text-xs text-ink-muted">Vista hexagonal estilo videojuego</p>
+          <h3 className="text-sm font-display font-semibold text-ink">
+            {tr(locale, "Atributos", "Attributes")}
+          </h3>
+          <p className="text-xs text-ink-muted">
+            {tr(locale, "Vista hexagonal estilo videojuego", "Video game style hex view")}
+          </p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_260px] items-start">
           <div className="rounded-2xl border border-ring bg-white/80 p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-ink">Habilidades</p>
-              <span className="text-[10px] text-ink-muted">Bonus: +1 / +2</span>
+              <p className="text-xs font-semibold text-ink">{tr(locale, "Habilidades", "Skills")}</p>
+              <span className="text-[10px] text-ink-muted">{tr(locale, "Bonus: +1 / +2", "Bonus: +1 / +2")}</span>
             </div>
             <div className="space-y-2">
               {orderedSkills.map((skill) => {
@@ -351,7 +475,7 @@ export default function StatsPanel({
                     <label className="flex items-center gap-2">
                       <input type="checkbox" checked={bonusValue > 0} readOnly />
                       <span>
-                        {skill.label}{" "}
+                        {getSkillLabel(skill, locale)}{" "}
                         <span className="text-[10px] text-ink-muted">
                           ({abilityShort[skill.ability]})
                         </span>
@@ -384,6 +508,14 @@ export default function StatsPanel({
                   SAB: hasBonus("WIS"),
                   CAR: hasBonus("CHA"),
                 }}
+                labels={{
+                  FUE: abilityShort.STR,
+                  DES: abilityShort.DEX,
+                  CON: abilityShort.CON,
+                  INT: abilityShort.INT,
+                  SAB: abilityShort.WIS,
+                  CAR: abilityShort.CHA,
+                }}
                 bonusDetails={{
                   FUE: getBonusDetails("STR"),
                   DES: getBonusDetails("DEX"),
@@ -395,7 +527,11 @@ export default function StatsPanel({
               />
             </div>
             <p className="text-[11px] text-ink-muted">
-              Pasa el ratón por cada atributo para ver los bonus activos.
+              {tr(
+                locale,
+                "Pasa el raton por cada atributo para ver los bonus activos.",
+                "Hover over each attribute to see active bonuses."
+              )}
             </p>
           </div>
 
@@ -444,7 +580,9 @@ export default function StatsPanel({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-ink-muted mt-2">Sin bonus activos</p>
+                    <p className="text-[11px] text-ink-muted mt-2">
+                      {tr(locale, "Sin bonus activos", "No active bonuses")}
+                    </p>
                   )}
                 </div>
               );
@@ -455,14 +593,23 @@ export default function StatsPanel({
 
       <section className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-display font-semibold text-ink">Equipados</h3>
+          <h3 className="text-sm font-display font-semibold text-ink">
+            {tr(locale, "Equipados", "Equipped")}
+          </h3>
           <span className="text-[11px] text-ink-muted">
-            {equippedItems.length} objeto{equippedItems.length === 1 ? "" : "s"}
+            {equippedItems.length}{" "}
+            {tr(
+              locale,
+              `objeto${equippedItems.length === 1 ? "" : "s"}`,
+              `item${equippedItems.length === 1 ? "" : "s"}`
+            )}
           </span>
         </div>
 
         {equippedItems.length === 0 ? (
-          <p className="text-xs text-ink-muted">No hay objetos equipados.</p>
+          <p className="text-xs text-ink-muted">
+            {tr(locale, "No hay objetos equipados.", "No equipped items.")}
+          </p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {equippedItems.map((item) => {
@@ -485,20 +632,20 @@ export default function StatsPanel({
                         <p className="text-sm font-semibold text-ink">{item.name}</p>
                         <p className="text-[11px] text-ink-muted capitalize">
                           {item.category === "weapon"
-                            ? "Arma"
+                            ? tr(locale, "Arma", "Weapon")
                             : item.category === "armor"
-                              ? "Armadura"
+                              ? tr(locale, "Armadura", "Armor")
                               : item.category === "accessory"
-                                ? "Accesorio"
+                                ? tr(locale, "Accesorio", "Accessory")
                                 : item.category === "consumable"
-                                  ? "Consumible"
+                                  ? tr(locale, "Consumible", "Consumable")
                                   : item.category === "tool"
-                                    ? "Herramienta"
-                                    : "Misceláneo"}
+                                    ? tr(locale, "Herramienta", "Tool")
+                                    : tr(locale, "Miscelaneo", "Miscellaneous")}
                         </p>
                       </div>
                       <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700 bg-emerald-50">
-                        Equipado
+                        {tr(locale, "Equipado", "Equipped")}
                       </span>
                     </div>
                   </summary>
@@ -528,7 +675,7 @@ export default function StatsPanel({
                                 : "border-rose-500/50 text-rose-700 bg-rose-50"
                             }`}
                           >
-                            {getTargetLabel(mod.target)}{" "}
+                            {getTargetLabel(mod.target, locale)}{" "}
                             {mod.value >= 0 ? `+${mod.value}` : mod.value}
                             {mod.note ? ` · ${mod.note}` : ""}
                           </span>
@@ -549,13 +696,15 @@ export default function StatsPanel({
 
       <section className="grid gap-4">
         <div className="rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)]">
-          <h3 className="text-sm font-display font-semibold text-ink">Dotes y rasgos</h3>
+          <h3 className="text-sm font-display font-semibold text-ink">
+            {tr(locale, "Dotes y rasgos", "Gifts and traits")}
+          </h3>
 
           <div className="mt-3 space-y-2">
             {customTraits.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
-                  Rasgos personalizados
+                  {tr(locale, "Rasgos personalizados", "Custom traits")}
                 </p>
                 {customTraits.map((trait) => {
                   const desc = getLocalizedText(trait.description, locale);
@@ -571,7 +720,7 @@ export default function StatsPanel({
                         <Markdown content={desc} className="text-ink-muted text-xs mt-2" />
                       ) : (
                         <p className="text-[11px] text-ink-muted mt-2">
-                          Sin descripción.
+                          {tr(locale, "Sin descripcion.", "No description.")}
                         </p>
                       )}
                     </details>
@@ -583,7 +732,7 @@ export default function StatsPanel({
             {customClassAbilities.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
-                  Habilidades personalizadas
+                  {tr(locale, "Habilidades personalizadas", "Custom abilities")}
                 </p>
                 {customClassAbilities.map((ability) => {
                   const desc = getLocalizedText(ability.description, locale);
@@ -594,13 +743,15 @@ export default function StatsPanel({
                     >
                       <summary className="cursor-pointer text-sm font-semibold text-ink">
                         {ability.name}
-                        {ability.level != null ? ` · Nivel ${ability.level}` : ""}
+                        {ability.level != null
+                          ? ` · ${tr(locale, "Nivel", "Level")} ${ability.level}`
+                          : ""}
                       </summary>
                       {desc ? (
                         <Markdown content={desc} className="text-ink-muted text-xs mt-2" />
                       ) : (
                         <p className="text-[11px] text-ink-muted mt-2">
-                          Sin descripción.
+                          {tr(locale, "Sin descripcion.", "No description.")}
                         </p>
                       )}
                     </details>
@@ -614,7 +765,13 @@ export default function StatsPanel({
             ) : null}
 
             {!details?.abilities && customTraits.length === 0 && customClassAbilities.length === 0 && (
-              <p className="text-xs text-ink-muted">No se han registrado dotes o rasgos.</p>
+              <p className="text-xs text-ink-muted">
+                {tr(
+                  locale,
+                  "No se han registrado dotes o rasgos.",
+                  "No gifts or traits have been recorded."
+                )}
+              </p>
             )}
           </div>
         </div>

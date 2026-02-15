@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "weapon-properties",
+  "endpoint": "/api/2014/weapon-properties",
+  "count": 11,
+  "results": [
+    {
+      "index": "ammunition",
+      "name": "Munición",
+      "desc": [
+        "Puedes usar un arma que tenga la propiedad de munición para realizar un ataque a distancia sólo si tienes munición para disparar con el arma. Cada vez que atacas con el arma, gastas una pieza de munición. Sacar la munición de un carcaj, estuche u otro contenedor es parte del ataque (necesitas una mano libre para cargar un arma de una mano).",
+        "Al final de la batalla, podrás recuperar la mitad de la munición gastada tomándote un minuto para registrar el campo de batalla. Si usas un arma que tiene la propiedad de munición para realizar un ataque cuerpo a cuerpo, tratas el arma como un arma improvisada (ver \"Armas improvisadas\" más adelante en la sección).\n\nSe debe cargar una eslinga para evitar cualquier daño cuando se usa de esta manera."
+      ],
+      "url": "/api/2014/weapon-properties/ammunition",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "finesse",
+      "name": "Finura",
+      "desc": [
+        "Al realizar un ataque con un arma de delicadeza, usas tu elección de tu modificador de Fuerza o Destreza para las tiradas de ataque y daño. Debes utilizar el mismo modificador para ambas tiradas."
+      ],
+      "url": "/api/2014/weapon-properties/finesse",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "heavy",
+      "name": "Pesado",
+      "desc": [
+        "Las criaturas pequeñas tienen desventaja en las tiradas de ataque con armas pesadas. El tamaño y el volumen de un arma pesada la hacen demasiado grande para que una criatura pequeña la use eficazmente."
+      ],
+      "url": "/api/2014/weapon-properties/heavy",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "light",
+      "name": "Luz",
+      "desc": [
+        "Un arma ligera es pequeña y fácil de manejar, lo que la hace ideal para usar cuando se lucha con dos armas."
+      ],
+      "url": "/api/2014/weapon-properties/light",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "loading",
+      "name": "Cargando",
+      "desc": [
+        "Debido al tiempo necesario para cargar esta arma, solo puedes disparar una pieza de munición cuando usas una acción, acción adicional o reacción para dispararla, independientemente de la cantidad de ataques que normalmente puedes realizar."
+      ],
+      "url": "/api/2014/weapon-properties/loading",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "monk",
+      "name": "Monje",
+      "desc": [
+        "Los monjes obtienen varios beneficios mientras están desarmados o empuñan solo armas de monje mientras no usan armadura ni escudos."
+      ],
+      "url": "/api/2014/weapon-properties/monk",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "reach",
+      "name": "Alcanzar",
+      "desc": [
+        "Esta arma agrega 5 pies a tu alcance cuando atacas con ella, así como también cuando determinas tu alcance para ataques de oportunidad con ella."
+      ],
+      "url": "/api/2014/weapon-properties/reach",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "special",
+      "name": "Especial",
+      "desc": [
+        "Un arma con la propiedad especial tiene reglas inusuales que rigen su uso, explicadas en la descripción del arma (ver \"Armas especiales\" más adelante en esta sección)."
+      ],
+      "url": "/api/2014/weapon-properties/special",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "thrown",
+      "name": "arrojado",
+      "desc": [
+        "Si un arma tiene la propiedad de arrojarse, puedes arrojarla para realizar un ataque a distancia. Si el arma es un arma cuerpo a cuerpo, usas el mismo modificador de habilidad para esa tirada de ataque y daño que usarías para un ataque cuerpo a cuerpo con el arma.\n\nPor ejemplo, si lanzas un hacha, usas tu Fuerza, pero si arrojas una daga, puedes usar tu Fuerza o tu Destreza, ya que la daga tiene la propiedad de delicadeza."
+      ],
+      "url": "/api/2014/weapon-properties/thrown",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "two-handed",
+      "name": "dos manos",
+      "desc": [
+        "Esta arma requiere dos manos cuando atacas con ella."
+      ],
+      "url": "/api/2014/weapon-properties/two-handed",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    },
+    {
+      "index": "versatile",
+      "name": "Versátil",
+      "desc": [
+        "Esta arma se puede utilizar con una o dos manos. Aparece un valor de daño entre paréntesis con la propiedad: el daño cuando el arma se usa con las dos manos para realizar un ataque cuerpo a cuerpo."
+      ],
+      "url": "/api/2014/weapon-properties/versatile",
+      "updated_at": "2025-10-24T20:42:15.048Z"
+    }
+  ]
+}

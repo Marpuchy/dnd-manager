@@ -1,0 +1,178 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "ability-scores",
+  "endpoint": "/api/2014/ability-scores",
+  "count": 6,
+  "results": [
+    {
+      "index": "cha",
+      "name": "CHA",
+      "full_name": "Carisma",
+      "desc": [
+        "El carisma mide tu capacidad para interactuar eficazmente con los demás. Incluye factores como la confianza y la elocuencia, y puede representar una personalidad encantadora o autoritaria.",
+        "Una prueba de Carisma puede surgir cuando intentas influir o entretener a otros, cuando intentas causar una impresión o decir una mentira convincente, o cuando estás atravesando una situación social complicada. Las habilidades de Engaño, Intimidación, Actuación y Persuasión reflejan aptitud en ciertos tipos de pruebas de Carisma."
+      ],
+      "skills": [
+        {
+          "name": "Engaño",
+          "index": "deception",
+          "url": "/api/2014/skills/deception"
+        },
+        {
+          "name": "Intimidación",
+          "index": "intimidation",
+          "url": "/api/2014/skills/intimidation"
+        },
+        {
+          "name": "Actuación",
+          "index": "performance",
+          "url": "/api/2014/skills/performance"
+        },
+        {
+          "name": "Persuasión",
+          "index": "persuasion",
+          "url": "/api/2014/skills/persuasion"
+        }
+      ],
+      "url": "/api/2014/ability-scores/cha",
+      "updated_at": "2025-10-24T20:42:12.130Z"
+    },
+    {
+      "index": "con",
+      "name": "CON",
+      "full_name": "Constitución",
+      "desc": [
+        "La Constitución mide la salud, la resistencia y la fuerza vital.",
+        "Las pruebas de Constitución son poco comunes y no se aplican habilidades a las pruebas de Constitución, porque la resistencia que representa esta habilidad es en gran medida pasiva en lugar de implicar un esfuerzo específico por parte de un personaje o monstruo."
+      ],
+      "skills": [],
+      "url": "/api/2014/ability-scores/con",
+      "updated_at": "2025-10-24T20:42:12.130Z"
+    },
+    {
+      "index": "dex",
+      "name": "DEX",
+      "full_name": "Destreza",
+      "desc": [
+        "La destreza mide la agilidad, los reflejos y el equilibrio.",
+        "Una prueba de Destreza puede modelar cualquier intento de moverse con agilidad, rapidez o silencio, o de evitar caer en un terreno complicado. Las habilidades Acrobacia, Juego de manos y Sigilo reflejan aptitud en ciertos tipos de pruebas de Destreza."
+      ],
+      "skills": [
+        {
+          "name": "Acrobacia",
+          "index": "acrobatics",
+          "url": "/api/2014/skills/acrobatics"
+        },
+        {
+          "name": "Prestidigitación",
+          "index": "sleight-of-hand",
+          "url": "/api/2014/skills/sleight-of-hand"
+        },
+        {
+          "name": "Sigilo",
+          "index": "stealth",
+          "url": "/api/2014/skills/stealth"
+        }
+      ],
+      "url": "/api/2014/ability-scores/dex",
+      "updated_at": "2025-10-24T20:42:12.130Z"
+    },
+    {
+      "index": "int",
+      "name": "INT",
+      "full_name": "Inteligencia",
+      "desc": [
+        "La inteligencia mide la agudeza mental, la precisión de la memoria y la capacidad de razonar.",
+        "Una prueba de Inteligencia entra en juego cuando necesitas recurrir a la lógica, la educación, la memoria o el razonamiento deductivo. Las habilidades Arcanos, Historia, Investigación, Naturaleza y Religión reflejan aptitud en ciertos tipos de pruebas de Inteligencia."
+      ],
+      "skills": [
+        {
+          "name": "Arcanos",
+          "index": "arcana",
+          "url": "/api/2014/skills/arcana"
+        },
+        {
+          "name": "Historia",
+          "index": "history",
+          "url": "/api/2014/skills/history"
+        },
+        {
+          "name": "Investigación",
+          "index": "investigation",
+          "url": "/api/2014/skills/investigation"
+        },
+        {
+          "name": "Naturaleza",
+          "index": "nature",
+          "url": "/api/2014/skills/nature"
+        },
+        {
+          "name": "Religión",
+          "index": "religion",
+          "url": "/api/2014/skills/religion"
+        }
+      ],
+      "url": "/api/2014/ability-scores/int",
+      "updated_at": "2025-10-24T20:42:12.130Z"
+    },
+    {
+      "index": "str",
+      "name": "STR",
+      "full_name": "Fuerza",
+      "desc": [
+        "La fuerza mide la potencia corporal, el entrenamiento atlético y el grado en que se puede ejercer fuerza física bruta.",
+        "Una prueba de Fuerza puede modelar cualquier intento de levantar, empujar, tirar o romper algo, forzar el cuerpo a través de un espacio o aplicar fuerza bruta a una situación. La habilidad de Atletismo refleja la aptitud en ciertos tipos de pruebas de Fuerza."
+      ],
+      "skills": [
+        {
+          "name": "Atletismo",
+          "index": "athletics",
+          "url": "/api/2014/skills/athletics"
+        }
+      ],
+      "url": "/api/2014/ability-scores/str",
+      "updated_at": "2025-10-24T20:42:12.129Z"
+    },
+    {
+      "index": "wis",
+      "name": "WIS",
+      "full_name": "Sabiduría",
+      "desc": [
+        "La sabiduría refleja cuán sintonizado estás con el mundo que te rodea y representa la percepción y la intuición.",
+        "Una prueba de Sabiduría puede reflejar un esfuerzo por leer el lenguaje corporal, comprender los sentimientos de alguien, notar cosas sobre el entorno o cuidar a una persona herida. Las habilidades de Manejo de animales, Perspicacia, Medicina, Percepción y Supervivencia reflejan aptitud en ciertos tipos de pruebas de Sabiduría."
+      ],
+      "skills": [
+        {
+          "name": "Manejo de animales",
+          "index": "animal-handling",
+          "url": "/api/2014/skills/animal-handling"
+        },
+        {
+          "name": "Conocimiento",
+          "index": "insight",
+          "url": "/api/2014/skills/insight"
+        },
+        {
+          "name": "Medicamento",
+          "index": "medicine",
+          "url": "/api/2014/skills/medicine"
+        },
+        {
+          "name": "Percepción",
+          "index": "perception",
+          "url": "/api/2014/skills/perception"
+        },
+        {
+          "name": "Supervivencia",
+          "index": "survival",
+          "url": "/api/2014/skills/survival"
+        }
+      ],
+      "url": "/api/2014/ability-scores/wis",
+      "updated_at": "2025-10-24T20:42:12.130Z"
+    }
+  ]
+}

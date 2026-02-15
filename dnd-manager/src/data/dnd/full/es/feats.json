@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "feats",
+  "endpoint": "/api/2014/feats",
+  "count": 1,
+  "results": [
+    {
+      "index": "grappler",
+      "name": "luchador",
+      "prerequisites": [
+        {
+          "ability_score": {
+            "index": "str",
+            "name": "STR",
+            "url": "/api/2014/ability-scores/str"
+          },
+          "minimum_score": 13
+        }
+      ],
+      "desc": [
+        "Has desarrollado las habilidades necesarias para defenderte en combates cuerpo a cuerpo. Obtienes los siguientes beneficios:",
+        "- Tienes ventaja en las tiradas de ataque contra una criatura a la que estás agarrando.",
+        "- Puedes usar tu acción para intentar inmovilizar a una criatura que estás agarrada. Para hacerlo, haz otra prueba de agarre. Si tienes éxito, tanto tú como la criatura quedaréis restringidos hasta que finalice la presa."
+      ],
+      "url": "/api/2014/feats/grappler",
+      "updated_at": "2025-10-24T20:42:13.051Z"
+    }
+  ]
+}

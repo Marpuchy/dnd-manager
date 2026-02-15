@@ -1,0 +1,195 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "languages",
+  "endpoint": "/api/2014/languages",
+  "count": 16,
+  "results": [
+    {
+      "index": "abyssal",
+      "name": "Abisal",
+      "type": "Exótico",
+      "typical_speakers": [
+        "demonios"
+      ],
+      "script": "Infernal",
+      "url": "/api/2014/languages/abyssal",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "celestial",
+      "name": "Celestial",
+      "type": "Exótico",
+      "typical_speakers": [
+        "Celestiales"
+      ],
+      "script": "Celestial",
+      "url": "/api/2014/languages/celestial",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "common",
+      "name": "Común",
+      "type": "Estándar",
+      "typical_speakers": [
+        "Humanos"
+      ],
+      "script": "Común",
+      "url": "/api/2014/languages/common",
+      "updated_at": "2025-10-24T20:42:13.302Z"
+    },
+    {
+      "index": "deep-speech",
+      "name": "discurso profundo",
+      "type": "Exótico",
+      "typical_speakers": [
+        "Aboleths",
+        "Encubrimiento"
+      ],
+      "url": "/api/2014/languages/deep-speech",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "draconic",
+      "name": "dracónico",
+      "desc": "Se cree que el dracónico es uno de los lenguajes más antiguos y se utiliza a menudo en el estudio de la magia. El lenguaje suena duro para la mayoría de las demás criaturas e incluye numerosas consonantes y sibilantes fuertes.",
+      "type": "Exótico",
+      "typical_speakers": [
+        "dragones",
+        "nacido de dragón"
+      ],
+      "script": "dracónico",
+      "url": "/api/2014/languages/draconic",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "dwarvish",
+      "name": "enano",
+      "desc": "Dwarvish está lleno de consonantes duras y sonidos guturales.",
+      "type": "Estándar",
+      "typical_speakers": [
+        "enanos"
+      ],
+      "script": "enano",
+      "url": "/api/2014/languages/dwarvish",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "elvish",
+      "name": "Mágico",
+      "desc": "El élfico es fluido, con entonaciones sutiles y una gramática compleja. La literatura élfica es rica y variada, y sus canciones y poemas son famosos entre otras razas. Muchos bardos aprenden su idioma para poder agregar baladas élficas a sus repertorios.",
+      "type": "Estándar",
+      "typical_speakers": [
+        "elfos"
+      ],
+      "script": "Mágico",
+      "url": "/api/2014/languages/elvish",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "giant",
+      "name": "Gigante",
+      "type": "Estándar",
+      "typical_speakers": [
+        "Ogros",
+        "Gigantes"
+      ],
+      "script": "enano",
+      "url": "/api/2014/languages/giant",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "gnomish",
+      "name": "gnomo",
+      "desc": "La lengua gnómica, que utiliza la escritura enana, es famosa por sus tratados técnicos y sus catálogos de conocimientos sobre el mundo natural.",
+      "type": "Estándar",
+      "typical_speakers": [
+        "Gnomos"
+      ],
+      "script": "enano",
+      "url": "/api/2014/languages/gnomish",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "goblin",
+      "name": "Duende",
+      "type": "Estándar",
+      "typical_speakers": [
+        "Goblinoides"
+      ],
+      "script": "enano",
+      "url": "/api/2014/languages/goblin",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "halfling",
+      "name": "Mediano",
+      "desc": "El idioma de los medianos no es secreto, pero los medianos son reacios a compartirlo con otros. Escriben muy poco, por lo que no tienen una rica literatura. Su tradición oral, sin embargo, es muy fuerte.",
+      "type": "Estándar",
+      "typical_speakers": [
+        "Medianos"
+      ],
+      "script": "Común",
+      "url": "/api/2014/languages/halfling",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "infernal",
+      "name": "Infernal",
+      "type": "Exótico",
+      "typical_speakers": [
+        "diablos"
+      ],
+      "script": "Infernal",
+      "url": "/api/2014/languages/infernal",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "orc",
+      "name": "orco",
+      "desc": "Orc es un lenguaje áspero y irritante con consonantes duras. No tiene escritura propia, pero está escrito en escritura enana.",
+      "type": "Estándar",
+      "typical_speakers": [
+        "Orcos"
+      ],
+      "script": "enano",
+      "url": "/api/2014/languages/orc",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "primordial",
+      "name": "Primordial",
+      "type": "Exótico",
+      "typical_speakers": [
+        "Elementales"
+      ],
+      "script": "enano",
+      "url": "/api/2014/languages/primordial",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "sylvan",
+      "name": "Selvático",
+      "type": "Exótico",
+      "typical_speakers": [
+        "Criaturas feéricas"
+      ],
+      "script": "Mágico",
+      "url": "/api/2014/languages/sylvan",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    },
+    {
+      "index": "undercommon",
+      "name": "poco común",
+      "type": "Exótico",
+      "typical_speakers": [
+        "Comerciantes de la Infraoscuridad"
+      ],
+      "script": "Mágico",
+      "url": "/api/2014/languages/undercommon",
+      "updated_at": "2025-10-24T20:42:13.303Z"
+    }
+  ]
+}

@@ -1,9 +1,12 @@
 ﻿"use client";
 
 import React from "react";
-import { Character, Details, Stats, Tab } from "../playerShared";
+import { Character, Details, Stats, Tab, prettyClassLabel } from "../playerShared";
 import { abilityModifier } from "./playerView/statsHelpers";
 import { ensureDetailsItems, getModifierTotal } from "@/lib/character/items";
+import { getSubclassName } from "@/lib/dnd/classAbilities";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import { tr } from "@/lib/i18n/translate";
 
 // Panels
 import StatsPanel from "./playerView/StatsPanel";
@@ -21,6 +24,7 @@ export default function CharacterView({
                                           onDetailsChange,
                                           onImageUpdated,
                                           onOpenSpellManager,
+                                          renderTabs = true,
                                       }: {
     character: Character | null;
     companions?: Character[];
@@ -29,11 +33,15 @@ export default function CharacterView({
     onDetailsChange?: (d: Details) => void;
     onImageUpdated?: () => void;
     onOpenSpellManager: () => void;
+    renderTabs?: boolean;
 }) {
+    const locale = useClientLocale();
+    const t = (es: string, en: string) => tr(locale, es, en);
+
     if (!character) {
         return (
             <p className="text-sm text-ink-muted p-4">
-                Selecciona un personaje.
+                {t("Selecciona un personaje.", "Select a character.")}
             </p>
         );
     }
@@ -111,6 +119,25 @@ export default function CharacterView({
     );
     const companionsToShow =
         ownedCompanions.length > 0 ? ownedCompanions : unassignedCompanions;
+    function classLabelWithSubclass(target: Character): string {
+        const className = prettyClassLabel(target.class, locale);
+        const customSubclassName =
+            target.details?.classSubclassId &&
+            Array.isArray(target.details?.customSubclasses)
+                ? target.details.customSubclasses.find(
+                      (subclass) => subclass.id === target.details?.classSubclassId
+                  )?.name
+                : undefined;
+        const subclassName =
+            getSubclassName(
+                target.class,
+                target.details?.classSubclassId ?? null,
+                locale
+            ) ??
+            customSubclassName ??
+            target.details?.classSubclassName;
+        return subclassName ? `${className} (${subclassName})` : className;
+    }
 
     function CompanionMenu() {
         if (!companionsToShow.length) return null;
@@ -118,7 +145,7 @@ export default function CharacterView({
         return (
             <div className="border border-ring rounded-2xl bg-panel/80 overflow-hidden">
                 <div className="px-3 py-2 border-b border-ring bg-white/70 text-ink text-xs uppercase tracking-[0.3em]">
-                    Compañeros
+                    {t("Companeros", "Companions")}
                 </div>
                 <div className="p-3 space-y-3">
                     {companionsToShow.map((companion) => {
@@ -137,13 +164,13 @@ export default function CharacterView({
                                             {companion.name}
                                         </div>
                                         <div className="text-[11px] text-ink-muted truncate">
-                                            {companion.race || "Sin raza"} · {companion.class || "Sin clase"} · Nivel {companion.level ?? "?"}
+                                            {companion.race || t("Sin raza", "No race")} · {classLabelWithSubclass(companion)} · {t("Nivel", "Level")} {companion.level ?? "?"}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 text-[11px] text-ink-muted whitespace-nowrap">
-                                        <span>PV {totalCurrentHp}/{totalMaxHp}</span>
-                                        <span>CA {totalAC}</span>
-                                        <span>VEL {totalSpeed}</span>
+                                    <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11px] text-ink-muted">
+                                        <span>{t("PV", "HP")} {totalCurrentHp}/{totalMaxHp}</span>
+                                        <span>{t("CA", "AC")} {totalAC}</span>
+                                        <span>{t("VEL", "SPD")} {totalSpeed}</span>
                                     </div>
                                 </summary>
 
@@ -183,52 +210,63 @@ export default function CharacterView({
     }
 
     return (
-        <div className="space-y-4">
-            {/* Tabs */}
-            <div className="border-b border-ring flex flex-nowrap items-center gap-3 text-sm overflow-x-auto whitespace-nowrap styled-scrollbar">
-                <button
-                    onClick={() => onTabChange("stats")}
-                    className={`pb-2 border-b-2 transition-colors ${
-                        activeTab === "stats"
-                            ? "border-accent text-ink"
-                            : "border-transparent text-ink-muted hover:text-ink"
-                    }`}
-                >
-                    Hoja
-                </button>
-                <button
-                    onClick={() => onTabChange("spells")}
-                    className={`pb-2 border-b-2 transition-colors ${
-                        activeTab === "spells"
-                            ? "border-accent text-ink"
-                            : "border-transparent text-ink-muted hover:text-ink"
-                    }`}
-                >
-                    Reverso · Magia y rasgos
-                </button>
-                <button
-                    onClick={() => onTabChange("inventory")}
-                    className={`pb-2 border-b-2 transition-colors ${
-                        activeTab === "inventory"
-                            ? "border-accent text-ink"
-                            : "border-transparent text-ink-muted hover:text-ink"
-                    }`}
-                >
-                    Reverso · Inventario
-                </button>
-                {companionsToShow.length > 0 && (
+        <div className="space-y-4 min-w-0">
+            {renderTabs && (
+                <div className="border-b border-ring flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 text-sm sm:overflow-x-auto sm:whitespace-nowrap styled-scrollbar pb-0 mb-0">
                     <button
-                        onClick={() => onTabChange("companions")}
-                        className={`pb-2 border-b-2 transition-colors ${
-                            activeTab === "companions"
+                        onClick={() => onTabChange("stats")}
+                        className={`pt-2 pb-0 mb-0 border-b-2 transition-colors ${
+                            activeTab === "stats"
                                 ? "border-accent text-ink"
                                 : "border-transparent text-ink-muted hover:text-ink"
                         }`}
                     >
-                        Compañeros
+                        {t("Hoja", "Sheet")}
                     </button>
-                )}
-            </div>
+                    <button
+                        onClick={() => onTabChange("spells")}
+                        className={`pt-2 pb-0 mb-0 border-b-2 transition-colors ${
+                            activeTab === "spells"
+                                ? "border-accent text-ink"
+                                : "border-transparent text-ink-muted hover:text-ink"
+                        }`}
+                    >
+                        {t("Reverso · Magia y rasgos", "Back · Magic and traits")}
+                    </button>
+                    <button
+                        onClick={() => onTabChange("classFeatures")}
+                        className={`pt-2 pb-0 mb-0 border-b-2 transition-colors ${
+                            activeTab === "classFeatures"
+                                ? "border-accent text-ink"
+                                : "border-transparent text-ink-muted hover:text-ink"
+                        }`}
+                    >
+                        {t("Habilidades de clase", "Class features")}
+                    </button>
+                    <button
+                        onClick={() => onTabChange("inventory")}
+                        className={`pt-2 pb-0 mb-0 border-b-2 transition-colors ${
+                            activeTab === "inventory"
+                                ? "border-accent text-ink"
+                                : "border-transparent text-ink-muted hover:text-ink"
+                        }`}
+                    >
+                        {t("Reverso · Inventario", "Back · Inventory")}
+                    </button>
+                    {companionsToShow.length > 0 && (
+                        <button
+                            onClick={() => onTabChange("companions")}
+                            className={`pt-2 pb-0 mb-0 border-b-2 transition-colors ${
+                                activeTab === "companions"
+                                    ? "border-accent text-ink"
+                                    : "border-transparent text-ink-muted hover:text-ink"
+                            }`}
+                        >
+                            {t("Companeros", "Companions")}
+                        </button>
+                    )}
+                </div>
+            )}
 
             {activeTab === "stats" && (
                 <StatsPanel
@@ -255,7 +293,7 @@ export default function CharacterView({
             {activeTab === "spells" && (
                 <>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
-                        Reverso de la hoja
+                        {t("Reverso de la hoja", "Back of the sheet")}
                     </div>
                     <AbilityPanel
                         character={character}
@@ -263,6 +301,23 @@ export default function CharacterView({
                         details={derived.details}
                         onDetailsChange={onDetailsChange}
                         onOpenSpellManager={onOpenSpellManager}
+                        viewMode="spellsOnly"
+                    />
+                </>
+            )}
+
+            {activeTab === "classFeatures" && (
+                <>
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
+                        {t("Escalado de clase", "Class progression")}
+                    </div>
+                    <AbilityPanel
+                        character={character}
+                        stats={derived.baseStats}
+                        details={derived.details}
+                        onDetailsChange={onDetailsChange}
+                        onOpenSpellManager={onOpenSpellManager}
+                        viewMode="classOnly"
                     />
                 </>
             )}
@@ -270,7 +325,7 @@ export default function CharacterView({
             {activeTab === "inventory" && (
                 <>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
-                        Reverso de la hoja
+                        {t("Reverso de la hoja", "Back of the sheet")}
                     </div>
                     <InventoryPanel details={derived.details} />
                 </>

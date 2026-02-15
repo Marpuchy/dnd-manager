@@ -1,8 +1,9 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { SpellSummary, parseSpellLines } from "../playerShared";
 import { getSpellSlotsFor } from "@/lib/spellSlots";
-import { getClientLocale } from "@/lib/i18n/getClientLocale";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { getLocalizedText } from "@/lib/character/items";
+import { tr } from "@/lib/i18n/translate";
 
 type SpellSectionProps = {
   charClass: string;
@@ -55,8 +56,10 @@ export function SpellSection({
   setSpellsL9,
   onOpenCustomCreate,
 }: SpellSectionProps) {
-  const maxSpellLevel = useMemo(() => {
-    if (!charClass || !charLevel || charLevel < 1) return 0;
+  const locale = useClientLocale();
+  const t = (es: string, en: string) => tr(locale, es, en);
+  const unlockedSpellLevels = useMemo(() => {
+    if (!charClass || !charLevel || charLevel < 1) return [] as number[];
 
     let clsForSlots = charClass;
     if (charClass === "custom") {
@@ -64,32 +67,38 @@ export function SpellSection({
     }
 
     const slots = getSpellSlotsFor(clsForSlots, charLevel as number);
-    if (!slots) return 0;
+    if (!slots) return [] as number[];
 
     if ("slots" in (slots as any)) {
-      return (slots as any).slotLevel ?? 0;
+      const slotLevel = Number((slots as any).slotLevel ?? 0);
+      return slotLevel > 0 ? [slotLevel] : [];
     }
 
-    const entries = Object.entries(slots as any)
-      .map(([lvl, num]) => ({ lvl: Number(lvl), num: num as number }))
-      .filter((e) => e.lvl > 0 && e.num > 0);
-
-    if (entries.length === 0) return 0;
-    return entries.reduce((max, e) => Math.max(max, e.lvl), 0);
+    return Object.entries(slots as any)
+      .map(([lvl, num]) => ({ lvl: Number(lvl), num: Number(num) }))
+      .filter((entry) => entry.lvl > 0 && entry.num > 0)
+      .map((entry) => entry.lvl)
+      .sort((a, b) => a - b);
   }, [charClass, charLevel]);
 
   const spellLevelFields = [
-    { level: 0, label: "Trucos (nivel 0)", value: spellsL0, setter: setSpellsL0 },
-    { level: 1, label: "Nivel 1", value: spellsL1, setter: setSpellsL1 },
-    { level: 2, label: "Nivel 2", value: spellsL2, setter: setSpellsL2 },
-    { level: 3, label: "Nivel 3", value: spellsL3, setter: setSpellsL3 },
-    { level: 4, label: "Nivel 4", value: spellsL4, setter: setSpellsL4 },
-    { level: 5, label: "Nivel 5", value: spellsL5, setter: setSpellsL5 },
-    { level: 6, label: "Nivel 6", value: spellsL6, setter: setSpellsL6 },
-    { level: 7, label: "Nivel 7", value: spellsL7, setter: setSpellsL7 },
-    { level: 8, label: "Nivel 8", value: spellsL8, setter: setSpellsL8 },
-    { level: 9, label: "Nivel 9", value: spellsL9, setter: setSpellsL9 },
-  ].filter((f) => f.level === 0 || f.level <= maxSpellLevel);
+    { level: 0, label: t("Trucos (nivel 0)", "Cantrips (level 0)"), value: spellsL0, setter: setSpellsL0 },
+    { level: 1, label: t("Nivel 1", "Level 1"), value: spellsL1, setter: setSpellsL1 },
+    { level: 2, label: t("Nivel 2", "Level 2"), value: spellsL2, setter: setSpellsL2 },
+    { level: 3, label: t("Nivel 3", "Level 3"), value: spellsL3, setter: setSpellsL3 },
+    { level: 4, label: t("Nivel 4", "Level 4"), value: spellsL4, setter: setSpellsL4 },
+    { level: 5, label: t("Nivel 5", "Level 5"), value: spellsL5, setter: setSpellsL5 },
+    { level: 6, label: t("Nivel 6", "Level 6"), value: spellsL6, setter: setSpellsL6 },
+    { level: 7, label: t("Nivel 7", "Level 7"), value: spellsL7, setter: setSpellsL7 },
+    { level: 8, label: t("Nivel 8", "Level 8"), value: spellsL8, setter: setSpellsL8 },
+    { level: 9, label: t("Nivel 9", "Level 9"), value: spellsL9, setter: setSpellsL9 },
+  ].filter((field) => {
+    if (field.level === 0) return true;
+    if (unlockedSpellLevels.includes(field.level)) return true;
+    // Si hay datos guardados en un nivel ya no disponible, mantenemos visible
+    // el bloque para no ocultar información del usuario.
+    return parseSpellLines(field.value || "").length > 0;
+  });
 
   function getSpellStateForLevel(level: number) {
     switch (level) {
@@ -166,11 +175,16 @@ export function SpellSection({
 
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold text-ink">Conjuros añadidos al personaje</h3>
+      <h3 className="text-sm font-semibold text-ink">
+        {t("Conjuros añadidos al personaje", "Spells added to the character")}
+      </h3>
 
       {spellLevelFields.every((f) => parseSpellLines(f.value || "").length === 0) && (
         <p className="text-xs text-ink-muted">
-          Aún no has añadido conjuros. Usa el buscador de habilidades de abajo para añadirlos.
+          {t(
+            "Aun no has anadido conjuros. Usa el buscador de habilidades de abajo para anadirlos.",
+            "No spells added yet. Use the search below to add them."
+          )}
         </p>
       )}
 
@@ -194,7 +208,7 @@ export function SpellSection({
                       onClick={() => removeSpellByLevelAndName(field.level, line.name)}
                       className="text-[10px] text-red-600 hover:text-red-500 whitespace-nowrap"
                     >
-                      Eliminar
+                      {t("Eliminar", "Delete")}
                     </button>
                   </span>
                 ))}
@@ -238,17 +252,25 @@ function MiniSpellSearch({
   const [spells, setSpells] = useState<SpellSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortMode, setSortMode] = useState<"level" | "alpha">("level");
+  const [loadedSyncKey, setLoadedSyncKey] = useState("");
 
-  const locale = getClientLocale();
+  const locale = useClientLocale();
+  const t = (es: string, en: string) => tr(locale, es, en);
+  const syncKey = `${charClass || "none"}|${charLevel || 0}|${locale}`;
 
-  async function loadSpells() {
+  async function loadSpells(forceKey?: string) {
     try {
       setIsLoading(true);
       setError(null);
       setSpells([]);
 
       if (!charClass || !charLevel || charLevel < 1) {
-        throw new Error("Selecciona clase y nivel para cargar habilidades de conjuro.");
+        throw new Error(
+          t(
+            "Selecciona clase y nivel para cargar habilidades de conjuro.",
+            "Select class and level to load spell abilities."
+          )
+        );
       }
 
       let clsForApi = charClass;
@@ -257,16 +279,30 @@ function MiniSpellSearch({
       const response = await fetch(
         `/api/dnd/spells?class=${encodeURIComponent(clsForApi)}&level=${charLevel}&locale=${locale}`
       );
-      if (!response.ok) throw new Error("No se ha podido cargar la lista de habilidades.");
+      if (!response.ok)
+        throw new Error(t("No se ha podido cargar la lista de habilidades.", "Could not load spell list."));
 
       const data: SpellSummary[] = await response.json();
       setSpells(data);
+      setLoadedSyncKey(forceKey ?? syncKey);
     } catch (err: any) {
-      setError(err?.message ?? "Error cargando habilidades.");
+      setError(err?.message ?? t("Error cargando habilidades.", "Error loading abilities."));
+      setLoadedSyncKey(forceKey ?? syncKey);
     } finally {
       setIsLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!charClass || !charLevel || charLevel < 1) {
+      setSpells([]);
+      setLoadedSyncKey("");
+      return;
+    }
+    if (loadedSyncKey === syncKey) return;
+    void loadSpells(syncKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charClass, charLevel, locale, loadedSyncKey, syncKey]);
 
   const filteredAndSorted = spells
     .filter((spell) => {
@@ -295,15 +331,18 @@ function MiniSpellSearch({
               onClick={onOpenCustomCreate}
               className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
             >
-              Crear hechizo personalizado
+              {t("Crear hechizo personalizado", "Create custom spell")}
             </button>
           </div>
         )}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex-1 min-w-[220px]">
+          <div className="w-full sm:flex-1 min-w-0 sm:min-w-[220px]">
             <input
               type="text"
-              placeholder="Buscar habilidades por nombre o descripción..."
+              placeholder={t(
+                "Buscar habilidades por nombre o descripcion...",
+                "Search abilities by name or description..."
+              )}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
@@ -312,23 +351,25 @@ function MiniSpellSearch({
 
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
-              <label className="text-[11px] text-ink-muted">Ordenar por</label>
+              <label className="text-[11px] text-ink-muted">{t("Ordenar por", "Sort by")}</label>
               <select
                 value={sortMode}
                 onChange={(e) => setSortMode(e.target.value as "level" | "alpha")}
                 className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs text-ink outline-none focus:border-accent"
               >
-                <option value="level">Nivel → Nombre</option>
-                <option value="alpha">Nombre (A-Z)</option>
+                <option value="level">{t("Nivel -> Nombre", "Level -> Name")}</option>
+                <option value="alpha">{t("Nombre (A-Z)", "Name (A-Z)")}</option>
               </select>
             </div>
 
             <button
               type="button"
-              onClick={loadSpells}
+              onClick={() => void loadSpells(syncKey)}
               className="text-[11px] px-3 py-2 rounded-md border border-ring bg-white/70 text-ink hover:bg-white"
             >
-              {isLoading ? "Cargando..." : "Cargar habilidades"}
+              {isLoading
+                ? t("Sincronizando...", "Syncing...")
+                : t("Sincronizar habilidades", "Sync abilities")}
             </button>
           </div>
         </div>
@@ -338,14 +379,19 @@ function MiniSpellSearch({
 
       {!isLoading && spells.length === 0 && !error && (
         <p className="text-xs text-ink-muted">
-          Usa “Cargar habilidades” para ver la lista de conjuros disponibles para esta clase y nivel. Desde aquí puedes añadirlos o quitarlos del personaje.
+          {t(
+            "Sin resultados para esta clase y nivel. Puedes anadir o quitar conjuros desde aqui cuando haya datos.",
+            "No results for this class and level. You can add or remove spells here when data is available."
+          )}
         </p>
       )}
 
       <div className="max-h-64 overflow-y-auto space-y-2 text-sm styled-scrollbar">
         {filteredAndSorted.map((spell) => {
           const typeLabel =
-            spell.level === 0 ? "Truco (cantrip)" : `Hechizo de nivel ${spell.level}`;
+            spell.level === 0
+              ? t("Truco (cantrip)", "Cantrip")
+              : t(`Hechizo de nivel ${spell.level}`, `Level ${spell.level} spell`);
           const learned = isSpellLearned(spell);
           const shortDesc = getLocalizedText((spell as any).shortDesc, locale);
           const fullDesc = getLocalizedText((spell as any).fullDesc, locale);
@@ -353,7 +399,7 @@ function MiniSpellSearch({
           return (
             <div key={spell.index} className="border border-ring rounded-md p-2 space-y-1 bg-white/80">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-[160px]">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-ink break-words">{spell.name}</p>
                   <p className="text-[11px] text-ink-muted">{typeLabel}</p>
                 </div>
@@ -367,7 +413,7 @@ function MiniSpellSearch({
                       : "border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                   }`}
                 >
-                  {learned ? "Eliminar" : "Añadir"}
+                  {learned ? t("Eliminar", "Delete") : t("Anadir", "Add")}
                 </button>
               </div>
 
@@ -375,10 +421,15 @@ function MiniSpellSearch({
 
               <details className="mt-1 text-xs text-ink-muted whitespace-pre-wrap">
                 <summary className="cursor-pointer text-[11px] text-ink-muted">
-                  Ver descripción completa
+                  {t("Ver descripcion completa", "View full description")}
                 </summary>
                 <div className="mt-1 text-ink">
-                  {spell.fullDesc ?? spell.shortDesc ?? "Sin descripción ampliada disponible en la SRD."}
+                  {fullDesc ??
+                    shortDesc ??
+                    t(
+                      "Sin descripcion ampliada disponible en la SRD.",
+                      "No extended SRD description available."
+                    )}
                 </div>
               </details>
             </div>

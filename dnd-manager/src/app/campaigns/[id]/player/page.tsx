@@ -2,7 +2,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, FormEvent, DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, FormEvent, DragEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { computeMaxHp } from "@/lib/dndMath";
 import {
@@ -22,6 +22,9 @@ import { SpellManagerPanel } from "./srd/SpellManagerPanel";
 import { useCharacterForm } from "./hooks/useCharacterForm";
 import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide-react";
 import SettingsPanel from "./ui/SettingsPanel";
+import { getSubclassName } from "@/lib/dnd/classAbilities";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import { tr } from "@/lib/i18n/translate";
 
 type RightPanelMode = "character" | "spellManager";
 
@@ -39,6 +42,7 @@ export default function CampaignPlayerPage() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("character");
+    const locale = useClientLocale();
 
     // mounted guard para evitar hydration mismatch
     const [mounted, setMounted] = useState(false);
@@ -49,15 +53,21 @@ export default function CampaignPlayerPage() {
     // Panel personajes abierto/cerrado
     const [charsOpen, setCharsOpen] = useState<boolean>(false);
     const [isOverTrash, setIsOverTrash] = useState(false);
+    const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
+    const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
 
     // Edición / creación
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [autoSaving, setAutoSaving] = useState(false);
+    const autoSaveGuardRef = useRef(true);
+    const persistInFlightRef = useRef(false);
 
     const { fields, resetForm, loadFromCharacter } = useCharacterForm();
     const {
         charName,
         charClass,
+        classSubclassId,
         charLevel,
         race,
         experience,
@@ -77,7 +87,7 @@ export default function CampaignPlayerPage() {
         weaponDescription,
         weaponStatAbility,
         weaponStatModifier,
-        weaponProficient,
+        weaponProficient: weaponProficientFlag,
         weaponEquipped: weaponEquippedFlag,
         weaponPassiveModifiers,
         inventory,
@@ -85,6 +95,7 @@ export default function CampaignPlayerPage() {
         abilities,
         weaponsExtra,
         notes,
+        portraitNote,
         background,
         alignment,
         personalityTraits,
@@ -107,6 +118,7 @@ export default function CampaignPlayerPage() {
         customCantrips,
         customTraits,
         customClassAbilities,
+        customSubclasses,
         spellsL0,
         spellsL1,
         spellsL2,
@@ -140,7 +152,7 @@ export default function CampaignPlayerPage() {
             const { data: chars, error: charsError } = await supabase
                 .from("characters")
                 .select(
-                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type"
+                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
                 )
                 .eq("campaign_id", params.id)
                 .eq("user_id", session.user.id);
@@ -154,8 +166,16 @@ export default function CampaignPlayerPage() {
                     ...(c as any),
                     details: (c.details || {}) as Details,
                 }));
-                setCharacters(list);
-                if (!selectedId && list.length > 0) setSelectedId(list[0].id);
+                const sorted = [...list].sort((a, b) => {
+                    const ao = typeof a.details?.listOrder === "number" ? a.details.listOrder : Number.MAX_SAFE_INTEGER;
+                    const bo = typeof b.details?.listOrder === "number" ? b.details.listOrder : Number.MAX_SAFE_INTEGER;
+                    if (ao !== bo) return ao - bo;
+                    const at = new Date((a as any).created_at ?? 0).getTime();
+                    const bt = new Date((b as any).created_at ?? 0).getTime();
+                    return at - bt;
+                });
+                setCharacters(sorted);
+                if (!selectedId && sorted.length > 0) setSelectedId(sorted[0].id);
             } else {
                 setCharacters([]);
             }
@@ -204,24 +224,33 @@ export default function CampaignPlayerPage() {
 
 
     function startCreate(type: "character" | "companion" = "character") {
+        autoSaveGuardRef.current = true;
         resetForm();
         setCharacterType?.(type);
         setEditingId(null);
         setMode("create");
         setActiveTab("stats");
         setRightPanelMode("character");
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+            setCharsOpen(false);
+        }
     }
 
     function startEdit(char: Character) {
+        autoSaveGuardRef.current = true;
         setEditingId(char.id);
         setMode("edit");
         setActiveTab("stats");
         setRightPanelMode("character");
         loadFromCharacter(char);
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+            setCharsOpen(false);
+        }
 
     }
 
     function cancelEditOrCreate() {
+        autoSaveGuardRef.current = true;
         setMode("view");
         setEditingId(null);
     }
@@ -230,11 +259,24 @@ export default function CampaignPlayerPage() {
         setSelectedId(id);
         setMode("view");
         setRightPanelMode("character");
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+            setCharsOpen(false);
+        }
     }
 
-    async function handleSaveCharacter(e: FormEvent) {
-        e.preventDefault();
-        setError(null);
+    type PersistOptions = {
+        closeAfterSave: boolean;
+        fromAutoSave?: boolean;
+    };
+
+    async function persistCharacter({
+        closeAfterSave,
+        fromAutoSave = false,
+    }: PersistOptions) {
+        if (persistInFlightRef.current && fromAutoSave) return;
+        persistInFlightRef.current = true;
+        if (fromAutoSave) setAutoSaving(true);
+        if (!fromAutoSave) setError(null);
 
         try {
             const {
@@ -246,6 +288,7 @@ export default function CampaignPlayerPage() {
             }
 
             if (!charName.trim()) {
+                if (fromAutoSave) return;
                 throw new Error("Tu personaje necesita un nombre.");
             }
 
@@ -259,7 +302,6 @@ export default function CampaignPlayerPage() {
             };
 
             const computedMaxHp = computeMaxHp(charLevel, con, hitDieSides);
-
             const spells: Spells = {
                 level0: spellsL0.trim() || undefined,
                 level1: spellsL1.trim() || undefined,
@@ -272,15 +314,72 @@ export default function CampaignPlayerPage() {
                 level8: spellsL8.trim() || undefined,
                 level9: spellsL9.trim() || undefined,
             };
+            const resolvedSubclassId = (classSubclassId ?? "").trim() || undefined;
+            const customSubclassList = Array.isArray(customSubclasses)
+                ? customSubclasses
+                : [];
+            const resolvedCustomSubclass = resolvedSubclassId
+                ? customSubclassList.find((subclass) => subclass.id === resolvedSubclassId)
+                : undefined;
+            const resolvedSubclassName = resolvedSubclassId
+                ? getSubclassName(charClass, resolvedSubclassId, locale) ??
+                  resolvedCustomSubclass?.name ??
+                  undefined
+                : undefined;
+            const weaponPassiveMods = Array.isArray(weaponPassiveModifiers)
+                ? weaponPassiveModifiers
+                : [];
 
             const orderedItems = Array.isArray(items)
                 ? items.map((item, index) => ({ ...item, sortOrder: index }))
                 : [];
             const legacyCompanion =
                 mode === "edit" ? selectedChar?.details?.companion : undefined;
+            const listOrder =
+                mode === "edit"
+                    ? selectedChar?.details?.listOrder
+                    : characters.length;
             const detailsObj: Details = {
                 abilities: abilities.trim() || undefined,
                 notes: notes.trim() || undefined,
+                portraitNote: portraitNote?.trim() || undefined,
+                listOrder: typeof listOrder === "number" ? listOrder : undefined,
+                armors: Array.isArray(armors)
+                    ? armors.map((armor) => ({
+                        name: armor.name ?? "",
+                        bonus: Number(armor.bonus ?? 0),
+                        ability: armor.ability ?? null,
+                        statAbility: armor.statAbility ?? null,
+                        statModifier: armor.statModifier ?? null,
+                        modifiers: armor.modifiers ?? undefined,
+                    }))
+                    : [],
+                weaponEquipped:
+                    weaponName.trim() ||
+                    weaponDamage.trim() ||
+                    weaponDescription.trim() ||
+                    weaponStatAbility !== "none" ||
+                    weaponStatModifier != null ||
+                    weaponPassiveMods.length > 0
+                        ? {
+                            name: weaponName.trim() || "Arma",
+                            damage: weaponDamage.trim() || undefined,
+                            description: weaponDescription.trim() || undefined,
+                            statAbility:
+                                weaponStatAbility !== "none" ? weaponStatAbility : undefined,
+                            statModifier: weaponStatModifier ?? undefined,
+                            isProficient: !!weaponProficientFlag,
+                            equipped: weaponEquippedFlag !== false,
+                            modifiers:
+                                weaponPassiveMods.length > 0
+                                    ? weaponPassiveMods.map((mod) => ({
+                                        ability: mod.ability,
+                                        modifier: mod.value,
+                                        note: mod.note,
+                                    }))
+                                    : undefined,
+                        }
+                        : undefined,
                 background: background?.trim() || undefined,
                 alignment: alignment?.trim() || undefined,
                 personalityTraits: personalityTraits?.trim() || undefined,
@@ -299,6 +398,8 @@ export default function CampaignPlayerPage() {
                 companion: legacyCompanion,
                 hitDie: { sides: hitDieSides },
                 spells,
+                classSubclassId: resolvedSubclassId,
+                classSubclassName: resolvedSubclassName,
                 customClassName: customClassName.trim() || undefined,
                 customCastingAbility,
                 items: orderedItems,
@@ -308,6 +409,8 @@ export default function CampaignPlayerPage() {
                 customClassAbilities: Array.isArray(customClassAbilities)
                     ? customClassAbilities
                     : [],
+                customSubclasses:
+                    customSubclassList.length > 0 ? customSubclassList : undefined,
             };
 
             const resolvedCharacterType =
@@ -316,6 +419,7 @@ export default function CampaignPlayerPage() {
                     : characterType ?? "character";
 
             if (resolvedCharacterType === "companion" && !companionOwnerId) {
+                if (fromAutoSave) return;
                 throw new Error("Selecciona un dueño para el compañero.");
             }
 
@@ -323,6 +427,7 @@ export default function CampaignPlayerPage() {
                 resolvedCharacterType === "companion"
                     ? companionOwnerId ?? null
                     : undefined;
+
             const payload = {
                 name: charName.trim(),
                 character_type: resolvedCharacterType,
@@ -338,50 +443,75 @@ export default function CampaignPlayerPage() {
                 details: detailsObj,
             };
 
-            if (mode === "edit" && editingId) {
+            const targetId = editingId ?? null;
+            if (targetId) {
                 const { error: updateError } = await supabase
                     .from("characters")
                     .update(payload)
-                    .eq("id", editingId)
+                    .eq("id", targetId)
                     .eq("campaign_id", params.id)
-                    .eq("user_id", (await supabase.auth.getSession()).data.session?.user?.id);
+                    .eq("user_id", session.user.id);
 
                 if (updateError) {
-                    console.error("Error actualizando personaje:", updateError);
                     throw new Error(updateError.message);
                 }
 
-                await loadCharacters(); // recargar lista por seguridad
+                setCharacters((prev) =>
+                    prev.map((char) =>
+                        char.id === targetId
+                            ? { ...char, ...(payload as any), details: detailsObj }
+                            : char
+                    )
+                );
             } else {
                 const { data: inserted, error: insertError } = await supabase
                     .from("characters")
                     .insert({
                         ...payload,
                         campaign_id: params.id,
-                        user_id: (await supabase.auth.getSession()).data.session?.user?.id,
+                        user_id: session.user.id,
                     })
                     .select(
-                        "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image"
+                        "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type"
                     )
                     .single();
 
                 if (insertError) {
-                    console.error("Error creando personaje:", insertError);
                     throw new Error(insertError.message);
                 }
 
                 if (inserted) {
-                    await loadCharacters();
+                    autoSaveGuardRef.current = true;
+                    setCharacters((prev) => {
+                        const exists = prev.some((char) => char.id === (inserted as any).id);
+                        if (exists) return prev;
+                        return [...prev, inserted as Character];
+                    });
                     setSelectedId((inserted as any).id ?? null);
+                    setEditingId((inserted as any).id ?? null);
+                    setMode("edit");
                 }
             }
 
-            setMode("view");
-            setEditingId(null);
+            if (closeAfterSave) {
+                await loadCharacters();
+                setMode("view");
+                setEditingId(null);
+            }
         } catch (e: any) {
             console.error(e);
-            setError(e?.message ?? "Error guardando el personaje.");
+            if (!fromAutoSave) {
+                setError(e?.message ?? "Error guardando el personaje.");
+            }
+        } finally {
+            persistInFlightRef.current = false;
+            if (fromAutoSave) setAutoSaving(false);
         }
+    }
+
+    async function handleSaveCharacter(e: FormEvent) {
+        e.preventDefault();
+        await persistCharacter({ closeAfterSave: true, fromAutoSave: false });
     }
 
     // BORRAR personaje: BORRADO REAL en la BD + recarga de la lista
@@ -425,21 +555,287 @@ export default function CampaignPlayerPage() {
     }
 
     const selectedChar = characters.find((c) => c.id === selectedId) ?? null;
+    const ownedCompanions = selectedChar
+        ? characters.filter(
+            (companion) =>
+                companion.character_type === "companion" &&
+                companion.details?.companionOwnerId === selectedChar.id
+        )
+        : [];
+    const unassignedCompanions = selectedChar
+        ? characters.filter(
+            (companion) =>
+                companion.character_type === "companion" &&
+                !companion.details?.companionOwnerId
+        )
+        : [];
+    const companionsForTabs =
+        ownedCompanions.length > 0 ? ownedCompanions : unassignedCompanions;
+    const showCompanionsTab = companionsForTabs.length > 0;
     const ownerOptions = characters
         .filter((c) => c.character_type !== "companion")
         .map((c) => ({ id: c.id, name: c.name }));
-    const createTitle = characterType === "companion" ? "Nuevo compañero" : "Nuevo personaje";
+    const createTitle =
+        characterType === "companion"
+            ? tr(locale, "Nuevo compañero", "New companion")
+            : tr(locale, "Nuevo personaje", "New character");
+
+    function localizedClassLabel(rawClass: string | null | undefined): string {
+        const normalized = (rawClass ?? "").toLowerCase().trim();
+        const labels: Record<string, { es: string; en: string }> = {
+            barbarian: { es: "Barbaro", en: "Barbarian" },
+            bard: { es: "Bardo", en: "Bard" },
+            cleric: { es: "Clerigo", en: "Cleric" },
+            druid: { es: "Druida", en: "Druid" },
+            fighter: { es: "Guerrero", en: "Fighter" },
+            monk: { es: "Monje", en: "Monk" },
+            paladin: { es: "Paladin", en: "Paladin" },
+            ranger: { es: "Explorador", en: "Ranger" },
+            rogue: { es: "Picaro", en: "Rogue" },
+            sorcerer: { es: "Hechicero", en: "Sorcerer" },
+            warlock: { es: "Brujo", en: "Warlock" },
+            wizard: { es: "Mago", en: "Wizard" },
+            artificer: { es: "Artificiero", en: "Artificer" },
+            custom: { es: "Clase personalizada", en: "Custom class" },
+        };
+        const fallback = prettyClassLabel(rawClass ?? null, locale);
+        if (!normalized) return tr(locale, "Sin clase", "No class");
+        return labels[normalized]?.[locale === "en" ? "en" : "es"] ?? fallback;
+    }
+
+    function classLabelWithSubclass(char: Character): string {
+        const baseLabel = localizedClassLabel(char.class);
+        const customSubclassName =
+            char.details?.classSubclassId && Array.isArray(char.details?.customSubclasses)
+                ? char.details.customSubclasses.find(
+                      (subclass) => subclass.id === char.details?.classSubclassId
+                  )?.name
+                : undefined;
+        const subclassName =
+            getSubclassName(char.class, char.details?.classSubclassId ?? null, locale) ??
+            customSubclassName ??
+            char.details?.classSubclassName;
+        return subclassName ? `${baseLabel} (${subclassName})` : baseLabel;
+    }
+
+    function characterSummary(char: Character): string {
+        return `${char.race || tr(locale, "Sin raza", "No race")} · ${classLabelWithSubclass(char)} · ${tr(locale, "Nivel", "Level")} ${char.level ?? "?"}`;
+    }
+
+    const autoSaveSignature = useMemo(
+        () =>
+            JSON.stringify({
+                mode,
+                editingId,
+                charName,
+                characterType,
+                companionOwnerId,
+                charClass,
+                classSubclassId,
+                charLevel,
+                race,
+                experience,
+                armorClass,
+                speed,
+                currentHp,
+                hitDieSides,
+                str,
+                dex,
+                con,
+                intStat,
+                wis,
+                cha,
+                weaponName,
+                weaponDamage,
+                weaponDescription,
+                weaponStatAbility,
+                weaponStatModifier,
+                weaponProficient: weaponProficientFlag,
+                weaponEquipped: weaponEquippedFlag,
+                weaponPassiveModifiers,
+                inventory,
+                equipment,
+                abilities,
+                weaponsExtra,
+                notes,
+                portraitNote,
+                background,
+                alignment,
+                personalityTraits,
+                ideals,
+                bonds,
+                flaws,
+                appearance,
+                backstory,
+                languages,
+                proficiencies,
+                skillProficiencies,
+                customSections,
+                items,
+                customSpells,
+                customCantrips,
+                customTraits,
+                customClassAbilities,
+                customSubclasses,
+                spellsL0,
+                spellsL1,
+                spellsL2,
+                spellsL3,
+                spellsL4,
+                spellsL5,
+                spellsL6,
+                spellsL7,
+                spellsL8,
+                spellsL9,
+                customClassName,
+                customCastingAbility,
+                armors,
+            }),
+        [
+            mode,
+            editingId,
+            charName,
+            characterType,
+            companionOwnerId,
+            charClass,
+            classSubclassId,
+            charLevel,
+            race,
+            experience,
+            armorClass,
+            speed,
+            currentHp,
+            hitDieSides,
+            str,
+            dex,
+            con,
+            intStat,
+            wis,
+            cha,
+            weaponName,
+            weaponDamage,
+            weaponDescription,
+            weaponStatAbility,
+            weaponStatModifier,
+            weaponProficientFlag,
+            weaponEquippedFlag,
+            weaponPassiveModifiers,
+            inventory,
+            equipment,
+            abilities,
+            weaponsExtra,
+            notes,
+            portraitNote,
+            background,
+            alignment,
+            personalityTraits,
+            ideals,
+            bonds,
+            flaws,
+            appearance,
+            backstory,
+            languages,
+            proficiencies,
+            skillProficiencies,
+            customSections,
+            items,
+            customSpells,
+            customCantrips,
+            customTraits,
+            customClassAbilities,
+            customSubclasses,
+            spellsL0,
+            spellsL1,
+            spellsL2,
+            spellsL3,
+            spellsL4,
+            spellsL5,
+            spellsL6,
+            spellsL7,
+            spellsL8,
+            spellsL9,
+            customClassName,
+            customCastingAbility,
+            armors,
+        ]
+    );
+
+    useEffect(() => {
+        if (mode !== "create" && mode !== "edit") return;
+        if (!charName.trim()) return;
+
+        if (autoSaveGuardRef.current) {
+            autoSaveGuardRef.current = false;
+            return;
+        }
+
+        const timeout = setTimeout(() => {
+            void persistCharacter({ closeAfterSave: false, fromAutoSave: true });
+        }, 900);
+
+        return () => clearTimeout(timeout);
+    }, [autoSaveSignature]);
 
     if (!allowed && !loading) {
         return (
             <main className="p-6 text-sm text-ink-muted">
-                No tienes acceso a esta campaña o no se han podido cargar los datos.
+                {tr(
+                    locale,
+                    "No tienes acceso a esta campaña o no se han podido cargar los datos.",
+                    "You do not have access to this campaign or data could not be loaded."
+                )}
             </main>
         );
     }
 
+    async function persistCharactersOrder(nextCharacters: Character[]) {
+        try {
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            if (!session?.user) return;
+
+            await Promise.all(
+                nextCharacters.map((char, index) =>
+                    supabase
+                        .from("characters")
+                        .update({
+                            details: {
+                                ...(char.details ?? {}),
+                                listOrder: index,
+                            },
+                        })
+                        .eq("id", char.id)
+                        .eq("campaign_id", params.id)
+                        .eq("user_id", session.user.id)
+                )
+            );
+        } catch (err) {
+            console.error("Error guardando orden de personajes:", err);
+        }
+    }
+
+    function reorderCharacters(list: Character[], sourceId: string, targetId: string) {
+        const sourceIndex = list.findIndex((ch) => ch.id === sourceId);
+        const targetIndex = list.findIndex((ch) => ch.id === targetId);
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return list;
+
+        const next = [...list];
+        const [moved] = next.splice(sourceIndex, 1);
+        next.splice(targetIndex, 0, moved);
+
+        return next.map((char, index) => ({
+            ...char,
+            details: {
+                ...(char.details ?? {}),
+                listOrder: index,
+            },
+        }));
+    }
+
     // Drag handlers para las filas -> asignados en el render del listado
     function handleDragStartCharacter(event: DragEvent, charId: string) {
+        setDraggedCharacterId(charId);
         try {
             const payload = JSON.stringify({ type: "character", id: charId });
             event.dataTransfer.setData("application/x-dnd-manager-item", payload);
@@ -449,6 +845,41 @@ export default function CampaignPlayerPage() {
         }
     }
 
+    function handleDragOverCharacter(event: DragEvent, charId: string) {
+        event.preventDefault();
+        if (!draggedCharacterId || draggedCharacterId === charId) return;
+        setDragOverCharacterId(charId);
+        event.dataTransfer.dropEffect = "move";
+    }
+
+    function handleDropOnCharacter(event: DragEvent, targetId: string) {
+        event.preventDefault();
+        setDragOverCharacterId(null);
+
+        const raw = event.dataTransfer.getData("application/x-dnd-manager-item");
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw) as { type?: string; id?: string };
+            if (parsed?.type !== "character" || !parsed.id || parsed.id === targetId) return;
+
+            setCharacters((prev) => {
+                const next = reorderCharacters(prev, parsed.id as string, targetId);
+                void persistCharactersOrder(next);
+                return next;
+            });
+        } catch {
+            // ignore
+        } finally {
+            setDraggedCharacterId(null);
+        }
+    }
+
+    function handleDragEndCharacter() {
+        setDraggedCharacterId(null);
+        setDragOverCharacterId(null);
+    }
+
     function handleTrashDragOver(e: DragEvent) {
         e.preventDefault();
         setIsOverTrash(true);
@@ -456,11 +887,14 @@ export default function CampaignPlayerPage() {
     }
     function handleTrashDragLeave() {
         setIsOverTrash(false);
+        setDragOverCharacterId(null);
     }
 
     function handleTrashDrop(e: DragEvent) {
         e.preventDefault();
         setIsOverTrash(false);
+        setDragOverCharacterId(null);
+        setDraggedCharacterId(null);
         const raw = e.dataTransfer.getData("application/x-dnd-manager-item");
         if (!raw) return;
         try {
@@ -478,21 +912,20 @@ export default function CampaignPlayerPage() {
         }
     }
 
-    // --- small helpers for animated classes
-    const asideWidthOpen = "w-72";
-    const asideWidthClosed = "w-12";
-    const asideTransition = "transition-[width,background-color,box-shadow] duration-300 ease-in-out";
+    // --- helpers responsive panel
+    const asideTransition =
+        "transition-[transform,width,background-color,box-shadow] duration-300 ease-in-out";
 
     // === mounted guard: si no estamos montados en cliente, devolvemos placeholder neutro
     if (!mounted) {
         return (
-            <main className="flex min-h-screen bg-surface text-ink">
-                <aside className="w-72 border-r border-ring bg-panel/90 p-4 space-y-4">
+            <main className="relative flex min-h-[100dvh] bg-surface text-ink overflow-x-hidden">
+                <aside className="hidden md:block w-72 border-r border-ring bg-panel/90 p-4 space-y-4">
                     <div className="h-8 bg-ink/5 rounded w-2/3" />
                     <div className="h-6 bg-ink/10 rounded w-1/2 mt-2" />
                 </aside>
 
-                <section className="flex-1 p-6">
+                <section className="flex-1 min-w-0 p-3 sm:p-4 md:p-6">
                     <div className="rounded-xl bg-panel/80 border border-ring p-4 h-24" />
                 </section>
             </main>
@@ -500,17 +933,42 @@ export default function CampaignPlayerPage() {
     }
 
     return (
-        <main className="flex min-h-screen bg-surface text-ink">
+        <main className="relative flex min-h-[100dvh] bg-surface text-ink overflow-x-hidden">
+            {!charsOpen && (
+                <button
+                    type="button"
+                    onClick={() => setCharsOpen(true)}
+                    className="md:hidden fixed top-3 left-3 z-50 rounded-full p-2 border border-ring bg-panel/95 shadow-sm"
+                    aria-label={tr(locale, "Abrir lista de personajes", "Open character list")}
+                    title={tr(locale, "Abrir lista", "Open list")}
+                >
+                    <Menu className="h-4 w-4 text-ink" />
+                </button>
+            )}
+
+            {charsOpen && (
+                <button
+                    type="button"
+                    onClick={() => setCharsOpen(false)}
+                    className="md:hidden fixed inset-0 z-30 bg-black/25"
+                    aria-label={tr(locale, "Cerrar lista de personajes", "Close character list")}
+                />
+            )}
+
             {/* PANEL personajes en la IZQUIERDA */}
             <aside
-                className={`relative flex flex-col border-r border-ring ${asideTransition} ${charsOpen ? asideWidthOpen : asideWidthClosed}
+                className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-ring ${asideTransition}
+          w-[88vw] max-w-[330px]
+          ${charsOpen ? "translate-x-0" : "-translate-x-full"}
+          md:relative md:inset-auto md:z-10 md:max-w-none
+          md:translate-x-0 ${charsOpen ? "md:w-72" : "md:w-12"}
           rounded-r-3xl overflow-visible
           bg-panel/90 shadow-[0_18px_50px_rgba(45,29,12,0.18)]`}
                 aria-hidden={!charsOpen}
             >
                 <div
                     className={`flex-1 flex flex-col p-4 h-full
-            ${charsOpen ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 -translate-x-2 pointer-events-none"}
+            ${charsOpen ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 -translate-x-2 pointer-events-none md:pointer-events-none"}
             transition-all duration-300 ease-in-out`}
                 >
                     <div className="flex items-center justify-between mb-3 pb-3 border-b border-ring">
@@ -519,44 +977,68 @@ export default function CampaignPlayerPage() {
                                 <Menu className="h-4 w-4 text-ink" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-semibold text-ink leading-tight">Tus personajes</h2>
-                                <p className="text-[11px] text-ink-muted mt-0.5">Gestiona tus personajes de campaña</p>
+                                <h2 className="text-lg font-semibold text-ink leading-tight">
+                                    {tr(locale, "Tus personajes", "Your characters")}
+                                </h2>
+                                <p className="text-[11px] text-ink-muted mt-0.5">
+                                    {tr(locale, "Gestiona tus personajes de campaña", "Manage your campaign characters")}
+                                </p>
                             </div>
                         </div>
 
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <div className="grid grid-cols-2 gap-2 mb-3">
                         <button
                             type="button"
                             onClick={() => startCreate("character")}
-                            className="text-[11px] px-2 py-1 rounded-md border border-accent/60 text-accent-strong hover:bg-accent/10"
+                            className="w-full text-[11px] px-3 py-2 rounded-md border border-accent/60 text-accent-strong hover:bg-accent/10 flex items-center justify-center"
                         >
-                            Nuevo PJ
+                            {tr(locale, "Nuevo PJ", "New character")}
                         </button>
                         <button
                             type="button"
                             onClick={() => startCreate("companion")}
-                            className="text-[11px] px-2 py-1 rounded-md border border-ring text-ink hover:bg-ink/5"
+                            className="w-full text-[11px] px-3 py-2 rounded-md border border-ring text-ink hover:bg-ink/5 flex items-center justify-center"
                         >
-                            Nuevo compañero
+                            {tr(locale, "Nuevo compañero", "New companion")}
                         </button>
                     </div>
 
                     <div className="flex-1 overflow-auto styled-scrollbar">
                         {loading ? (
-                            <p className="text-xs text-ink-muted">Cargando...</p>
+                            <p className="text-xs text-ink-muted">{tr(locale, "Cargando...", "Loading...")}</p>
                         ) : characters.length === 0 ? (
-                            <p className="text-xs text-ink-muted">Todavía no tienes personajes en esta campaña.</p>
+                            <p className="text-xs text-ink-muted">
+                                {tr(
+                                    locale,
+                                    "Todavia no tienes personajes en esta campaña.",
+                                    "You do not have characters in this campaign yet."
+                                )}
+                            </p>
                         ) : (
-                            <ul className="space-y-2 text-sm">
+                            <ul className="w-full space-y-2 text-sm px-1">
                                 {characters.map((ch) => (
-                                    <li key={ch.id} className="relative flex items-center gap-3" draggable onDragStart={(e) => handleDragStartCharacter(e, ch.id)}>
-                                        <div className="flex-1">
+                                    <li
+                                        key={ch.id}
+                                        className={`relative grid w-full grid-cols-[minmax(0,1fr)_36px] items-stretch gap-3 ${
+                                            dragOverCharacterId === ch.id
+                                                ? "ring-2 ring-accent/45 rounded-md"
+                                                : ""
+                                        }`}
+                                        draggable
+                                        onDragStart={(e) => handleDragStartCharacter(e, ch.id)}
+                                        onDragOver={(e) => handleDragOverCharacter(e, ch.id)}
+                                        onDrop={(e) => handleDropOnCharacter(e, ch.id)}
+                                        onDragEnd={handleDragEndCharacter}
+                                    >
+                                        <div className="min-w-0">
                                             <ClickableRow
                                                 onClick={() => selectCharacter(ch.id)}
-                                                className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 ${
-                                                    selectedId === ch.id ? "border-accent bg-accent/10" : "border-ring bg-white/80 hover:bg-white"
+                                                className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 transition-all cursor-grab active:cursor-grabbing ${
+                                                    selectedId === ch.id
+                                                        ? "border-accent bg-accent/15 shadow-[0_8px_20px_rgba(179,90,44,0.15)] ring-1 ring-accent/35"
+                                                        : "border-ring/80 bg-white/80 hover:bg-white hover:border-accent/40 hover:shadow-[0_8px_20px_rgba(45,29,12,0.12)]"
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between">
@@ -564,13 +1046,13 @@ export default function CampaignPlayerPage() {
                                                         <div className="flex items-center gap-2 min-w-0">
                                                             <p className="font-medium text-sm text-ink truncate">{ch.name}</p>
                                                             {ch.character_type === "companion" && (
-                                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
-                                                                    Compañero
+                                                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
+                                                                    {tr(locale, "Compañero", "Companion")}
                                                                 </span>
                                                             )}
                                                         </div>
                                                         <p className="text-[11px] text-ink-muted truncate">
-                                                            {ch.race || "Sin raza"} · {prettyClassLabel(ch.class)} · Nivel {ch.level ?? "?"}
+                                                            {characterSummary(ch)}
                                                         </p>
                                                     </div>
 
@@ -583,16 +1065,16 @@ export default function CampaignPlayerPage() {
                                             </ClickableRow>
                                         </div>
 
-                                        <div className="flex-shrink-0 pr-1">
+                                        <div className="w-9 flex items-center justify-center">
                                             <button
                                                 type="button"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     startEdit(ch);
                                                 }}
-                                                className="text-[11px] px-2 py-1 rounded border border-ring hover:bg-ink/5 bg-white/70 flex items-center gap-2 text-ink"
-                                                aria-label={`Editar ${ch.name}`}
-                                                title="Editar"
+                                                className="h-9 w-9 rounded border border-ring hover:bg-ink/5 bg-white/70 inline-flex items-center justify-center text-ink"
+                                                aria-label={`${tr(locale, "Editar", "Edit")} ${ch.name}`}
+                                                title={tr(locale, "Editar", "Edit")}
                                             >
                                                 <Edit2 className="h-4 w-4 text-ember" />
                                             </button>
@@ -614,8 +1096,12 @@ export default function CampaignPlayerPage() {
                         >
                             <Trash2 className="h-5 w-5 text-red-500" />
                             <div>
-                                <p className="text-sm font-medium text-red-600">Arrastra aquí para eliminar</p>
-                                <p className="text-[11px] text-ink-muted">Suelta para eliminar el personaje arrastrado</p>
+                                <p className="text-sm font-medium text-red-600">
+                                    {tr(locale, "Arrastra aqui para eliminar", "Drag here to delete")}
+                                </p>
+                                <p className="text-[11px] text-ink-muted">
+                                    {tr(locale, "Suelta para eliminar el personaje arrastrado", "Release to remove the dragged character")}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -626,48 +1112,149 @@ export default function CampaignPlayerPage() {
                 <button
                     type="button"
                     onClick={() => setCharsOpen((v) => !v)}
-                    className={`absolute top-4 z-30 rounded-full p-2 shadow-sm
+                    className={`hidden md:flex absolute top-4 z-30 rounded-full p-2 shadow-sm
             ${charsOpen ? "right-[-18px] bg-panel border border-ring hover:bg-white" : "right-0 translate-x-1/2 bg-panel border border-ring hover:bg-white"}
             transition-all duration-300 ease-in-out`}
-                    aria-label={charsOpen ? "Cerrar lista de personajes" : "Abrir lista de personajes"}
-                    title={charsOpen ? "Cerrar lista" : "Abrir lista"}
+                    aria-label={
+                        charsOpen
+                            ? tr(locale, "Cerrar lista de personajes", "Close character list")
+                            : tr(locale, "Abrir lista de personajes", "Open character list")
+                    }
+                    title={
+                        charsOpen
+                            ? tr(locale, "Cerrar lista", "Close list")
+                            : tr(locale, "Abrir lista", "Open list")
+                    }
                 >
                     {charsOpen ? <ChevronLeft className="h-4 w-4 text-ink" /> : <ChevronRight className="h-4 w-4 text-ink" />}
                 </button>
+
+                {charsOpen && (
+                    <button
+                        type="button"
+                        onClick={() => setCharsOpen(false)}
+                        className="md:hidden absolute top-3 right-3 rounded-full p-2 border border-ring bg-white/80"
+                        aria-label={tr(locale, "Cerrar lista de personajes", "Close character list")}
+                        title={tr(locale, "Cerrar lista", "Close list")}
+                    >
+                        <ChevronLeft className="h-4 w-4 text-ink" />
+                    </button>
+                )}
             </aside>
 
             {/* Panel derecho (contenido principal) */}
             {/* -> Aquí: dejamos header estático (no sticky) y todo el contenido se desplaza */}
-            <section className="flex-1 p-6 h-screen overflow-hidden flex flex-col">
+            <section className="flex-1 min-w-0 p-3 pt-14 sm:p-4 sm:pt-14 md:p-6 md:pt-6 h-[100dvh] overflow-hidden flex flex-col">
                 {error && (
                     <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2 inline-block">
                         {error}
                     </p>
                 )}
 
-                <div className="rounded-2xl bg-panel/80 border border-ring divide-y divide-ring overflow-hidden shadow-[0_18px_50px_rgba(45,29,12,0.12)] flex flex-col h-full">
+                <div className="min-w-0 rounded-2xl bg-panel/80 border border-ring divide-y divide-ring overflow-hidden shadow-[0_18px_50px_rgba(45,29,12,0.12)] flex flex-col h-full">
                     {/* HEADER: ahora estático (no sticky) */}
-                    <div className="p-4 flex-shrink-0">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
+                    <div className="px-4 pt-4 pb-0 flex-shrink-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 min-w-0">
+                            <div className="min-w-0">
                                 <h1 className="text-lg font-semibold text-ink">
                                     {mode === "create"
                                         ? createTitle
-                                        : selectedChar?.name ?? "Personaje"}
+                                        : selectedChar?.name ?? tr(locale, "Personaje", "Character")}
                                 </h1>
-                                <p className="text-xs text-ink-muted mt-1">
+                                <p className="text-xs text-ink-muted mt-1 break-words">
                                     {selectedChar
-                                        ? `${selectedChar.race ?? "Sin raza"} · ${prettyClassLabel(selectedChar.class)} · Nivel ${selectedChar.level ?? "?"}`
-                                        : `Crea o selecciona un ${characterType === "companion" ? "compañero" : "personaje"}`}
+                                        ? characterSummary(selectedChar)
+                                        : tr(
+                                            locale,
+                                            `Crea o selecciona un ${characterType === "companion" ? "compañero" : "personaje"}`,
+                                            `Create or select a ${characterType === "companion" ? "companion" : "character"}`
+                                        )}
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2" />
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSettingsOpen(true)}
+                                    className="inline-flex items-center gap-2 rounded-md border border-ring bg-white/70 px-3 py-1.5 text-[11px] text-ink hover:bg-white"
+                                    aria-label={tr(locale, "Abrir ajustes", "Open settings")}
+                                    title={tr(locale, "Ajustes", "Settings")}
+                                >
+                                    <Settings className="h-3.5 w-3.5 text-ink" />
+                                    <span className="hidden sm:inline">{tr(locale, "Ajustes", "Settings")}</span>
+                                </button>
+                                {(mode === "create" || mode === "edit") && (
+                                    <span className="text-[11px] text-ink-muted">
+                                        {autoSaving
+                                            ? tr(locale, "Guardado automatico...", "Auto-saving...")
+                                            : tr(locale, "Guardado automatico activo", "Auto-save active")}
+                                    </span>
+                                )}
+                            </div>
                         </div>
+
+                        {rightPanelMode === "character" && mode === "view" && selectedChar && (
+                            <div className="mt-4 -mx-4 px-4 pt-4 border-t border-ring/70 bg-panel/95">
+                                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 text-sm sm:overflow-x-auto sm:whitespace-nowrap styled-scrollbar pb-0">
+                                    <button
+                                        onClick={() => setActiveTab("stats")}
+                                        className={`pt-2 pb-0 border-b-2 transition-colors ${
+                                            activeTab === "stats"
+                                                ? "border-accent text-ink"
+                                                : "border-transparent text-ink-muted hover:text-ink"
+                                        }`}
+                                    >
+                                        {tr(locale, "Hoja", "Sheet")}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("spells")}
+                                        className={`pt-2 pb-0 border-b-2 transition-colors ${
+                                            activeTab === "spells"
+                                                ? "border-accent text-ink"
+                                                : "border-transparent text-ink-muted hover:text-ink"
+                                        }`}
+                                    >
+                                        {tr(locale, "Reverso · Magia y rasgos", "Back · Magic and traits")}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("classFeatures")}
+                                        className={`pt-2 pb-0 border-b-2 transition-colors ${
+                                            activeTab === "classFeatures"
+                                                ? "border-accent text-ink"
+                                                : "border-transparent text-ink-muted hover:text-ink"
+                                        }`}
+                                    >
+                                        {tr(locale, "Habilidades de clase", "Class features")}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("inventory")}
+                                        className={`pt-2 pb-0 border-b-2 transition-colors ${
+                                            activeTab === "inventory"
+                                                ? "border-accent text-ink"
+                                                : "border-transparent text-ink-muted hover:text-ink"
+                                        }`}
+                                    >
+                                        {tr(locale, "Reverso · Inventario", "Back · Inventory")}
+                                    </button>
+                                    {showCompanionsTab && (
+                                        <button
+                                            onClick={() => setActiveTab("companions")}
+                                            className={`pt-2 pb-0 border-b-2 transition-colors ${
+                                                activeTab === "companions"
+                                                    ? "border-accent text-ink"
+                                                    : "border-transparent text-ink-muted hover:text-ink"
+                                            }`}
+                                        >
+                                            {tr(locale, "Compañeros", "Companions")}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* CONTENIDO: aquí está el scroll interno — las pestañas se renderizan dentro de CharacterView */}
-                    <div className="p-4 flex-1 overflow-y-auto styled-scrollbar">
+                    {/* CONTENIDO con scroll interno */}
+                    <div className="relative p-4 min-w-0 flex-1 overflow-y-auto overflow-x-hidden styled-scrollbar">
                         {rightPanelMode === "character" && (
                             <>
                                 {mode === "view" && selectedChar && (
@@ -676,6 +1263,7 @@ export default function CampaignPlayerPage() {
                                         companions={characters}
                                         activeTab={activeTab}
                                         onTabChange={setActiveTab}
+                                        renderTabs={false}
                                         onImageUpdated={loadCharacters}
                                         onDetailsChange={(newDetails: Details) => {
                                             setCharacters((prev) =>
@@ -700,7 +1288,9 @@ export default function CampaignPlayerPage() {
                                 )}
 
                                 {mode === "view" && !selectedChar && (
-                                    <p className="text-sm text-ink-muted">Selecciona un personaje en la lista o crea uno nuevo.</p>
+                                    <p className="text-sm text-ink-muted">
+                                        {tr(locale, "Selecciona un personaje en la lista o crea uno nuevo.", "Select a character from the list or create a new one.")}
+                                    </p>
                                 )}
                             </>
                         )}

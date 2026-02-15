@@ -1,0 +1,348 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "backgrounds",
+  "endpoint": "/api/2014/backgrounds",
+  "count": 1,
+  "results": [
+    {
+      "index": "acolyte",
+      "name": "Acólito",
+      "starting_proficiencies": [
+        {
+          "index": "skill-insight",
+          "name": "Habilidad: Perspicacia",
+          "url": "/api/2014/proficiencies/skill-insight"
+        },
+        {
+          "index": "skill-religion",
+          "name": "Habilidad: Religión",
+          "url": "/api/2014/proficiencies/skill-religion"
+        }
+      ],
+      "language_options": {
+        "choose": 2,
+        "type": "idiomas",
+        "from": {
+          "option_set_type": "resource_list",
+          "resource_list_url": "/api/2014/languages"
+        }
+      },
+      "starting_equipment": [
+        {
+          "equipment": {
+            "index": "clothes-common",
+            "name": "ropa, común",
+            "url": "/api/2014/equipment/clothes-common"
+          },
+          "quantity": 1
+        },
+        {
+          "equipment": {
+            "index": "pouch",
+            "name": "Bolsa",
+            "url": "/api/2014/equipment/pouch"
+          },
+          "quantity": 1
+        }
+      ],
+      "starting_equipment_options": [
+        {
+          "choose": 1,
+          "type": "equipo",
+          "from": {
+            "option_set_type": "equipment_category",
+            "equipment_category": {
+              "index": "holy-symbols",
+              "name": "Símbolos santos",
+              "url": "/api/2014/equipment-categories/holy-symbols"
+            }
+          }
+        }
+      ],
+      "feature": {
+        "name": "Refugio de los fieles",
+        "desc": [
+          "Como acólito, inspiras el respeto de quienes comparten tu fe y puedes realizar las ceremonias religiosas de tu deidad. Tú y tus compañeros de aventuras podéis esperar recibir curación y cuidados gratuitos en un templo, santuario u otra presencia establecida de vuestra fe, aunque debéis proporcionar todos los componentes materiales necesarios para los hechizos.\n\nAquellos que comparten tu religión te apoyarán (pero sólo a ti) en un estilo de vida modesto.",
+          "También es posible que tengas vínculos con un templo específico dedicado a la deidad o panteón que hayas elegido y que tengas una residencia allí. Este podría ser el templo donde solías servir, si sigues en buenos términos con él, o un templo donde has encontrado un nuevo hogar.\n\nMientras estés cerca de tu templo, puedes pedir ayuda a los sacerdotes, siempre que la asistencia que solicites no sea peligrosa y te mantengas al día con tu templo."
+        ]
+      },
+      "personality_traits": {
+        "choose": 2,
+        "type": "personality_traits",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "cadena",
+              "string": "Idolatra a un héroe particular de mi fe y constantemente me refiero a los hechos y el ejemplo de esa persona."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Puedo encontrar puntos en común entre los enemigos más feroces, empatizando con ellos y trabajando siempre por la paz."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Veo presagios en cada evento y acción. Los dioses intentan hablarnos, sólo necesitamos escuchar."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Nada puede sacudir mi actitud optimista."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Cito (o cito mal) textos sagrados y proverbios en casi todas las situaciones."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Soy tolerante (o intolerante) con otras religiones y respeto (o condeno) el culto a otros dioses."
+            },
+            {
+              "option_type": "cadena",
+              "string": "He disfrutado de la buena comida, la bebida y la alta sociedad entre la élite de mi templo. La vida dura me irrita."
+            },
+            {
+              "option_type": "cadena",
+              "string": "He pasado tanto tiempo en el templo que tengo poca experiencia práctica en el trato con personas del mundo exterior."
+            }
+          ]
+        }
+      },
+      "ideals": {
+        "choose": 1,
+        "type": "ideales",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "ideal",
+              "desc": "Tradición. Es necesario preservar y defender las antiguas tradiciones de adoración y sacrificio.",
+              "alignments": [
+                {
+                  "index": "lawful-good",
+                  "name": "Bien lícito",
+                  "url": "/api/2014/alignments/lawful-good"
+                },
+                {
+                  "index": "lawful-neutral",
+                  "name": "Neutral legal",
+                  "url": "/api/2014/alignments/lawful-neutral"
+                },
+                {
+                  "index": "lawful-evil",
+                  "name": "Maldad legal",
+                  "url": "/api/2014/alignments/lawful-evil"
+                }
+              ]
+            },
+            {
+              "option_type": "ideal",
+              "desc": "Caridad. Siempre trato de ayudar a los necesitados, sin importar el costo personal.",
+              "alignments": [
+                {
+                  "index": "lawful-good",
+                  "name": "Bien lícito",
+                  "url": "/api/2014/alignments/lawful-good"
+                },
+                {
+                  "index": "neutral-good",
+                  "name": "Neutro Bueno",
+                  "url": "/api/2014/alignments/neutral-good"
+                },
+                {
+                  "index": "chaotic-good",
+                  "name": "Bien caótico",
+                  "url": "/api/2014/alignments/chaotic-good"
+                }
+              ]
+            },
+            {
+              "option_type": "ideal",
+              "desc": "Cambiar. Debemos ayudar a lograr los cambios que los dioses están trabajando constantemente en el mundo.",
+              "alignments": [
+                {
+                  "index": "chaotic-good",
+                  "name": "Bien caótico",
+                  "url": "/api/2014/alignments/chaotic-good"
+                },
+                {
+                  "index": "chaotic-neutral",
+                  "name": "Neutral caótico",
+                  "url": "/api/2014/alignments/chaotic-neutral"
+                },
+                {
+                  "index": "chaotic-evil",
+                  "name": "Mal caótico",
+                  "url": "/api/2014/alignments/chaotic-evil"
+                }
+              ]
+            },
+            {
+              "option_type": "ideal",
+              "desc": "Fuerza. Espero algún día llegar a la cima de la jerarquía religiosa de mi fe.",
+              "alignments": [
+                {
+                  "index": "lawful-good",
+                  "name": "Bien lícito",
+                  "url": "/api/2014/alignments/lawful-good"
+                },
+                {
+                  "index": "lawful-neutral",
+                  "name": "Neutral legal",
+                  "url": "/api/2014/alignments/lawful-neutral"
+                },
+                {
+                  "index": "lawful-evil",
+                  "name": "Maldad legal",
+                  "url": "/api/2014/alignments/lawful-evil"
+                }
+              ]
+            },
+            {
+              "option_type": "ideal",
+              "desc": "Fe. Confío en que mi deidad guiará mis acciones. Tengo fe en que si trabajo duro las cosas saldrán bien.",
+              "alignments": [
+                {
+                  "index": "lawful-good",
+                  "name": "Bien lícito",
+                  "url": "/api/2014/alignments/lawful-good"
+                },
+                {
+                  "index": "lawful-neutral",
+                  "name": "Neutral legal",
+                  "url": "/api/2014/alignments/lawful-neutral"
+                },
+                {
+                  "index": "lawful-evil",
+                  "name": "Maldad legal",
+                  "url": "/api/2014/alignments/lawful-evil"
+                }
+              ]
+            },
+            {
+              "option_type": "ideal",
+              "desc": "Aspiración. Busco demostrar que soy digno del favor de mi dios comparando mis acciones con sus enseñanzas.",
+              "alignments": [
+                {
+                  "index": "lawful-good",
+                  "name": "Bien lícito",
+                  "url": "/api/2014/alignments/lawful-good"
+                },
+                {
+                  "index": "neutral-good",
+                  "name": "Neutro Bueno",
+                  "url": "/api/2014/alignments/neutral-good"
+                },
+                {
+                  "index": "chaotic-good",
+                  "name": "Bien caótico",
+                  "url": "/api/2014/alignments/chaotic-good"
+                },
+                {
+                  "index": "lawful-neutral",
+                  "name": "Neutral legal",
+                  "url": "/api/2014/alignments/lawful-neutral"
+                },
+                {
+                  "index": "neutral",
+                  "name": "Neutral",
+                  "url": "/api/2014/alignments/neutral"
+                },
+                {
+                  "index": "chaotic-neutral",
+                  "name": "Neutral caótico",
+                  "url": "/api/2014/alignments/chaotic-neutral"
+                },
+                {
+                  "index": "lawful-evil",
+                  "name": "Maldad legal",
+                  "url": "/api/2014/alignments/lawful-evil"
+                },
+                {
+                  "index": "neutral-evil",
+                  "name": "Maldad neutral",
+                  "url": "/api/2014/alignments/neutral-evil"
+                },
+                {
+                  "index": "chaotic-evil",
+                  "name": "Mal caótico",
+                  "url": "/api/2014/alignments/chaotic-evil"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "bonds": {
+        "choose": 1,
+        "type": "cautiverio",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "cadena",
+              "string": "Moriría por recuperar una antigua reliquia de mi fe que se perdió hace mucho tiempo."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Algún día me vengaré de la corrupta jerarquía del templo que me tachó de hereje."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Le debo la vida al sacerdote que me acogió cuando murieron mis padres."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Todo lo que hago es para la gente común."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Haré cualquier cosa para proteger el templo donde serví."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Busco preservar un texto sagrado que mis enemigos consideran herético y buscan destruir."
+            }
+          ]
+        }
+      },
+      "flaws": {
+        "choose": 1,
+        "type": "defectos",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "cadena",
+              "string": "Juzgo a los demás con dureza y a mí mismo con más severidad aún."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Confío demasiado en aquellos que ejercen el poder dentro de la jerarquía de mi templo."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Mi piedad me lleva a veces a confiar ciegamente en quienes profesan fe en mi dios."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Soy inflexible en mi pensamiento."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Sospecho de los extraños y espero lo peor de ellos."
+            },
+            {
+              "option_type": "cadena",
+              "string": "Una vez que elijo una meta, me obsesiono con ella en detrimento de todo lo demás en mi vida."
+            }
+          ]
+        }
+      },
+      "url": "/api/2014/backgrounds/acolyte",
+      "updated_at": "2025-10-24T20:42:12.352Z"
+    }
+  ]
+}

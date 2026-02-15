@@ -1,0 +1,865 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "races",
+  "endpoint": "/api/2014/races",
+  "count": 9,
+  "results": [
+    {
+      "index": "dragonborn",
+      "name": "nacido de dragón",
+      "speed": 30,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "str",
+            "name": "STR",
+            "url": "/api/2014/ability-scores/str"
+          },
+          "bonus": 2
+        },
+        {
+          "ability_score": {
+            "index": "cha",
+            "name": "CHA",
+            "url": "/api/2014/ability-scores/cha"
+          },
+          "bonus": 1
+        }
+      ],
+      "alignment": "Los Dragonborn tienden a los extremos, tomando una decisión consciente por un lado u otro en la guerra cósmica entre el bien y el mal. La mayoría de los dragonborn son buenos, pero aquellos que se ponen del lado del mal pueden ser villanos terribles.",
+      "age": "Los jóvenes nacidos de dragón crecen rápidamente. Caminan horas después de nacer, alcanzan el tamaño y desarrollo de un niño humano de 10 años a los 3 años y alcanzan la edad adulta a los 15. Viven hasta los 80 años.",
+      "size": "Medio",
+      "size_description": "Los Dragonborn son más altos y pesados ​​que los humanos, miden más de 6 pies de altura y pesan un promedio de casi 250 libras. Tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "draconic",
+          "name": "dracónico",
+          "url": "/api/2014/languages/draconic"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir común y dracónico. Se cree que el dracónico es uno de los lenguajes más antiguos y se utiliza a menudo en el estudio de la magia. El lenguaje suena duro para la mayoría de las demás criaturas e incluye numerosas consonantes y sibilantes fuertes.",
+      "traits": [
+        {
+          "index": "draconic-ancestry",
+          "name": "Ascendencia dracónica",
+          "url": "/api/2014/traits/draconic-ancestry"
+        },
+        {
+          "index": "breath-weapon",
+          "name": "Arma de aliento",
+          "url": "/api/2014/traits/breath-weapon"
+        },
+        {
+          "index": "damage-resistance",
+          "name": "Resistencia al daño",
+          "url": "/api/2014/traits/damage-resistance"
+        }
+      ],
+      "subraces": [],
+      "url": "/api/2014/races/dragonborn",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "dwarf",
+      "name": "Enano",
+      "speed": 25,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "con",
+            "name": "CON",
+            "url": "/api/2014/ability-scores/con"
+          },
+          "bonus": 2
+        }
+      ],
+      "alignment": "La mayoría de los enanos son legales y creen firmemente en los beneficios de una sociedad bien ordenada. También tienden al bien, con un fuerte sentido del juego limpio y la creencia de que todos merecen compartir los beneficios de un orden justo.",
+      "age": "Los enanos maduran al mismo ritmo que los humanos, pero se les considera jóvenes hasta los 50 años. En promedio, viven unos 350 años.",
+      "size": "Medio",
+      "size_description": "Los enanos miden entre 4 y 5 pies de altura y pesan en promedio alrededor de 150 libras. Tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "dwarvish",
+          "name": "enano",
+          "url": "/api/2014/languages/dwarvish"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir en común y enano. El enano está lleno de consonantes duras y sonidos guturales, y esas características se extienden a cualquier otro idioma que pueda hablar un enano.",
+      "traits": [
+        {
+          "index": "darkvision",
+          "name": "Visión oscura",
+          "url": "/api/2014/traits/darkvision"
+        },
+        {
+          "index": "dwarven-resilience",
+          "name": "Resiliencia enana",
+          "url": "/api/2014/traits/dwarven-resilience"
+        },
+        {
+          "index": "stonecunning",
+          "name": "astucia de piedra",
+          "url": "/api/2014/traits/stonecunning"
+        },
+        {
+          "index": "dwarven-combat-training",
+          "name": "Entrenamiento de combate enano",
+          "url": "/api/2014/traits/dwarven-combat-training"
+        },
+        {
+          "index": "tool-proficiency",
+          "name": "Competencia con la herramienta",
+          "url": "/api/2014/traits/tool-proficiency"
+        }
+      ],
+      "subraces": [
+        {
+          "index": "hill-dwarf",
+          "name": "Enano de la colina",
+          "url": "/api/2014/subraces/hill-dwarf"
+        }
+      ],
+      "url": "/api/2014/races/dwarf",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "elf",
+      "name": "Duende",
+      "speed": 30,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "dex",
+            "name": "DEX",
+            "url": "/api/2014/ability-scores/dex"
+          },
+          "bonus": 2
+        }
+      ],
+      "age": "Aunque los elfos alcanzan la madurez física aproximadamente a la misma edad que los humanos, la comprensión élfica de la edad adulta va más allá del crecimiento físico para abarcar la experiencia mundana. Un elfo suele reclamar la edad adulta y un nombre de adulto alrededor de los 100 años y puede vivir hasta los 750 años.",
+      "alignment": "Los elfos aman la libertad, la variedad y la autoexpresión, por lo que se inclinan fuertemente hacia los aspectos más suaves del caos. Valoran y protegen la libertad de los demás así como la suya propia, y la mayoría de las veces son buenos.",
+      "size": "Medio",
+      "size_description": "Los elfos miden entre menos de 5 y más de 6 pies de altura y tienen constituciones delgadas. Tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "elvish",
+          "name": "Mágico",
+          "url": "/api/2014/languages/elvish"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir común y élfico. El élfico es fluido, con entonaciones sutiles y una gramática compleja. La literatura élfica es rica y variada, y sus canciones y poemas son famosos entre otras razas. Muchos bardos aprenden su idioma para poder agregar baladas élficas a sus repertorios.",
+      "traits": [
+        {
+          "index": "darkvision",
+          "name": "Visión oscura",
+          "url": "/api/2014/traits/darkvision"
+        },
+        {
+          "index": "fey-ancestry",
+          "name": "Ascendencia Fey",
+          "url": "/api/2014/traits/fey-ancestry"
+        },
+        {
+          "index": "trance",
+          "name": "Trance",
+          "url": "/api/2014/traits/trance"
+        },
+        {
+          "index": "keen-senses",
+          "name": "Sentidos agudos",
+          "url": "/api/2014/traits/keen-senses"
+        }
+      ],
+      "subraces": [
+        {
+          "index": "high-elf",
+          "name": "Alto Elfo",
+          "url": "/api/2014/subraces/high-elf"
+        }
+      ],
+      "url": "/api/2014/races/elf",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "gnome",
+      "name": "Gnomo",
+      "speed": 25,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "int",
+            "name": "INT",
+            "url": "/api/2014/ability-scores/int"
+          },
+          "bonus": 2
+        }
+      ],
+      "alignment": "Los gnomos suelen ser buenos. Quienes tienden hacia la ley son sabios, ingenieros, investigadores, eruditos, investigadores o inventores. Los que tienden al caos son los juglares, los embaucadores, los vagabundos o los joyeros fantasiosos. Los gnomos tienen buen corazón e incluso los embaucadores entre ellos son más juguetones que viciosos.",
+      "age": "Los gnomos maduran al mismo ritmo que los humanos, y se espera que la mayoría llegue a la vida adulta alrededor de los 40 años. Pueden vivir entre 350 y casi 500 años.",
+      "size": "Pequeño",
+      "size_description": "Los gnomos miden entre 3 y 4 pies de altura y pesan en promedio alrededor de 40 libras. Tu talla es Pequeña.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "gnomish",
+          "name": "gnomo",
+          "url": "/api/2014/languages/gnomish"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir común y gnómico. La lengua gnómica, que utiliza la escritura enana, es famosa por sus tratados técnicos y sus catálogos de conocimientos sobre el mundo natural.",
+      "traits": [
+        {
+          "index": "darkvision",
+          "name": "Visión oscura",
+          "url": "/api/2014/traits/darkvision"
+        },
+        {
+          "index": "gnome-cunning",
+          "name": "Gnomo astuto",
+          "url": "/api/2014/traits/gnome-cunning"
+        }
+      ],
+      "subraces": [
+        {
+          "index": "rock-gnome",
+          "name": "Gnomo de roca",
+          "url": "/api/2014/subraces/rock-gnome"
+        }
+      ],
+      "url": "/api/2014/races/gnome",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "half-elf",
+      "name": "Semielfo",
+      "speed": 30,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "cha",
+            "name": "CHA",
+            "url": "/api/2014/ability-scores/cha"
+          },
+          "bonus": 2
+        }
+      ],
+      "ability_bonus_options": {
+        "choose": 2,
+        "type": "ability_bonuses",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "ability_bonus",
+              "ability_score": {
+                "index": "str",
+                "name": "STR",
+                "url": "/api/2014/ability-scores/str"
+              },
+              "bonus": 1
+            },
+            {
+              "option_type": "ability_bonus",
+              "ability_score": {
+                "index": "dex",
+                "name": "DEX",
+                "url": "/api/2014/ability-scores/dex"
+              },
+              "bonus": 1
+            },
+            {
+              "option_type": "ability_bonus",
+              "ability_score": {
+                "index": "con",
+                "name": "CON",
+                "url": "/api/2014/ability-scores/con"
+              },
+              "bonus": 1
+            },
+            {
+              "option_type": "ability_bonus",
+              "ability_score": {
+                "index": "int",
+                "name": "INT",
+                "url": "/api/2014/ability-scores/int"
+              },
+              "bonus": 1
+            },
+            {
+              "option_type": "ability_bonus",
+              "ability_score": {
+                "index": "wis",
+                "name": "WIS",
+                "url": "/api/2014/ability-scores/wis"
+              },
+              "bonus": 1
+            }
+          ]
+        }
+      },
+      "alignment": "Los semielfos comparten la inclinación caótica de su herencia élfica. Valoran tanto la libertad personal como la expresión creativa, y no demuestran amor por los líderes ni deseo por los seguidores. Les molestan las reglas, resienten las demandas de los demás y, a veces, resultan poco confiables o al menos impredecibles.",
+      "age": "Los semielfos maduran al mismo ritmo que los humanos y alcanzan la edad adulta alrededor de los 20 años. Sin embargo, viven mucho más que los humanos, a menudo superando los 180 años.",
+      "size": "Medio",
+      "size_description": "Los semielfos tienen aproximadamente el mismo tamaño que los humanos, entre 5 y 6 pies de altura. Tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "elvish",
+          "name": "Mágico",
+          "url": "/api/2014/languages/elvish"
+        }
+      ],
+      "language_options": {
+        "choose": 1,
+        "type": "idiomas",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "dwarvish",
+                "name": "enano",
+                "url": "/api/2014/languages/dwarvish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "giant",
+                "name": "Gigante",
+                "url": "/api/2014/languages/giant"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "gnomish",
+                "name": "gnomo",
+                "url": "/api/2014/languages/gnomish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "goblin",
+                "name": "Duende",
+                "url": "/api/2014/languages/goblin"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "halfling",
+                "name": "Mediano",
+                "url": "/api/2014/languages/halfling"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "orc",
+                "name": "orco",
+                "url": "/api/2014/languages/orc"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "abyssal",
+                "name": "Abisal",
+                "url": "/api/2014/languages/abyssal"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "celestial",
+                "name": "Celestial",
+                "url": "/api/2014/languages/celestial"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "draconic",
+                "name": "dracónico",
+                "url": "/api/2014/languages/draconic"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "deep-speech",
+                "name": "discurso profundo",
+                "url": "/api/2014/languages/deep-speech"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "infernal",
+                "name": "Infernal",
+                "url": "/api/2014/languages/infernal"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "primordial",
+                "name": "Primordial",
+                "url": "/api/2014/languages/primordial"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "sylvan",
+                "name": "Selvático",
+                "url": "/api/2014/languages/sylvan"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "undercommon",
+                "name": "poco común",
+                "url": "/api/2014/languages/undercommon"
+              }
+            }
+          ]
+        }
+      },
+      "language_desc": "Puedes hablar, leer y escribir común, élfico y un idioma adicional de tu elección.",
+      "traits": [
+        {
+          "index": "darkvision",
+          "name": "Visión oscura",
+          "url": "/api/2014/traits/darkvision"
+        },
+        {
+          "index": "fey-ancestry",
+          "name": "Ascendencia Fey",
+          "url": "/api/2014/traits/fey-ancestry"
+        },
+        {
+          "index": "skill-versatility",
+          "name": "Versatilidad de habilidades",
+          "url": "/api/2014/traits/skill-versatility"
+        }
+      ],
+      "subraces": [],
+      "url": "/api/2014/races/half-elf",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "half-orc",
+      "name": "Semiorco",
+      "speed": 30,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "str",
+            "name": "STR",
+            "url": "/api/2014/ability-scores/str"
+          },
+          "bonus": 2
+        },
+        {
+          "ability_score": {
+            "index": "con",
+            "name": "CON",
+            "url": "/api/2014/ability-scores/con"
+          },
+          "bonus": 1
+        }
+      ],
+      "alignment": "Los semiorcos heredan una tendencia hacia el caos de sus padres orcos y no están muy inclinados hacia el bien. Los semiorcos criados entre orcos y dispuestos a vivir sus vidas entre ellos suelen ser malvados.",
+      "age": "Los semiorcos maduran un poco más rápido que los humanos y alcanzan la edad adulta alrededor de los 14 años. Envejecen notablemente más rápido y rara vez viven más de 75 años.",
+      "size": "Medio",
+      "size_description": "Los semiorcos son algo más grandes y voluminosos que los humanos, y miden entre 5 y más de 6 pies de altura. Tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "orc",
+          "name": "orco",
+          "url": "/api/2014/languages/orc"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir común y orco. Orc es un lenguaje áspero y irritante con consonantes duras. No tiene escritura propia, pero está escrito en escritura enana.",
+      "traits": [
+        {
+          "index": "darkvision",
+          "name": "Visión oscura",
+          "url": "/api/2014/traits/darkvision"
+        },
+        {
+          "index": "savage-attacks",
+          "name": "Ataques salvajes",
+          "url": "/api/2014/traits/savage-attacks"
+        },
+        {
+          "index": "relentless-endurance",
+          "name": "Resistencia implacable",
+          "url": "/api/2014/traits/relentless-endurance"
+        },
+        {
+          "index": "menacing",
+          "name": "Amenazador",
+          "url": "/api/2014/traits/menacing"
+        }
+      ],
+      "subraces": [],
+      "url": "/api/2014/races/half-orc",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "halfling",
+      "name": "Mediano",
+      "speed": 25,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "dex",
+            "name": "DEX",
+            "url": "/api/2014/ability-scores/dex"
+          },
+          "bonus": 2
+        }
+      ],
+      "age": "Un mediano llega a la edad adulta a la edad de 20 años y generalmente vive hasta mediados de su segundo siglo.",
+      "alignment": "La mayoría de los medianos son bienes legítimos. Como regla general, son bondadosos y de buen corazón, odian ver a los demás sufrir y no toleran la opresión. También son muy ordenados y tradicionales, y se apoyan en gran medida en el apoyo de su comunidad y la comodidad de sus antiguas costumbres.",
+      "size": "Pequeño",
+      "size_description": "Los medianos miden en promedio alrededor de 3 pies de altura y pesan alrededor de 40 libras. Tu talla es Pequeña.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "halfling",
+          "name": "Mediano",
+          "url": "/api/2014/languages/halfling"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir común y mediano. El idioma de los medianos no es secreto, pero los medianos son reacios a compartirlo con otros. Escriben muy poco, por lo que no tienen una rica literatura. Su tradición oral, sin embargo, es muy fuerte.\n\nCasi todos los medianos hablan común para conversar con la gente en cuyas tierras habitan o por las que viajan.",
+      "traits": [
+        {
+          "index": "brave",
+          "name": "Corajudo",
+          "url": "/api/2014/traits/brave"
+        },
+        {
+          "index": "halfling-nimbleness",
+          "name": "Agilidad del mediano",
+          "url": "/api/2014/traits/halfling-nimbleness"
+        },
+        {
+          "index": "lucky",
+          "name": "Afortunado",
+          "url": "/api/2014/traits/lucky"
+        }
+      ],
+      "subraces": [
+        {
+          "index": "lightfoot-halfling",
+          "name": "Mediano pies ligeros",
+          "url": "/api/2014/subraces/lightfoot-halfling"
+        }
+      ],
+      "url": "/api/2014/races/halfling",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "human",
+      "name": "Humano",
+      "speed": 30,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "str",
+            "name": "STR",
+            "url": "/api/2014/ability-scores/str"
+          },
+          "bonus": 1
+        },
+        {
+          "ability_score": {
+            "index": "dex",
+            "name": "DEX",
+            "url": "/api/2014/ability-scores/dex"
+          },
+          "bonus": 1
+        },
+        {
+          "ability_score": {
+            "index": "con",
+            "name": "CON",
+            "url": "/api/2014/ability-scores/con"
+          },
+          "bonus": 1
+        },
+        {
+          "ability_score": {
+            "index": "int",
+            "name": "INT",
+            "url": "/api/2014/ability-scores/int"
+          },
+          "bonus": 1
+        },
+        {
+          "ability_score": {
+            "index": "wis",
+            "name": "WIS",
+            "url": "/api/2014/ability-scores/wis"
+          },
+          "bonus": 1
+        },
+        {
+          "ability_score": {
+            "index": "cha",
+            "name": "CHA",
+            "url": "/api/2014/ability-scores/cha"
+          },
+          "bonus": 1
+        }
+      ],
+      "age": "Los seres humanos alcanzan la edad adulta al final de la adolescencia y viven menos de un siglo.",
+      "alignment": "Los humanos no tienden a ningún alineamiento particular. Entre ellos se encuentran lo mejor y lo peor.",
+      "size": "Medio",
+      "size_description": "Los seres humanos varían mucho en altura y constitución, desde apenas 5 pies hasta más de 6 pies de altura. Independientemente de tu posición en ese rango, tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        }
+      ],
+      "language_options": {
+        "choose": 1,
+        "type": "idiomas",
+        "from": {
+          "option_set_type": "options_array",
+          "options": [
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "dwarvish",
+                "name": "enano",
+                "url": "/api/2014/languages/dwarvish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "elvish",
+                "name": "Mágico",
+                "url": "/api/2014/languages/elvish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "giant",
+                "name": "Gigante",
+                "url": "/api/2014/languages/giant"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "gnomish",
+                "name": "gnomo",
+                "url": "/api/2014/languages/gnomish"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "goblin",
+                "name": "Duende",
+                "url": "/api/2014/languages/goblin"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "halfling",
+                "name": "Mediano",
+                "url": "/api/2014/languages/halfling"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "orc",
+                "name": "orco",
+                "url": "/api/2014/languages/orc"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "abyssal",
+                "name": "Abisal",
+                "url": "/api/2014/languages/abyssal"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "celestial",
+                "name": "Celestial",
+                "url": "/api/2014/languages/celestial"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "draconic",
+                "name": "dracónico",
+                "url": "/api/2014/languages/draconic"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "deep-speech",
+                "name": "discurso profundo",
+                "url": "/api/2014/languages/deep-speech"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "infernal",
+                "name": "Infernal",
+                "url": "/api/2014/languages/infernal"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "primordial",
+                "name": "Primordial",
+                "url": "/api/2014/languages/primordial"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "sylvan",
+                "name": "Selvático",
+                "url": "/api/2014/languages/sylvan"
+              }
+            },
+            {
+              "option_type": "referencia",
+              "item": {
+                "index": "undercommon",
+                "name": "poco común",
+                "url": "/api/2014/languages/undercommon"
+              }
+            }
+          ]
+        }
+      },
+      "language_desc": "Puedes hablar, leer y escribir en común y un idioma adicional de tu elección. Los humanos suelen aprender los idiomas de otros pueblos con los que tratan, incluidos dialectos oscuros. Les gusta salpicar su discurso con palabras tomadas de otras lenguas: maldiciones orcas, expresiones musicales élficas, frases militares enanas, etc.",
+      "traits": [],
+      "subraces": [],
+      "url": "/api/2014/races/human",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    },
+    {
+      "index": "tiefling",
+      "name": "tiflin",
+      "speed": 30,
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "int",
+            "name": "INT",
+            "url": "/api/2014/ability-scores/int"
+          },
+          "bonus": 1
+        },
+        {
+          "ability_score": {
+            "index": "cha",
+            "name": "CHA",
+            "url": "/api/2014/ability-scores/cha"
+          },
+          "bonus": 2
+        }
+      ],
+      "alignment": "Puede que los Tieflings no tengan una tendencia innata hacia el mal, pero muchos de ellos terminan allí. Malvada o no, una naturaleza independiente inclina a muchos tiflin hacia un alineamiento caótico.",
+      "age": "Los tiflins maduran al mismo ritmo que los humanos pero viven unos años más.",
+      "size": "Medio",
+      "size_description": "Los tiflins tienen aproximadamente el mismo tamaño y constitución que los humanos. Tu talla es Mediana.",
+      "languages": [
+        {
+          "index": "common",
+          "name": "Común",
+          "url": "/api/2014/languages/common"
+        },
+        {
+          "index": "infernal",
+          "name": "Infernal",
+          "url": "/api/2014/languages/infernal"
+        }
+      ],
+      "language_desc": "Puedes hablar, leer y escribir Común e Infernal.",
+      "traits": [
+        {
+          "index": "darkvision",
+          "name": "Visión oscura",
+          "url": "/api/2014/traits/darkvision"
+        },
+        {
+          "index": "hellish-resistance",
+          "name": "Resistencia infernal",
+          "url": "/api/2014/traits/hellish-resistance"
+        },
+        {
+          "index": "infernal-legacy",
+          "name": "Legado Infernal",
+          "url": "/api/2014/traits/infernal-legacy"
+        }
+      ],
+      "subraces": [],
+      "url": "/api/2014/races/tiefling",
+      "updated_at": "2025-10-24T20:42:14.212Z"
+    }
+  ]
+}

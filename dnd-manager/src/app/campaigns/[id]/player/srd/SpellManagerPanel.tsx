@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
     Character,
@@ -8,7 +8,6 @@ import {
     SpellSummary,
     Spells,
     Stats,
-    CLASS_LABELS,
     DND_CLASS_OPTIONS,
     LearnedSpellRef,
     normalizeClassForApi,
@@ -17,8 +16,9 @@ import {
     formatCastingTime,
 } from "../playerShared";
 import { getMaxSpellLevelForClass } from "@/lib/spells/spellLevels";
-import { getClientLocale } from "@/lib/i18n/getClientLocale";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { getLocalizedText } from "@/lib/character/items";
+import { tr } from "@/lib/i18n/translate";
 import Markdown from "@/app/components/Markdown";
 import CustomContentManager from "../sections/CustomContentManager";
 
@@ -59,11 +59,6 @@ export function SpellManagerPanel({
     const charLevel = character.level ?? 0;
     const apiClass = normalizeClassForApi(character.class ?? null);
 
-    const maxLearnableSpellLevel = getMaxSpellLevelForClass(
-        apiClass,
-        charLevel
-    );
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [spells, setSpells] = useState<SpellSummary[]>([]);
@@ -80,7 +75,22 @@ export function SpellManagerPanel({
         apiClass === "custom" ? "wizard" : apiClass
     );
 
-    const locale = getClientLocale();
+    const locale = useClientLocale();
+    const t = (es: string, en: string) => tr(locale, es, en);
+    const classLabelById = useMemo(
+        () =>
+            Object.fromEntries(
+                DND_CLASS_OPTIONS.map((option) => [
+                    option.id,
+                    locale === "en" ? option.labelEn : option.label,
+                ])
+            ) as Record<string, string>,
+        [locale]
+    );
+    const maxLearnableSpellLevel = getMaxSpellLevelForClass(
+        apiClass === "custom" ? sourceClass : apiClass,
+        charLevel
+    );
 
     const customSpells = Array.isArray(details.customSpells) ? details.customSpells : [];
     const customCantrips = Array.isArray(details.customCantrips) ? details.customCantrips : [];
@@ -93,7 +103,8 @@ export function SpellManagerPanel({
         character.class,
         stats,
         charLevel,
-        details
+        details,
+        locale
     );
     const currentPreparedCount = countPreparedSpells(details.spells ?? ({} as Spells))
 
@@ -141,7 +152,7 @@ export function SpellManagerPanel({
 
             setSpells(filtered);
         } catch (e: any) {
-            setError(e?.message ?? "Error cargando hechizos.");
+            setError(e?.message ?? t("Error cargando hechizos.", "Error loading spells."));
         } finally {
             setLoading(false);
         }
@@ -161,7 +172,13 @@ export function SpellManagerPanel({
 
             onDetailsChange?.(updatedDetails);
         } catch (err: any) {
-            setError(err?.message ?? "Error guardando contenido personalizado.");
+            setError(
+                err?.message ??
+                    t(
+                        "Error guardando contenido personalizado.",
+                        "Error saving custom content."
+                    )
+            );
         }
     }
 
@@ -205,7 +222,10 @@ export function SpellManagerPanel({
                 const count = countPreparedSpells(currentSpells);
                 if (count >= preparedInfo.total) {
                     setError(
-                        `Has alcanzado tu máximo de ${preparedInfo.total} conjuros preparados.`
+                        t(
+                            `Has alcanzado tu maximo de ${preparedInfo.total} conjuros preparados.`,
+                            `You reached your maximum of ${preparedInfo.total} prepared spells.`
+                        )
                     );
                     return;
                 }
@@ -254,7 +274,7 @@ export function SpellManagerPanel({
 
             onDetailsChange?.(updatedDetails);
         } catch {
-            setError("Error aprendiendo el hechizo.");
+            setError(t("Error aprendiendo el hechizo.", "Error learning spell."));
         } finally {
             setSavingId(null);
         }
@@ -309,7 +329,7 @@ export function SpellManagerPanel({
 
             onDetailsChange?.(updatedDetails);
         } catch {
-            setError("Error olvidando el hechizo.");
+            setError(t("Error olvidando el hechizo.", "Error forgetting spell."));
         } finally {
             setSavingId(null);
         }
@@ -365,18 +385,18 @@ export function SpellManagerPanel({
             <div className="px-6 py-4 border-b border-ring flex items-center justify-between gap-4">
                 <div>
                     <h2 className="text-sm font-semibold text-ink">
-                        Gestor de hechizos · {character.name}
+                        {t("Gestor de hechizos", "Spell manager")} · {character.name}
                     </h2>
                     <p className="text-[11px] text-ink-muted">
-                        {CLASS_LABELS[apiClass] ?? apiClass} · Nivel{" "}
+                        {(apiClass ? classLabelById[apiClass] : "") ?? apiClass} · {t("Nivel", "Level")}{" "}
                         {charLevel}
                     </p>
                     <p className="text-[11px] text-ink-muted">
-                        Máx nivel de hechizo: {maxLearnableSpellLevel}
+                        {t("Max nivel de hechizo", "Max spell level")}: {maxLearnableSpellLevel}
                     </p>
                     {preparedInfo && (
                         <p className="text-[11px] text-ink-muted">
-                            Preparados: {currentPreparedCount}/
+                            {t("Preparados", "Prepared")}: {currentPreparedCount}/
                             {preparedInfo.total}
                         </p>
                     )}
@@ -386,7 +406,7 @@ export function SpellManagerPanel({
                     onClick={onClose}
                     className="text-[11px] px-3 py-2 rounded-md border border-ring hover:bg-white/80"
                 >
-                    Volver
+                    {t("Volver", "Back")}
                 </button>
             </div>
 
@@ -397,7 +417,7 @@ export function SpellManagerPanel({
                         onClick={() => setCustomCreateOpen(true)}
                         className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
                     >
-                        Crear hechizo personalizado
+                        {t("Crear hechizo personalizado", "Create custom spell")}
                     </button>
                 </div>
 
@@ -416,16 +436,17 @@ export function SpellManagerPanel({
                         }
                         createOpen={customCreateOpen}
                         onToggleCreate={setCustomCreateOpen}
+                        createAsModal
                     />
                 )}
 
                 <div className="flex flex-wrap gap-4">
                     <input
                         type="text"
-                        placeholder="Buscar hechizo..."
+                        placeholder={t("Buscar hechizo...", "Search spell...")}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="flex-1 min-w-[220px] rounded-md bg-white/80 border border-ring px-3 py-2 text-sm"
+                        className="w-full sm:flex-1 min-w-0 sm:min-w-[220px] rounded-md bg-white/80 border border-ring px-3 py-2 text-sm"
                     />
 
                     <select
@@ -435,8 +456,8 @@ export function SpellManagerPanel({
                         }
                         className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                     >
-                        <option value="level">Nivel → Nombre</option>
-                        <option value="alpha">Nombre (A-Z)</option>
+                        <option value="level">{t("Nivel -> Nombre", "Level -> Name")}</option>
+                        <option value="alpha">{t("Nombre (A-Z)", "Name (A-Z)")}</option>
                     </select>
 
                     <select
@@ -454,12 +475,12 @@ export function SpellManagerPanel({
                         }
                         className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                     >
-                        <option value="all">Todos</option>
+                        <option value="all">{t("Todos", "All")}</option>
                         {availableLevels.map((lvl) => (
                             <option key={lvl} value={lvl}>
                                 {lvl === 0
-                                    ? "Trucos"
-                                    : `Nivel ${lvl}`}
+                                    ? t("Trucos", "Cantrips")
+                                    : `${t("Nivel", "Level")} ${lvl}`}
                             </option>
                         ))}
                     </select>
@@ -473,9 +494,9 @@ export function SpellManagerPanel({
                         }
                         className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
                     >
-                        <option value="all">Todos</option>
-                        <option value="learned">Aprendidos</option>
-                        <option value="unlearned">No aprendidos</option>
+                        <option value="all">{t("Todos", "All")}</option>
+                        <option value="learned">{t("Aprendidos", "Learned")}</option>
+                        <option value="unlearned">{t("No aprendidos", "Unlearned")}</option>
                     </select>
 
                     {apiClass === "custom" && (
@@ -490,7 +511,7 @@ export function SpellManagerPanel({
                                 (c) => c.id !== "custom"
                             ).map((c) => (
                                 <option key={c.id} value={c.id}>
-                                    {c.label}
+                                    {locale === "en" ? c.labelEn : c.label}
                                 </option>
                             ))}
                         </select>
@@ -546,9 +567,10 @@ export function SpellManagerPanel({
                                             {s.name}
                                         </p>
                                         <p className="text-[11px] text-ink-muted">
-                                            Nivel {s.level} ·{" "}
+                                            {t("Nivel", "Level")} {s.level} ·{" "}
                                             {formatCastingTime(
-                                                s.casting_time
+                                                s.casting_time,
+                                                locale
                                             )}
                                         </p>
                                     </div>
@@ -565,8 +587,8 @@ export function SpellManagerPanel({
                                         className="text-[11px] px-3 py-1 rounded-md border"
                                     >
                                         {learned
-                                            ? "Olvidar"
-                                            : "Aprender"}
+                                            ? t("Olvidar", "Forget")
+                                            : t("Aprender", "Learn")}
                                     </button>
                                 </div>
 

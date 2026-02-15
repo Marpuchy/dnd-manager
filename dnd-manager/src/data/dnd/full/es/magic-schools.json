@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "magic-schools",
+  "endpoint": "/api/2014/magic-schools",
+  "count": 8,
+  "results": [
+    {
+      "index": "abjuration",
+      "name": "Abjuración",
+      "desc": "Los hechizos de abjuración son de naturaleza protectora, aunque algunos de ellos tienen usos agresivos. Crean barreras mágicas, niegan los efectos dañinos, dañan a los intrusos o destierran criaturas a otros planos de existencia.",
+      "url": "/api/2014/magic-schools/abjuration",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "conjuration",
+      "name": "Conjuración",
+      "desc": "Los hechizos de conjuración implican el transporte de objetos y criaturas de un lugar a otro. Algunos hechizos convocan criaturas u objetos al lado del lanzador, mientras que otros le permiten teletransportarse a otra ubicación. Algunos conjuros crean objetos o efectos de la nada.",
+      "url": "/api/2014/magic-schools/conjuration",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "divination",
+      "name": "Divinidad",
+      "desc": "Los hechizos de adivinación revelan información, ya sea en forma de secretos olvidados hace mucho tiempo, vislumbres del futuro, la ubicación de cosas ocultas, la verdad detrás de ilusiones o visiones de personas o lugares distantes.",
+      "url": "/api/2014/magic-schools/divination",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "enchantment",
+      "name": "Encantamiento",
+      "desc": "Los hechizos de encantamiento afectan la mente de los demás, influyendo o controlando su comportamiento. Estos hechizos pueden hacer que los enemigos vean al lanzador como un amigo, obligar a las criaturas a seguir un curso de acción o incluso controlar a otra criatura como si fuera una marioneta.",
+      "url": "/api/2014/magic-schools/enchantment",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "evocation",
+      "name": "Evocación",
+      "desc": "Los hechizos de evocación manipulan la energía mágica para producir el efecto deseado. Algunos provocan ráfagas de fuego o relámpagos. Otros canalizan energía positiva para curar heridas.",
+      "url": "/api/2014/magic-schools/evocation",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "illusion",
+      "name": "Espejismo",
+      "desc": "Los hechizos de ilusión engañan los sentidos o la mente de los demás. Hacen que las personas vean cosas que no existen, que se pierdan cosas que sí están, que escuchen ruidos fantasmas o que recuerden cosas que nunca sucedieron.\n\nAlgunas ilusiones crean imágenes fantasmales que cualquier criatura puede ver, pero las ilusiones más insidiosas plantan una imagen directamente en la mente de una criatura.",
+      "url": "/api/2014/magic-schools/illusion",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "necromancy",
+      "name": "Nigromancia",
+      "desc": "Los hechizos de nigromancia manipulan las energías de la vida y la muerte. Tales hechizos pueden otorgar una reserva adicional de fuerza vital, drenar la energía vital de otra criatura, crear muertos vivientes o incluso devolverles la vida a los muertos.",
+      "url": "/api/2014/magic-schools/necromancy",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    },
+    {
+      "index": "transmutation",
+      "name": "Transmutación",
+      "desc": "Los hechizos de transmutación cambian las propiedades de una criatura, objeto o entorno. Podrían convertir a un enemigo en una criatura inofensiva, reforzar la fuerza de un aliado, hacer que un objeto se mueva según la orden del lanzador o mejorar las habilidades curativas innatas de una criatura para recuperarse rápidamente de una lesión.",
+      "url": "/api/2014/magic-schools/transmutation",
+      "updated_at": "2025-10-24T20:42:13.642Z"
+    }
+  ]
+}

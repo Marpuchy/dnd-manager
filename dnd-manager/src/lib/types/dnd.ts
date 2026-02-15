@@ -105,6 +105,7 @@ export type SpellMeta = {
     index: string;
     name: string;
     level: number;
+    isCustom?: boolean;
     range?: string;
     casting_time?: string;
     duration?: string;
@@ -217,10 +218,20 @@ export type CustomFeatureEntry = {
     name: string;
     level?: number;
     description?: LocalizedText;
+    subclassId?: string;
+    subclassName?: string;
     actionType?: "action" | "bonus" | "reaction" | "passive";
     resourceCost?: AbilityResourceCost;
     requirements?: string;
     effect?: string;
+};
+
+export type CustomSubclassEntry = {
+    id: string;
+    classId: string;
+    name: string;
+    unlockLevel?: number;
+    source?: string;
 };
 
 export type Companion = {
@@ -261,9 +272,12 @@ export type Details = {
     abilities?: string;
     weaponsExtra?: string;
     notes?: string;
+    portraitNote?: string;
     hitDie?: HitDie;
     spells?: Spells;
     spellDetails?: Record<string, SpellMeta>;
+    classSubclassId?: string;
+    classSubclassName?: string;
     customClassName?: string;
     customCastingAbility?: keyof Stats;
     background?: string;
@@ -280,12 +294,14 @@ export type Details = {
     allies?: string;
     organizations?: string;
     customSections?: { id: string; title: string; content: string }[];
+    listOrder?: number;
     companion?: Companion;
     items?: CharacterItem[];
     customSpells?: CustomSpellEntry[];
     customCantrips?: CustomSpellEntry[];
     customTraits?: CustomFeatureEntry[];
     customClassAbilities?: CustomFeatureEntry[];
+    customSubclasses?: CustomSubclassEntry[];
 };
 
 export type Character = {

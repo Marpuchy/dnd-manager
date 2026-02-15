@@ -1,0 +1,263 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "skills",
+  "endpoint": "/api/2014/skills",
+  "count": 18,
+  "results": [
+    {
+      "index": "acrobatics",
+      "name": "Acrobacia",
+      "desc": [
+        "Tu prueba de Destreza (Acrobacia) cubre tu intento de mantenerte de pie en una situación complicada, como cuando intentas correr sobre una capa de hielo, mantener el equilibrio en una cuerda floja o mantenerte erguido en la cubierta de un barco que se balancea.\n\nEl DJ también podría solicitar una prueba de Destreza (Acrobacias) para ver si puedes realizar acrobacias, incluidas inmersiones, giros, saltos mortales y volteretas."
+      ],
+      "ability_score": {
+        "index": "dex",
+        "name": "DEX",
+        "url": "/api/2014/ability-scores/dex"
+      },
+      "url": "/api/2014/skills/acrobatics",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "animal-handling",
+      "name": "Manejo de animales",
+      "desc": [
+        "Cuando hay alguna duda sobre si puedes calmar a un animal domesticado, evitar que una montura se asuste o intuir las intenciones de un animal, el DJ puede solicitar una prueba de Sabiduría (Manejo de animales). También realizas una prueba de Sabiduría (Manejo de animales) para controlar tu montura cuando intentas una maniobra arriesgada."
+      ],
+      "ability_score": {
+        "index": "wis",
+        "name": "WIS",
+        "url": "/api/2014/ability-scores/wis"
+      },
+      "url": "/api/2014/skills/animal-handling",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "arcana",
+      "name": "Arcanos",
+      "desc": [
+        "Tu prueba de Inteligencia (Arcanos) mide tu capacidad para recordar conocimientos sobre hechizos, objetos mágicos, símbolos sobrenaturales, tradiciones mágicas, los planos de existencia y los habitantes de esos planos."
+      ],
+      "ability_score": {
+        "index": "int",
+        "name": "INT",
+        "url": "/api/2014/ability-scores/int"
+      },
+      "url": "/api/2014/skills/arcana",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "athletics",
+      "name": "Atletismo",
+      "desc": [
+        "Tu prueba de Fuerza (Atletismo) cubre situaciones difíciles que encuentras al escalar, saltar o nadar."
+      ],
+      "ability_score": {
+        "index": "str",
+        "name": "STR",
+        "url": "/api/2014/ability-scores/str"
+      },
+      "url": "/api/2014/skills/athletics",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "deception",
+      "name": "Engaño",
+      "desc": [
+        "Tu prueba de Carisma (Engaño) determina si puedes ocultar la verdad de manera convincente, ya sea verbalmente o mediante tus acciones. Este engaño puede abarcar todo, desde engañar a otros mediante la ambigüedad hasta decir mentiras descaradas.\n\nLas situaciones típicas incluyen intentar hablar rápido con un guardia, estafar a un comerciante, ganar dinero jugando, hacerse pasar por un disfraz, atenuar las sospechas de alguien con falsas seguridades o mantener una cara seria mientras dice una mentira descarada."
+      ],
+      "ability_score": {
+        "index": "cha",
+        "name": "CHA",
+        "url": "/api/2014/ability-scores/cha"
+      },
+      "url": "/api/2014/skills/deception",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "history",
+      "name": "Historia",
+      "desc": [
+        "Tu prueba de Inteligencia (Historia) mide tu capacidad para recordar conocimientos sobre acontecimientos históricos, pueblos legendarios, reinos antiguos, disputas pasadas, guerras recientes y civilizaciones perdidas."
+      ],
+      "ability_score": {
+        "index": "int",
+        "name": "INT",
+        "url": "/api/2014/ability-scores/int"
+      },
+      "url": "/api/2014/skills/history",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "insight",
+      "name": "Conocimiento",
+      "desc": [
+        "Tu prueba de Sabiduría (Perspicacia) decide si puedes determinar las verdaderas intenciones de una criatura, como cuando buscas una mentira o predices el próximo movimiento de alguien. Hacerlo implica obtener pistas del lenguaje corporal, los hábitos del habla y los cambios en los gestos."
+      ],
+      "ability_score": {
+        "index": "wis",
+        "name": "WIS",
+        "url": "/api/2014/ability-scores/wis"
+      },
+      "url": "/api/2014/skills/insight",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "intimidation",
+      "name": "Intimidación",
+      "desc": [
+        "Cuando intentas influir en alguien mediante amenazas abiertas, acciones hostiles y violencia física, el DJ puede pedirte que realices una prueba de Carisma (Intimidación).\n\nLos ejemplos incluyen tratar de sonsacar información a un prisionero, convencer a matones callejeros de que se retiren de una confrontación o usar el borde de una botella rota para convencer a un visir burlón de que reconsidere una decisión."
+      ],
+      "ability_score": {
+        "index": "cha",
+        "name": "CHA",
+        "url": "/api/2014/ability-scores/cha"
+      },
+      "url": "/api/2014/skills/intimidation",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "investigation",
+      "name": "Investigación",
+      "desc": [
+        "Cuando buscas pistas a tu alrededor y haces deducciones basadas en esas pistas, realizas una prueba de Inteligencia (Investigación). Podrías deducir la ubicación de un objeto oculto, discernir por la apariencia de una herida qué tipo de arma lo asestó o determinar el punto más débil de un túnel que podría provocar su colapso.\n\nExaminar pergaminos antiguos en busca de un fragmento de conocimiento oculto también puede requerir una prueba de Inteligencia (Investigación)."
+      ],
+      "ability_score": {
+        "index": "int",
+        "name": "INT",
+        "url": "/api/2014/ability-scores/int"
+      },
+      "url": "/api/2014/skills/investigation",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "medicine",
+      "name": "Medicamento",
+      "desc": [
+        "Una prueba de Sabiduría (Medicina) te permite intentar estabilizar a un compañero moribundo o diagnosticar una enfermedad."
+      ],
+      "ability_score": {
+        "index": "wis",
+        "name": "WIS",
+        "url": "/api/2014/ability-scores/wis"
+      },
+      "url": "/api/2014/skills/medicine",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "nature",
+      "name": "Naturaleza",
+      "desc": [
+        "Tu prueba de Inteligencia (Naturaleza) mide tu capacidad para recordar conocimientos sobre el terreno, las plantas y los animales, el clima y los ciclos naturales."
+      ],
+      "ability_score": {
+        "index": "int",
+        "name": "INT",
+        "url": "/api/2014/ability-scores/int"
+      },
+      "url": "/api/2014/skills/nature",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "perception",
+      "name": "Percepción",
+      "desc": [
+        "Tu prueba de Sabiduría (Percepción) te permite detectar, oír o detectar de otro modo la presencia de algo. Mide tu conciencia general de tu entorno y la agudeza de tus sentidos. Por ejemplo, puedes intentar escuchar una conversación a través de una puerta cerrada, escuchar a escondidas debajo de una ventana abierta o escuchar monstruos moviéndose sigilosamente en el bosque.\n\nO puedes intentar detectar cosas que están oscurecidas o que son fáciles de pasar por alto, ya sean orcos emboscados en una carretera, matones escondidos en las sombras de un callejón o la luz de una vela bajo una puerta secreta cerrada."
+      ],
+      "ability_score": {
+        "index": "wis",
+        "name": "WIS",
+        "url": "/api/2014/ability-scores/wis"
+      },
+      "url": "/api/2014/skills/perception",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "performance",
+      "name": "Actuación",
+      "desc": [
+        "Tu prueba de Carisma (Actuación) determina qué tan bien puedes deleitar a una audiencia con música, baile, actuación, narración de historias o alguna otra forma de entretenimiento."
+      ],
+      "ability_score": {
+        "index": "cha",
+        "name": "CHA",
+        "url": "/api/2014/ability-scores/cha"
+      },
+      "url": "/api/2014/skills/performance",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "persuasion",
+      "name": "Persuasión",
+      "desc": [
+        "Cuando intentas influir en alguien o en un grupo de personas con tacto, gracia social o buen carácter, el DJ puede pedirte que realices una prueba de Carisma (Persuasión). Por lo general, utiliza la persuasión cuando actúa de buena fe, para fomentar amistades, hacer solicitudes cordiales o exhibir la etiqueta adecuada.\n\nEjemplos de cómo persuadir a otros incluyen convencer a un chambelán para que permita que su grupo vea al rey, negociar la paz entre tribus en guerra o inspirar a una multitud de habitantes del pueblo."
+      ],
+      "ability_score": {
+        "index": "cha",
+        "name": "CHA",
+        "url": "/api/2014/ability-scores/cha"
+      },
+      "url": "/api/2014/skills/persuasion",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "religion",
+      "name": "Religión",
+      "desc": [
+        "Tu prueba de Inteligencia (Religión) mide tu capacidad para recordar tradiciones sobre deidades, ritos y oraciones, jerarquías religiosas, símbolos sagrados y prácticas de cultos secretos."
+      ],
+      "ability_score": {
+        "index": "int",
+        "name": "INT",
+        "url": "/api/2014/ability-scores/int"
+      },
+      "url": "/api/2014/skills/religion",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "sleight-of-hand",
+      "name": "Prestidigitación",
+      "desc": [
+        "Siempre que intentes un acto de prestidigitación o engaño manual, como plantar algo sobre otra persona u ocultar un objeto sobre ti, haz una prueba de Destreza (Juego de manos).\n\nEl DJ también podría solicitar una prueba de Destreza (Juego de manos) para determinar si puedes quitarle un monedero a otra persona o sacar algo del bolsillo de otra persona."
+      ],
+      "ability_score": {
+        "index": "dex",
+        "name": "DEX",
+        "url": "/api/2014/ability-scores/dex"
+      },
+      "url": "/api/2014/skills/sleight-of-hand",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "stealth",
+      "name": "Sigilo",
+      "desc": [
+        "Haz una prueba de Destreza (Sigilo) cuando intentes ocultarte de los enemigos, escabullirte de los guardias, escabullirte sin que te vean o acercarte sigilosamente a alguien sin que te vean ni te escuchen."
+      ],
+      "ability_score": {
+        "index": "dex",
+        "name": "DEX",
+        "url": "/api/2014/ability-scores/dex"
+      },
+      "url": "/api/2014/skills/stealth",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    },
+    {
+      "index": "survival",
+      "name": "Supervivencia",
+      "desc": [
+        "El DJ podría pedirte que hagas una prueba de Sabiduría (Supervivencia) para seguir huellas, cazar animales salvajes, guiar a tu grupo a través de páramos helados, identificar señales de que los osos búho viven cerca, predecir el clima o evitar arenas movedizas y otros peligros naturales."
+      ],
+      "ability_score": {
+        "index": "wis",
+        "name": "WIS",
+        "url": "/api/2014/ability-scores/wis"
+      },
+      "url": "/api/2014/skills/survival",
+      "updated_at": "2025-10-24T20:42:14.523Z"
+    }
+  ]
+}

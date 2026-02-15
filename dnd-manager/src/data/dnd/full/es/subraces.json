@@ -1,0 +1,142 @@
+{
+  "generatedAt": "2026-02-15T02:23:43.477Z",
+  "locale": "es",
+  "source": "dnd5eapi",
+  "translationProvider": "google",
+  "category": "subraces",
+  "endpoint": "/api/2014/subraces",
+  "count": 4,
+  "results": [
+    {
+      "index": "high-elf",
+      "name": "Alto Elfo",
+      "race": {
+        "index": "elf",
+        "name": "Duende",
+        "url": "/api/2014/races/elf"
+      },
+      "desc": "Como alto elfo, tienes una mente aguda y dominas al menos los conceptos básicos de la magia. En muchos mundos de juegos de fantasía, hay dos tipos de elfos nobles. Un tipo es altivo y solitario, y se cree superior a los no elfos e incluso a otros elfos.\n\nEl otro tipo es más común y amigable, y a menudo se encuentra entre humanos y otras razas.",
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "int",
+            "name": "INT",
+            "url": "/api/2014/ability-scores/int"
+          },
+          "bonus": 1
+        }
+      ],
+      "racial_traits": [
+        {
+          "index": "elf-weapon-training",
+          "name": "Entrenamiento con armas de elfos",
+          "url": "/api/2014/traits/elf-weapon-training"
+        },
+        {
+          "index": "high-elf-cantrip",
+          "name": "Truco de los altos elfos",
+          "url": "/api/2014/traits/high-elf-cantrip"
+        },
+        {
+          "index": "extra-language",
+          "name": "Idioma adicional",
+          "url": "/api/2014/traits/extra-language"
+        }
+      ],
+      "url": "/api/2014/subraces/high-elf",
+      "updated_at": "2025-10-24T20:42:14.841Z"
+    },
+    {
+      "index": "hill-dwarf",
+      "name": "Enano de la colina",
+      "race": {
+        "index": "dwarf",
+        "name": "Enano",
+        "url": "/api/2014/races/dwarf"
+      },
+      "desc": "Como enano de las colinas, tienes sentidos agudos, una intuición profunda y una resiliencia notable.",
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "wis",
+            "name": "WIS",
+            "url": "/api/2014/ability-scores/wis"
+          },
+          "bonus": 1
+        }
+      ],
+      "racial_traits": [
+        {
+          "index": "dwarven-toughness",
+          "name": "Dureza enana",
+          "url": "/api/2014/traits/dwarven-toughness"
+        }
+      ],
+      "url": "/api/2014/subraces/hill-dwarf",
+      "updated_at": "2025-10-24T20:42:14.841Z"
+    },
+    {
+      "index": "lightfoot-halfling",
+      "name": "Mediano pies ligeros",
+      "race": {
+        "index": "halfling",
+        "name": "Mediano",
+        "url": "/api/2014/races/halfling"
+      },
+      "desc": "Como mediano de pies ligeros, puedes ocultarte fácilmente, incluso utilizando a otras personas como cobertura. Tiendes a ser afable y llevarte bien con los demás. Los Lightfoots son más propensos a la pasión por los viajes que otros medianos y, a menudo, conviven con otras razas o adoptan una vida nómada.",
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "cha",
+            "name": "CHA",
+            "url": "/api/2014/ability-scores/cha"
+          },
+          "bonus": 1
+        }
+      ],
+      "racial_traits": [
+        {
+          "index": "naturally-stealthy",
+          "name": "Naturalmente sigiloso",
+          "url": "/api/2014/traits/naturally-stealthy"
+        }
+      ],
+      "url": "/api/2014/subraces/lightfoot-halfling",
+      "updated_at": "2025-10-24T20:42:14.841Z"
+    },
+    {
+      "index": "rock-gnome",
+      "name": "Gnomo de roca",
+      "race": {
+        "index": "gnome",
+        "name": "Gnomo",
+        "url": "/api/2014/races/gnome"
+      },
+      "desc": "Como gnomo de roca, tienes una inventiva y una resistencia naturales superiores a las de otros gnomos.",
+      "ability_bonuses": [
+        {
+          "ability_score": {
+            "index": "con",
+            "name": "CON",
+            "url": "/api/2014/ability-scores/con"
+          },
+          "bonus": 1
+        }
+      ],
+      "racial_traits": [
+        {
+          "index": "artificers-lore",
+          "name": "Conocimiento del artífice",
+          "url": "/api/2014/traits/artificers-lore"
+        },
+        {
+          "index": "tinker",
+          "name": "Gitano",
+          "url": "/api/2014/traits/tinker"
+        }
+      ],
+      "url": "/api/2014/subraces/rock-gnome",
+      "updated_at": "2025-10-24T20:42:14.841Z"
+    }
+  ]
+}
