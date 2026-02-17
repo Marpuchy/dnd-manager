@@ -22,6 +22,10 @@ import { ClassAbility } from "@/lib/dnd/classAbilities/types";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { getLocalizedText, normalizeLocalizedText } from "@/lib/character/items";
 import { tr } from "@/lib/i18n/translate";
+import {
+    findClientSpellByName,
+    getClientSpellByIndex,
+} from "@/lib/dnd/clientLocalData";
 
 import AbilityPanelView from "../../sections/AbilityPanelView";
 import type { CustomFeatureEntry, CustomSpellEntry } from "@/lib/types/dnd";
@@ -399,49 +403,29 @@ export default function AbilityPanel({
         let indexResolved = false;
 
         (async () => {
-            // 2ï¸âƒ£ Resolve missing indexes (legacy)
+            // Resolve missing indexes (legacy) using local snapshots.
             for (const spell of refs) {
                 if (spell.index) continue;
 
                 try {
-                    const searchRes = await fetch(
-                        `/api/dnd/spells/search?name=${encodeURIComponent(
-                            spell.name
-                        )}&locale=${locale}`
-                    );
-
-                    if (!searchRes.ok) continue;
-
-                    const searchData = await searchRes.json();
-                    const results = Array.isArray(searchData?.results)
-                        ? searchData.results
-                        : [];
-                    const normalizedName = spell.name?.trim().toLowerCase();
-                    const exact =
-                        normalizedName && results.length
-                            ? results.find(
-                                  (r: any) =>
-                                      typeof r?.name === "string" &&
-                                      r.name.trim().toLowerCase() ===
-                                          normalizedName
-                              )
-                            : undefined;
-                    const match = exact ?? results[0];
-
+                    const match = await findClientSpellByName(spell.name, locale);
                     if (match?.index) {
                         spell.index = match.index;
+                        if (match.name && spell.name !== match.name) {
+                            spell.name = match.name;
+                        }
                         indexResolved = true;
                     }
                 } catch (err) {
                     console.warn(
-                        "No se pudo resolver el índice del hechizo:",
+                        "No se pudo resolver el indice del hechizo local:",
                         spell.name,
                         err
                     );
                 }
             }
 
-            // 3ï¸âƒ£ Load SRD metadata by index
+            // Load local spell metadata by index.
             for (const spell of refs) {
                 if (!spell.index) continue;
 
@@ -451,43 +435,39 @@ export default function AbilityPanel({
                     continue;
                 }
 
-                let apiData: any;
+                let localSpell: any;
                 try {
-                    const res = await fetch(
-                        `/api/dnd/spells/${encodeURIComponent(spell.index)}?locale=${locale}`
-                    );
-                    if (!res.ok) continue;
-                    apiData = await res.json();
+                    localSpell = await getClientSpellByIndex(spell.index, locale);
+                    if (!localSpell) continue;
                 } catch (err) {
-                    console.warn("No se pudo cargar el hechizo:", spell.index, err);
+                    console.warn("No se pudo cargar el hechizo local:", spell.index, err);
                     continue;
                 }
 
-                /* MAPEO CORRECTO A TU SpellMeta */
                 const shortDescSource = (
-                    apiData.shortDesc ??
-                    (Array.isArray(apiData.desc) ? apiData.desc[0] : undefined)
+                    localSpell.shortDesc ??
+                    (Array.isArray(localSpell.desc) ? localSpell.desc[0] : undefined)
                 );
                 const fullDescSource = (
-                    apiData.fullDesc ??
-                    (Array.isArray(apiData.desc) || Array.isArray(apiData.higher_level)
-                        ? [...(apiData.desc ?? []), ...(apiData.higher_level ?? [])].join(
+                    localSpell.fullDesc ??
+                    (Array.isArray(localSpell.desc) || Array.isArray(localSpell.higher_level)
+                        ? [...(localSpell.desc ?? []), ...(localSpell.higher_level ?? [])].join(
                               "\n\n"
                           )
                         : undefined)
                 );
                 const mapped: SpellMeta = {
-                    index: apiData.index,
-                    name: apiData.name,
-                    level: apiData.level,
-                    range: apiData.range,
-                    casting_time: apiData.casting_time,
-                    duration: apiData.duration,
-                    school: apiData.school?.name ?? apiData.school,
-                    components: apiData.components,
-                    material: apiData.material,
-                    concentration: apiData.concentration,
-                    ritual: apiData.ritual,
+                    index: localSpell.index,
+                    name: localSpell.name,
+                    level: localSpell.level,
+                    range: localSpell.range,
+                    casting_time: localSpell.casting_time,
+                    duration: localSpell.duration,
+                    school: localSpell.school?.name ?? localSpell.school,
+                    components: localSpell.components,
+                    material: localSpell.material,
+                    concentration: localSpell.concentration,
+                    ritual: localSpell.ritual,
 
                     shortDesc: normalizeLocalizedText(shortDescSource, locale),
 
@@ -509,11 +489,11 @@ export default function AbilityPanel({
 
             }
 
-            // 4ï¸âƒ£ Save ONLY if something changed
+            // Save only if something changed.
             if (changed || indexResolved) {
                 onDetailsChange?.({
                     ...details,
-                    spells: spellsByLevel, // âœ… NEW reference
+                    spells: spellsByLevel,
                     spellDetails: merged,
                 });
             }

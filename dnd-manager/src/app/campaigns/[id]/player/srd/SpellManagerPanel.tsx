@@ -21,6 +21,7 @@ import { getLocalizedText } from "@/lib/character/items";
 import { tr } from "@/lib/i18n/translate";
 import Markdown from "@/app/components/Markdown";
 import CustomContentManager from "../sections/CustomContentManager";
+import { getClientSpellsForClassLevel } from "@/lib/dnd/clientLocalData";
 
 type Props = {
     character: Character;
@@ -128,15 +129,11 @@ export function SpellManagerPanel({
             const collected: SpellSummary[] = [];
 
             for (let charLvl = 1; charLvl <= charLevel; charLvl++) {
-                const res = await fetch(
-                    `/api/dnd/spells?class=${encodeURIComponent(
-                        classForApi
-                    )}&level=${charLvl}&locale=${locale}`
-                );
-
-                if (!res.ok) continue;
-
-                const data: SpellSummary[] = await res.json();
+                const data = (await getClientSpellsForClassLevel(
+                    classForApi,
+                    charLvl,
+                    locale
+                )) as SpellSummary[];
                 collected.push(...data);
             }
 

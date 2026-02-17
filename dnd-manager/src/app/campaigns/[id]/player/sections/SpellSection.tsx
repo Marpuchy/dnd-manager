@@ -4,6 +4,7 @@ import { getSpellSlotsFor } from "@/lib/spellSlots";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { getLocalizedText } from "@/lib/character/items";
 import { tr } from "@/lib/i18n/translate";
+import { getClientSpellsForClassLevel } from "@/lib/dnd/clientLocalData";
 
 type SpellSectionProps = {
   charClass: string;
@@ -276,13 +277,11 @@ function MiniSpellSearch({
       let clsForApi = charClass;
       if (charClass === "custom") clsForApi = "wizard";
 
-      const response = await fetch(
-        `/api/dnd/spells?class=${encodeURIComponent(clsForApi)}&level=${charLevel}&locale=${locale}`
-      );
-      if (!response.ok)
-        throw new Error(t("No se ha podido cargar la lista de habilidades.", "Could not load spell list."));
-
-      const data: SpellSummary[] = await response.json();
+      const data = (await getClientSpellsForClassLevel(
+        clsForApi,
+        charLevel,
+        locale
+      )) as SpellSummary[];
       setSpells(data);
       setLoadedSyncKey(forceKey ?? syncKey);
     } catch (err: any) {

@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useUserSettings } from "@/app/components/SettingsProvider";
+import { supabase } from "@/lib/supabaseClient";
 import { X } from "lucide-react";
 import { tr } from "@/lib/i18n/translate";
 
@@ -14,10 +15,27 @@ type SettingsPanelProps = {
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     const router = useRouter();
     const { settings, updateSettings, loading } = useUserSettings();
+    const [loggingOut, setLoggingOut] = React.useState(false);
     const locale = settings?.locale ?? "es";
     const t = (es: string, en: string) => tr(locale, es, en);
 
     if (!open) return null;
+
+    async function handleSignOut() {
+        if (loggingOut) return;
+        setLoggingOut(true);
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                console.error("Error cerrando sesion:", error);
+            }
+            onClose();
+            router.replace("/login");
+            router.refresh();
+        } finally {
+            setLoggingOut(false);
+        }
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -132,13 +150,23 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                         </label>
                     </div>
 
-                    <div className="pt-2 border-t border-ring">
+                    <div className="pt-2 border-t border-ring space-y-2">
                         <button
                             type="button"
                             onClick={() => router.push("/campaigns")}
                             className="w-full text-xs px-3 py-2 rounded-md border border-ring bg-white/70 hover:bg-white"
                         >
                             {t("Cambiar rol", "Switch role")}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSignOut}
+                            disabled={loggingOut}
+                            className="w-full text-xs px-3 py-2 rounded-md border border-red-300/60 bg-red-50/70 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                        >
+                            {loggingOut
+                                ? t("Cerrando sesion...", "Signing out...")
+                                : t("Cerrar sesion", "Sign out")}
                         </button>
                     </div>
                 </div>

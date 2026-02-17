@@ -1,6 +1,7 @@
 import { CLASS_PROGRESSIONS_2024 } from "./srd2024";
 import { CLASS_PROGRESSIONS_2024_ES } from "./srd2024.es";
 import { OFFICIAL_SUBCLASS_CATALOG } from "./officialSubclasses";
+import { OFFICIAL_SUBCLASS_NAMES_ES } from "./officialSubclasses.es";
 import { ClassAbility, ClassProgression, ClassSubclass } from "./types";
 
 const CLASS_IDS = new Set(Object.keys(CLASS_PROGRESSIONS_2024));
@@ -50,7 +51,8 @@ function progressionsByLocale(locale: ClassAbilityLocale = "en") {
 function mergeOfficialSubclasses(
     classId: string,
     baseSubclasses: ClassSubclass[],
-    subclassUnlockLevel = 3
+    subclassUnlockLevel = 3,
+    locale: ClassAbilityLocale = "en"
 ): ClassSubclass[] {
     const merged = new Map<string, ClassSubclass>();
     for (const subclass of baseSubclasses) {
@@ -62,7 +64,10 @@ function mergeOfficialSubclasses(
         if (merged.has(seed.id)) continue;
         merged.set(seed.id, {
             id: seed.id,
-            name: seed.name,
+            name:
+                locale === "es"
+                    ? OFFICIAL_SUBCLASS_NAMES_ES[seed.id] ?? seed.name
+                    : seed.name,
             classId,
             unlockLevel:
                 Number.isFinite(Number(seed.unlockLevel)) && Number(seed.unlockLevel) > 0
@@ -107,7 +112,8 @@ export function getClassProgression(
     const mergedSubclasses = mergeOfficialSubclasses(
         classId,
         Array.isArray(progression.subclasses) ? progression.subclasses : [],
-        progression.subclassUnlockLevel ?? 3
+        progression.subclassUnlockLevel ?? 3,
+        locale
     );
 
     return {

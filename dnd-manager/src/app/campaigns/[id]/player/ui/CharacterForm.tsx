@@ -230,9 +230,10 @@ export function CharacterForm({
     const [saving, setSaving] = React.useState(false);
     const [customCreateOpen, setCustomCreateOpen] = React.useState(false);
     const customContentRef = React.useRef<HTMLDivElement | null>(null);
-    const [subclassDraftOpen, setSubclassDraftOpen] = React.useState(false);
     const [subclassDraftName, setSubclassDraftName] = React.useState("");
     const [subclassDraftUnlock, setSubclassDraftUnlock] = React.useState(3);
+    const [isCreatingCustomSubclass, setIsCreatingCustomSubclass] = React.useState(false);
+    const CREATE_SUBCLASS_OPTION = "__create_custom_subclass__";
 
     // Resolver campaign id (prioridad: fields -> nested -> route)
     const campaignIdFromFields =
@@ -315,6 +316,12 @@ export function CharacterForm({
             setClassSubclassId("");
         }
     }, [availableSubclasses, classSubclassId, setClassSubclassId]);
+
+    React.useEffect(() => {
+        setIsCreatingCustomSubclass(false);
+        setSubclassDraftName("");
+        setSubclassDraftUnlock(3);
+    }, [charClass]);
 
     const customSectionsSafe = Array.isArray(customSections) ? customSections : [];
     const ownerOptionsSafe = Array.isArray(ownerOptions) ? ownerOptions : [];
@@ -467,7 +474,7 @@ export function CharacterForm({
         if (!setCustomSubclasses) return;
         const classId = charClass?.trim();
         const name = subclassDraftName.trim();
-        if (!classId || classId === "custom" || !name) return;
+        if (!classId || !name) return;
 
         const unlockLevel = Math.max(1, Math.min(20, Number(subclassDraftUnlock) || 3));
         const nextEntry: CustomSubclassEntry = {
@@ -491,7 +498,7 @@ export function CharacterForm({
         setClassSubclassId?.(nextEntry.id);
         setSubclassDraftName("");
         setSubclassDraftUnlock(3);
-        setSubclassDraftOpen(false);
+        setIsCreatingCustomSubclass(false);
     }
 
     function removeCustomSubclass(id: string) {
@@ -502,6 +509,16 @@ export function CharacterForm({
         if (classSubclassId === id) {
             setClassSubclassId?.("");
         }
+    }
+
+    function handleSubclassChange(nextValue: string) {
+        if (nextValue === CREATE_SUBCLASS_OPTION) {
+            setIsCreatingCustomSubclass(true);
+            setClassSubclassId?.("");
+            return;
+        }
+        setIsCreatingCustomSubclass(false);
+        setClassSubclassId?.(nextValue);
     }
 
     async function handleSubmit(e: FormEvent) {
@@ -954,9 +971,6 @@ export function CharacterForm({
                                                     : c.label}
                                             </option>
                                         ))}
-                                        <option value="custom">
-                                            {t("Clase personalizada...", "Custom class...")}
-                                        </option>
                                     </select>
                                     <p className="text-[11px] text-ink-muted">
                                         {t(
@@ -966,43 +980,41 @@ export function CharacterForm({
                                     </p>
                                 </div>
 
-                                {!isCustomClass && charClass && (
+                                {charClass && (
                                     <div className="space-y-2 md:col-span-2">
-                                        <div className="flex flex-wrap items-start justify-between gap-2">
-                                            <div className="min-w-0">
-                                                <label className="text-sm text-ink">
-                                                    {t("Subclase / Circulo", "Subclass / Circle")}
-                                                </label>
-                                                <p className="text-[11px] text-ink-muted">
-                                                    {canChooseSubclass
-                                                        ? t(
-                                                              "Se aplican sus rasgos por nivel automaticamente.",
-                                                              "Its features are applied automatically by level."
-                                                          )
-                                                        : t(
-                                                              `Disponible a partir del nivel ${subclassUnlockLevel}.`,
-                                                              `Available from level ${subclassUnlockLevel}.`
-                                                          )}
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setSubclassDraftOpen((prev) => !prev)}
-                                                className="text-[11px] px-3 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
-                                            >
-                                                {t(
-                                                    "Crear subclase personalizada",
-                                                    "Create custom subclass"
-                                                )}
-                                            </button>
+                                        <div className="min-w-0">
+                                            <label className="text-sm text-ink">
+                                                {t("Subclase / Circulo", "Subclass / Circle")}
+                                            </label>
+                                            <p className="text-[11px] text-ink-muted">
+                                                {canChooseSubclass
+                                                    ? t(
+                                                          "Se aplican sus rasgos por nivel automaticamente.",
+                                                          "Its features are applied automatically by level."
+                                                      )
+                                                    : t(
+                                                          `Disponible a partir del nivel ${subclassUnlockLevel}.`,
+                                                          `Available from level ${subclassUnlockLevel}.`
+                                                      )}
+                                            </p>
                                         </div>
 
                                         <select
-                                            value={classSubclassId ?? ""}
-                                            onChange={(e) => setClassSubclassId?.(e.target.value)}
+                                            value={
+                                                isCreatingCustomSubclass
+                                                    ? CREATE_SUBCLASS_OPTION
+                                                    : classSubclassId ?? ""
+                                            }
+                                            onChange={(e) => handleSubclassChange(e.target.value)}
                                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
                                         >
                                             <option value="">{t("Sin subclase", "No subclass")}</option>
+                                            <option value={CREATE_SUBCLASS_OPTION}>
+                                                {t(
+                                                    "Subclase personalizada...",
+                                                    "Custom subclass..."
+                                                )}
+                                            </option>
                                             {availableSubclasses.map((subclass) => {
                                                 const unlockLevel = Number(subclass.unlockLevel ?? 3);
                                                 const locked = charLevel < unlockLevel;
@@ -1028,61 +1040,70 @@ export function CharacterForm({
                                             })}
                                         </select>
 
-                                        {subclassDraftOpen && (
-                                            <div className="rounded-xl border border-ring bg-panel/80 p-3 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_160px_auto] gap-2 items-end">
-                                                <div className="space-y-1">
-                                                    <label className="text-[11px] text-ink-muted">
-                                                        {t("Nombre de subclase", "Subclass name")}
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={subclassDraftName}
-                                                        onChange={(event) =>
-                                                            setSubclassDraftName(event.target.value)
-                                                        }
-                                                        className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
-                                                        placeholder={t(
-                                                            "Ej. Juramento de la Tormenta",
-                                                            "e.g. Oath of Storms"
-                                                        )}
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-[11px] text-ink-muted">
-                                                        {t("Nivel de desbloqueo", "Unlock level")}
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        min={1}
-                                                        max={20}
-                                                        value={subclassDraftUnlock}
-                                                        onChange={(event) =>
-                                                            setSubclassDraftUnlock(
-                                                                Number(event.target.value) || 1
-                                                            )
-                                                        }
-                                                        className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
-                                                    />
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={addCustomSubclass}
-                                                        className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
-                                                    >
-                                                        {t("Guardar", "Save")}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setSubclassDraftOpen(false);
-                                                            setSubclassDraftName("");
-                                                            setSubclassDraftUnlock(3);
-                                                        }}
-                                                        className="text-[11px] px-3 py-2 rounded-md border border-ring bg-white/70 hover:bg-white"
-                                                    >
-                                                        {t("Cancelar", "Cancel")}
-                                                    </button>
+                                        {isCreatingCustomSubclass && (
+                                            <div className="rounded-lg border border-ring bg-panel/80 p-3 space-y-2">
+                                                <p className="text-[11px] text-ink-muted">
+                                                    {t(
+                                                        "Crear subclase personalizada",
+                                                        "Create custom subclass"
+                                                    )}
+                                                </p>
+                                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_160px_auto] gap-2 items-end">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[11px] text-ink-muted">
+                                                            {t("Nombre de subclase", "Subclass name")}
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={subclassDraftName}
+                                                            onChange={(event) =>
+                                                                setSubclassDraftName(event.target.value)
+                                                            }
+                                                            className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                                            placeholder={t(
+                                                                "Ej. Juramento de la Tormenta",
+                                                                "e.g. Oath of Storms"
+                                                            )}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[11px] text-ink-muted">
+                                                            {t("Nivel de desbloqueo", "Unlock level")}
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            max={20}
+                                                            value={subclassDraftUnlock}
+                                                            onChange={(event) =>
+                                                                setSubclassDraftUnlock(
+                                                                    Number(event.target.value) || 1
+                                                                )
+                                                            }
+                                                            className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={addCustomSubclass}
+                                                            disabled={!subclassDraftName.trim()}
+                                                            className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
+                                                        >
+                                                            {t("Crear subclase", "Create subclass")}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsCreatingCustomSubclass(false);
+                                                                setSubclassDraftName("");
+                                                                setSubclassDraftUnlock(3);
+                                                            }}
+                                                            className="text-[11px] px-3 py-2 rounded-md border border-ring bg-white/70 hover:bg-white"
+                                                        >
+                                                            {t("Cancelar", "Cancel")}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

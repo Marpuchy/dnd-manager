@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -17,7 +17,7 @@ type Campaign = {
 export default function CampaignsPage() {
   const router = useRouter();
   const locale = useClientLocale();
-  const t = (es: string, en: string) => tr(locale, es, en);
+  const t = useCallback((es: string, en: string) => tr(locale, es, en), [locale]);
 
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
