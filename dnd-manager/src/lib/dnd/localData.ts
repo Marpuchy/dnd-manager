@@ -1,5 +1,9 @@
 ﻿import { readFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  augmentClassLearningWithArtificer,
+  augmentSpellsDatasetWithArtificer,
+} from "@/lib/dnd/artificerCompat";
 
 type SupportedLocale = "en" | "es";
 
@@ -142,11 +146,12 @@ export async function getLocalDndReference(locale: SupportedLocale): Promise<any
     return referenceCache.get(locale);
   }
 
-  const [spells, features, classes] = await Promise.all([
+  const [rawSpells, features, classes] = await Promise.all([
     readFullCategory(locale, "spells"),
     readFullCategory(locale, "features"),
     readFullCategory(locale, "classes"),
   ]);
+  const spells = augmentSpellsDatasetWithArtificer(rawSpells, locale);
 
   const payload = {
     locale,
@@ -166,7 +171,15 @@ export async function getLocalDndClassLearning(
     return classLearningCache.get(locale);
   }
 
-  const classes = await readFullCategory(locale, "class-learning");
+  const [rawClasses, reference] = await Promise.all([
+    readFullCategory(locale, "class-learning"),
+    getLocalDndReference(locale),
+  ]);
+  const classes = augmentClassLearningWithArtificer(
+    rawClasses,
+    locale,
+    reference?.spells?.byIndex ?? {}
+  );
   const payload = {
     locale,
     classes,

@@ -28,12 +28,17 @@ import { tr } from "@/lib/i18n/translate";
 
 type RightPanelMode = "character" | "spellManager";
 
-export default function CampaignPlayerPage() {
+type CampaignPlayerPageProps = {
+    forceDmMode?: boolean;
+};
+
+export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPageProps = {}) {
     const params = useParams<{ id: string }>();
     const router = useRouter();
 
     const [loading, setLoading] = useState(true);
     const [allowed, setAllowed] = useState(false);
+    const isDmMode = forceDmMode;
     const [characters, setCharacters] = useState<Character[]>([]);
     const [error, setError] = useState<string | null>(null);
 
@@ -149,17 +154,25 @@ export default function CampaignPlayerPage() {
                 return;
             }
 
-            const { data: chars, error: charsError } = await supabase
+            const baseQuery = supabase
                 .from("characters")
                 .select(
                     "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
                 )
-                .eq("campaign_id", params.id)
-                .eq("user_id", session.user.id);
+                .eq("campaign_id", params.id);
+            const query = isDmMode
+                ? baseQuery
+                : baseQuery.eq("user_id", session.user.id);
+            const { data: chars, error: charsError } = await query;
 
             if (charsError) {
                 console.error("Error cargando personajes:", charsError);
-                setError(charsError.message ?? "No se han podido cargar tus personajes.");
+                setError(
+                    charsError.message ??
+                        (isDmMode
+                            ? "No se han podido cargar los personajes de la campana."
+                            : "No se han podido cargar tus personajes.")
+                );
                 setCharacters([]);
             } else if (chars) {
                 const list: Character[] = (chars as any[]).map((c) => ({
@@ -214,13 +227,18 @@ export default function CampaignPlayerPage() {
                 return;
             }
 
+            if (forceDmMode && membership.role !== "DM") {
+                router.push("/campaigns");
+                return;
+            }
+
             setAllowed(true);
             await loadCharacters();
         }
 
         checkAccessAndInit();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [params.id, router]);
+    }, [params.id, router, forceDmMode]);
 
 
     function startCreate(type: "character" | "companion" = "character") {
@@ -445,12 +463,15 @@ export default function CampaignPlayerPage() {
 
             const targetId = editingId ?? null;
             if (targetId) {
-                const { error: updateError } = await supabase
+                const baseUpdate = supabase
                     .from("characters")
                     .update(payload)
                     .eq("id", targetId)
-                    .eq("campaign_id", params.id)
-                    .eq("user_id", session.user.id);
+                    .eq("campaign_id", params.id);
+                const updateQuery = isDmMode
+                    ? baseUpdate
+                    : baseUpdate.eq("user_id", session.user.id);
+                const { error: updateError } = await updateQuery;
 
                 if (updateError) {
                     throw new Error(updateError.message);
@@ -529,12 +550,15 @@ export default function CampaignPlayerPage() {
                 throw new Error("No hay sesión activa.");
             }
 
-            const { error: deleteError } = await supabase
+            const baseDelete = supabase
                 .from("characters")
                 .delete()
                 .eq("id", id)
-                .eq("campaign_id", params.id)
-                .eq("user_id", session.user.id);
+                .eq("campaign_id", params.id);
+            const deleteQuery = isDmMode
+                ? baseDelete
+                : baseDelete.eq("user_id", session.user.id);
+            const { error: deleteError } = await deleteQuery;
 
             if (deleteError) {
                 console.error("Error eliminando personaje:", deleteError);
@@ -797,7 +821,18 @@ export default function CampaignPlayerPage() {
 
             await Promise.all(
                 nextCharacters.map((char, index) =>
-                    supabase
+                    (isDmMode
+                        ? supabase
+                              .from("characters")
+                              .update({
+                                  details: {
+                                      ...(char.details ?? {}),
+                                      listOrder: index,
+                                  },
+                              })
+                              .eq("id", char.id)
+                              .eq("campaign_id", params.id)
+                        : supabase
                         .from("characters")
                         .update({
                             details: {
@@ -807,7 +842,7 @@ export default function CampaignPlayerPage() {
                         })
                         .eq("id", char.id)
                         .eq("campaign_id", params.id)
-                        .eq("user_id", session.user.id)
+                        .eq("user_id", session.user.id))
                 )
             );
         } catch (err) {
@@ -978,10 +1013,22 @@ export default function CampaignPlayerPage() {
                             </div>
                             <div>
                                 <h2 className="text-lg font-semibold text-ink leading-tight">
-                                    {tr(locale, "Tus personajes", "Your characters")}
+                                    {isDmMode
+                                        ? tr(locale, "Personajes de campana", "Campaign characters")
+                                        : tr(locale, "Tus personajes", "Your characters")}
                                 </h2>
                                 <p className="text-[11px] text-ink-muted mt-0.5">
-                                    {tr(locale, "Gestiona tus personajes de campaña", "Manage your campaign characters")}
+                                    {isDmMode
+                                        ? tr(
+                                              locale,
+                                              "Gestion DM: editar cualquier personaje.",
+                                              "DM management: edit any character."
+                                          )
+                                        : tr(
+                                              locale,
+                                              "Gestiona tus personajes de campaña",
+                                              "Manage your campaign characters"
+                                          )}
                                 </p>
                             </div>
                         </div>
@@ -1299,6 +1346,7 @@ export default function CampaignPlayerPage() {
                             <SpellManagerPanel
                                 character={selectedChar}
                                 onClose={() => setRightPanelMode("character")}
+                                isDMMode={isDmMode}
                                 onDetailsChange={(newDetails: Details) => {
                                     setCharacters((prev) =>
                                         prev.map((c) => (c.id === selectedChar.id ? { ...c, details: newDetails } : c))
@@ -1358,5 +1406,6 @@ export default function CampaignPlayerPage() {
     );
 }
 
+export default CampaignPlayerPage;
 
 

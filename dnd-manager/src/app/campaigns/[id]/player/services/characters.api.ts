@@ -17,7 +17,22 @@ export async function upsertStats(character_id: string, stats: Stats) {
         cha: Number(stats.cha ?? 8),
         updated_at: new Date().toISOString(),
     };
-    return supabase.from("character_stats").upsert(payload, { onConflict: "character_id" });
+    const { data, error } = await supabase
+        .from("character_stats")
+        .upsert(payload, { onConflict: "character_id" })
+        .select("character_id")
+        .maybeSingle();
+
+    if (!error && !data) {
+        return {
+            data: null,
+            error: new Error(
+                "No se pudo guardar character_stats (0 filas afectadas). Revisa permisos/RLS."
+            ),
+        };
+    }
+
+    return { data, error };
 }
 
 /**
@@ -158,6 +173,13 @@ export async function createOrUpdateCharacterRow(
                 console.error("Supabase update error characters:", inspectError(error), { character_id, basePayload });
                 return { data: null, error };
             }
+            if (!data?.id) {
+                const noRowsError = new Error(
+                    "No se actualizo el personaje (0 filas afectadas). Revisa permisos/RLS."
+                );
+                console.error(noRowsError.message, { character_id, basePayload });
+                return { data: null, error: noRowsError };
+            }
             return { data, error: null };
         }
 
@@ -225,6 +247,13 @@ export async function updateCharacterDetails(character_id: string, detailsPatch:
             console.error("Error leyendo details actuales:", inspectError(getErr));
             return { data: null, error: getErr };
         }
+        if (!existingRow) {
+            const noReadError = new Error(
+                "No se pudo leer el personaje para actualizar details (0 filas). Revisa permisos/RLS."
+            );
+            console.error(noReadError.message, { character_id });
+            return { data: null, error: noReadError };
+        }
 
         const currentDetails = (existingRow && (existingRow as any).details) || {};
 
@@ -250,6 +279,13 @@ export async function updateCharacterDetails(character_id: string, detailsPatch:
         if (updErr) {
             console.error("Error actualizando details (merge):", inspectError(updErr));
             return { data: null, error: updErr };
+        }
+        if (!updData) {
+            const noRowsError = new Error(
+                "No se actualizaron details (0 filas afectadas). Revisa permisos/RLS."
+            );
+            console.error(noRowsError.message, { character_id });
+            return { data: null, error: noRowsError };
         }
 
         return { data: updData, error: null };

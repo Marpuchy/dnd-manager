@@ -2682,44 +2682,165 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
   },
   artificer: {
     classId: "artificer",
-    className: "Artífice",
-    source: "Respaldo del Legacy 5e",
+    className: "Artificiero",
+    source: "Integracion Artificiero 5e",
     subclassUnlockLevel: 3,
     classFeatures: [
       {
-        id: "artificer:lvl1:magical-tinkering:1",
-        name: "Retoques mágicos",
+        id: "artificer:lvl1:magical-tinkering",
+        name: "Retoques magicos",
         class: "artificer",
         level: 1,
-        description: "Infunde pequeños objetos con efectos mágicos simples."
+        description:
+          "Puedes tocar un objeto diminuto no magico y darle un efecto magico menor (luz, mensaje grabado, olor/sonido o una imagen estatica). Puedes mantener varios efectos activos y renovarlos tras descansar."
       },
       {
-        id: "artificer:lvl2:infuse-item:1",
-        name: "Infundir artículo",
+        id: "artificer:lvl1:spellcasting",
+        name: "Lanzamiento de conjuros",
+        class: "artificer",
+        level: 1,
+        description:
+          "Lanzas conjuros usando Inteligencia como caracteristica de lanzamiento. El artificiero prepara conjuros de su lista y puede usar herramientas como foco."
+      },
+      {
+        id: "artificer:lvl2:infuse-item",
+        name: "Infundir objeto",
         class: "artificer",
         level: 2,
-        description: "Crea infusiones mágicas para equipos."
+        description:
+          "Aprendes infusiones y puedes convertir objetos no magicos en objetos magicos al final de un descanso largo. El numero de infusiones activas depende de tu nivel."
       },
       {
-        id: "artificer:lvl3:artificer-subclass:1",
-        name: "Subclase de artífice",
+        id: "artificer:lvl3:right-tool-for-the-job",
+        name: "La herramienta adecuada",
         class: "artificer",
         level: 3,
-        description: "Elija una ruta especializada que otorgue características de subclase en niveles superiores."
+        description:
+          "Con herramientas de ladron puedes crear un juego de herramientas de artesano en una hora si tienes metal suficiente."
       },
       {
-        id: "artificer:lvl5:tool-expertise:1",
-        name: "Experiencia en herramientas",
+        id: "artificer:lvl3:artificer-specialist",
+        name: "Especialista artificiero",
+        class: "artificer",
+        level: 3,
+        description:
+          "Eliges una especialidad: Alquimista, Armero, Artillero o Herrero de Batalla. Ganas rasgos de subclase en niveles 3, 5, 9 y 15."
+      },
+      {
+        id: "artificer:lvl4:asi",
+        name: "Mejora de puntuacion de caracteristica",
+        class: "artificer",
+        level: 4,
+        description:
+          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+      },
+      {
+        id: "artificer:lvl5:specialist-feature",
+        name: "Rasgo de especialista",
         class: "artificer",
         level: 5,
-        description: "Su bonificación de competencia se duplica para las comprobaciones de herramientas que utilizan herramientas con las que es competente."
+        description: "Ganas el rasgo de nivel 5 de tu especialidad."
       },
       {
-        id: "artificer:lvl7:flash-of-genius:1",
-        name: "Destello de genio",
+        id: "artificer:lvl6:tool-expertise",
+        name: "Pericia con herramientas",
+        class: "artificer",
+        level: 6,
+        description:
+          "Tu bonificador por competencia se duplica en pruebas de caracteristica con herramientas en las que seas competente."
+      },
+      {
+        id: "artificer:lvl7:flash-of-genius",
+        name: "Destello de genialidad",
         class: "artificer",
         level: 7,
-        description: "Utilice su reacción para agregar su modificador de Inteligencia a una verificación o guardado."
+        description:
+          "Cuando tu o una criatura a 30 pies haga una prueba o salvacion, puedes usar tu reaccion para sumar tu modificador de Inteligencia. Usos por descanso largo: minimo 1."
+      },
+      {
+        id: "artificer:lvl8:asi",
+        name: "Mejora de puntuacion de caracteristica",
+        class: "artificer",
+        level: 8,
+        description:
+          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+      },
+      {
+        id: "artificer:lvl9:specialist-feature",
+        name: "Rasgo de especialista",
+        class: "artificer",
+        level: 9,
+        description: "Ganas el rasgo de nivel 9 de tu especialidad."
+      },
+      {
+        id: "artificer:lvl10:magic-item-adept",
+        name: "Adepto de objetos magicos",
+        class: "artificer",
+        level: 10,
+        description:
+          "Puedes vincularte a 4 objetos magicos y fabricar objetos comunes o poco comunes mas rapido y barato."
+      },
+      {
+        id: "artificer:lvl11:spell-storing-item",
+        name: "Objeto almacenador de conjuros",
+        class: "artificer",
+        level: 11,
+        description:
+          "Guardas un conjuro de nivel 1 o 2 del artificiero en un objeto para que se pueda lanzar varias veces."
+      },
+      {
+        id: "artificer:lvl12:asi",
+        name: "Mejora de puntuacion de caracteristica",
+        class: "artificer",
+        level: 12,
+        description:
+          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+      },
+      {
+        id: "artificer:lvl14:magic-item-savant",
+        name: "Experto en objetos magicos",
+        class: "artificer",
+        level: 14,
+        description:
+          "Puedes vincularte a 5 objetos magicos e ignorar requisitos de clase, raza, conjuro o nivel para vincularte."
+      },
+      {
+        id: "artificer:lvl15:specialist-feature",
+        name: "Rasgo de especialista",
+        class: "artificer",
+        level: 15,
+        description: "Ganas el rasgo de nivel 15 de tu especialidad."
+      },
+      {
+        id: "artificer:lvl16:asi",
+        name: "Mejora de puntuacion de caracteristica",
+        class: "artificer",
+        level: 16,
+        description:
+          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+      },
+      {
+        id: "artificer:lvl18:magic-item-master",
+        name: "Maestro de objetos magicos",
+        class: "artificer",
+        level: 18,
+        description: "Puedes vincularte a 6 objetos magicos a la vez."
+      },
+      {
+        id: "artificer:lvl19:asi",
+        name: "Mejora de puntuacion de caracteristica",
+        class: "artificer",
+        level: 19,
+        description:
+          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+      },
+      {
+        id: "artificer:lvl20:soul-of-artifice",
+        name: "Alma de artificio",
+        class: "artificer",
+        level: 20,
+        description:
+          "Ganas +1 a todas las salvaciones por cada objeto magico al que estes vinculado, y puedes terminar una infusion para no caer a 0 puntos de golpe."
       }
     ],
     subclasses: [
@@ -2728,32 +2849,287 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
         name: "Alquimista",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Respaldo del Legacy 5e",
-        features: []
+        source: "Integracion Artificiero 5e",
+        features: [
+          {
+            id: "artificer:alchemist:lvl3:tool-proficiency",
+            name: "Competencia con herramientas",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alquimista",
+            description: "Ganas competencia con suministros de alquimista."
+          },
+          {
+            id: "artificer:alchemist:lvl3:alchemist-spells",
+            name: "Conjuros de alquimista",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alquimista",
+            description:
+              "Siempre tienes preparados conjuros extra de Alquimista en niveles de especialidad."
+          },
+          {
+            id: "artificer:alchemist:lvl3:experimental-elixir",
+            name: "Elixir experimental",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alquimista",
+            description:
+              "Al terminar un descanso largo creas un elixir aleatorio; tambien puedes gastar espacios para crear elixires concretos."
+          },
+          {
+            id: "artificer:alchemist:lvl5:alchemical-savant",
+            name: "Erudito alquimico",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alquimista",
+            description:
+              "Cuando lanzas conjuros usando suministros de alquimista como foco, anades tu modificador de Inteligencia a una tirada de curacion o dano elegible."
+          },
+          {
+            id: "artificer:alchemist:lvl9:restorative-reagents",
+            name: "Reactivos restauradores",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alquimista",
+            description:
+              "Tus elixires otorgan puntos de golpe temporales, y puedes lanzar Lesser Restoration sin gastar espacio un numero limitado de veces."
+          },
+          {
+            id: "artificer:alchemist:lvl15:chemical-mastery",
+            name: "Maestria quimica",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alquimista",
+            description:
+              "Obtienes resistencia al acido y veneno, inmunidad al estado envenenado, y acceso limitado a Greater Restoration y Heal."
+          }
+        ]
       },
       {
         id: "artificer:armorer",
         name: "Armero",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Respaldo del Legacy 5e",
-        features: []
+        source: "Integracion Artificiero 5e",
+        features: [
+          {
+            id: "artificer:armorer:lvl3:tools-of-the-trade",
+            name: "Herramientas del oficio",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description: "Ganas competencia con armadura pesada y herramientas de herrero."
+          },
+          {
+            id: "artificer:armorer:lvl3:armorer-spells",
+            name: "Conjuros de armero",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description: "Siempre tienes preparados conjuros extra de Armero."
+          },
+          {
+            id: "artificer:armorer:lvl3:arcane-armor",
+            name: "Armadura arcana",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description:
+              "Tu armadura se convierte en foco arcano, puede colocarse y retirarse mejor, reemplaza miembros perdidos y no puede quitarse contra tu voluntad."
+          },
+          {
+            id: "artificer:armorer:lvl3:armor-model",
+            name: "Modelo de armadura",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description:
+              "Eliges Guardian o Infiltrador; cada modelo otorga armas integradas y beneficios de combate distintos."
+          },
+          {
+            id: "artificer:armorer:lvl5:extra-attack",
+            name: "Ataque adicional",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description: "Puedes atacar dos veces cuando realizas la accion de Ataque."
+          },
+          {
+            id: "artificer:armorer:lvl9:armor-modifications",
+            name: "Modificaciones de armadura",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description:
+              "Tu armadura arcana cuenta como varias piezas para aplicar infusiones adicionales."
+          },
+          {
+            id: "artificer:armorer:lvl15:perfected-armor",
+            name: "Armadura perfeccionada",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:armorer",
+            subclassName: "Armero",
+            description:
+              "Tus modelos Guardian e Infiltrador mejoran con efectos de control y movilidad mas potentes."
+          }
+        ]
       },
       {
         id: "artificer:artillerist",
-        name: "artillero",
+        name: "Artillero",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Respaldo del Legacy 5e",
-        features: []
+        source: "Integracion Artificiero 5e",
+        features: [
+          {
+            id: "artificer:artillerist:lvl3:tool-proficiency",
+            name: "Competencia con herramientas",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillero",
+            description: "Ganas competencia con herramientas de tallista de madera."
+          },
+          {
+            id: "artificer:artillerist:lvl3:artillerist-spells",
+            name: "Conjuros de artillero",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillero",
+            description: "Siempre tienes preparados conjuros extra de Artillero."
+          },
+          {
+            id: "artificer:artillerist:lvl3:eldritch-cannon",
+            name: "Canon eldritch",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillero",
+            description:
+              "Creas un canon magico (Lanzallamas, Ballesta de Fuerza o Protector) que puedes ordenar con accion adicional."
+          },
+          {
+            id: "artificer:artillerist:lvl5:arcane-firearm",
+            name: "Arma de fuego arcana",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillero",
+            description:
+              "Conviertes una vara, baston o varita en arma de fuego arcana y anades dano extra a una tirada de dano de conjuro de artificiero."
+          },
+          {
+            id: "artificer:artillerist:lvl9:explosive-cannon",
+            name: "Canon explosivo",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillero",
+            description:
+              "Tus canones hacen mas dano y puedes detonarlos para crear una explosion en area."
+          },
+          {
+            id: "artificer:artillerist:lvl15:fortified-position",
+            name: "Posicion fortificada",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillero",
+            description:
+              "Tu y tus aliados cercanos al canon obteneis mejor proteccion y puedes controlar dos canones a la vez."
+          }
+        ]
       },
       {
         id: "artificer:battle-smith",
-        name: "Herrero de batalla",
+        name: "Herrero de Batalla",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Respaldo del Legacy 5e",
-        features: []
+        source: "Integracion Artificiero 5e",
+        features: [
+          {
+            id: "artificer:battle-smith:lvl3:tool-proficiency",
+            name: "Competencia con herramientas",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description: "Ganas competencia con herramientas de herrero."
+          },
+          {
+            id: "artificer:battle-smith:lvl3:battle-smith-spells",
+            name: "Conjuros de herrero de batalla",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description: "Siempre tienes preparados conjuros extra de Herrero de Batalla."
+          },
+          {
+            id: "artificer:battle-smith:lvl3:battle-ready",
+            name: "Listo para la batalla",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description:
+              "Ganas competencia con armas marciales y puedes usar Inteligencia para ataque y dano con armas magicas."
+          },
+          {
+            id: "artificer:battle-smith:lvl3:steel-defender",
+            name: "Defensor de acero",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description:
+              "Construyes un Defensor de Acero que actua en combate y puede proteger aliados con su reaccion."
+          },
+          {
+            id: "artificer:battle-smith:lvl5:extra-attack",
+            name: "Ataque adicional",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description: "Puedes atacar dos veces cuando realizas la accion de Ataque."
+          },
+          {
+            id: "artificer:battle-smith:lvl9:arcane-jolt",
+            name: "Descarga arcana",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description:
+              "Cuando tu o tu Defensor de Acero impactais, puedes hacer dano de fuerza extra o curar a una criatura cercana."
+          },
+          {
+            id: "artificer:battle-smith:lvl15:improved-defender",
+            name: "Defensor mejorado",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Herrero de Batalla",
+            description:
+              "Tu Defensor de Acero mejora dano, resistencia y reaccion Deflect Attack."
+          }
+        ]
       }
     ]
   }

@@ -21,12 +21,16 @@ import { getLocalizedText } from "@/lib/character/items";
 import { tr } from "@/lib/i18n/translate";
 import Markdown from "@/app/components/Markdown";
 import CustomContentManager from "../sections/CustomContentManager";
-import { getClientSpellsForClassLevel } from "@/lib/dnd/clientLocalData";
+import {
+    getClientAllSpells,
+    getClientSpellsForClassLevel,
+} from "@/lib/dnd/clientLocalData";
 
 type Props = {
     character: Character;
     onDetailsChange?: (details: Details) => void;
     onClose: () => void;
+    isDMMode?: boolean;
 };
 
 type StatusFilter = "all" | "learned" | "unlearned";
@@ -45,6 +49,7 @@ export function SpellManagerPanel({
                                       character,
                                       onDetailsChange,
                                       onClose,
+                                      isDMMode = false,
                                   }: Props) {
     const stats: Stats =
         character.stats ?? {
@@ -71,6 +76,7 @@ export function SpellManagerPanel({
     const [levelFilter, setLevelFilter] = useState<"all" | number>("all");
     const [statusFilter, setStatusFilter] =
         useState<StatusFilter>("all");
+    const [classFilter, setClassFilter] = useState<string>("all");
 
     const [sourceClass, setSourceClass] = useState(
         apiClass === "custom" ? "wizard" : apiClass
@@ -114,15 +120,21 @@ export function SpellManagerPanel({
        LOAD SPELLS
     --------------------------- */
     useEffect(() => {
-        if (!apiClass) return;
+        if (!isDMMode && !apiClass) return;
         loadAllSpells();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [apiClass, sourceClass, charLevel, locale]);
+    }, [apiClass, sourceClass, charLevel, locale, isDMMode]);
 
     async function loadAllSpells() {
         try {
             setLoading(true);
             setError(null);
+
+            if (isDMMode) {
+                const allSpells = (await getClientAllSpells(locale)) as SpellSummary[];
+                setSpells(allSpells);
+                return;
+            }
 
             const classForApi =
                 apiClass === "custom" ? sourceClass : apiClass;
@@ -215,7 +227,7 @@ export function SpellManagerPanel({
             const levelKey = `level${spell.level}` as keyof Spells;
             const value = currentSpells[levelKey];
 
-            if (spell.level >= 1 && preparedInfo) {
+            if (!isDMMode && spell.level >= 1 && preparedInfo) {
                 const count = countPreparedSpells(currentSpells);
                 if (count >= preparedInfo.total) {
                     setError(
@@ -344,11 +356,25 @@ export function SpellManagerPanel({
             if (levelFilter !== "all" && s.level !== levelFilter)
                 return false;
 
-            if (
+            if (!isDMMode && (
                 s.level > maxLearnableSpellLevel ||
                 s.level < 0
-            )
+            ))
                 return false;
+
+            if (isDMMode && classFilter !== "all") {
+                const classes = Array.isArray(s.classes) ? s.classes : [];
+                const classIds = classes
+                    .map((entry) =>
+                        typeof entry?.index === "string"
+                            ? entry.index
+                            : typeof entry?.name === "string"
+                              ? entry.name.toLowerCase()
+                              : ""
+                    )
+                    .filter(Boolean);
+                if (!classIds.includes(classFilter)) return false;
+            }
 
             const term = searchTerm.trim().toLowerCase();
             if (term) {
@@ -378,7 +404,7 @@ export function SpellManagerPanel({
        RENDER (100% TUYO)
     --------------------------- */
     return (
-        <div className="border border-ring rounded-xl bg-panel/90 h-full flex flex-col">
+        <div className="border border-ring rounded-xl bg-panel/90 h-full min-h-0 max-h-[calc(100dvh-11rem)] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-ring flex items-center justify-between gap-4">
                 <div>
                     <h2 className="text-sm font-semibold text-ink">
@@ -388,13 +414,20 @@ export function SpellManagerPanel({
                         {(apiClass ? classLabelById[apiClass] : "") ?? apiClass} · {t("Nivel", "Level")}{" "}
                         {charLevel}
                     </p>
-                    <p className="text-[11px] text-ink-muted">
-                        {t("Max nivel de hechizo", "Max spell level")}: {maxLearnableSpellLevel}
-                    </p>
-                    {preparedInfo && (
+                    {!isDMMode && (
+                        <p className="text-[11px] text-ink-muted">
+                            {t("Max nivel de hechizo", "Max spell level")}: {maxLearnableSpellLevel}
+                        </p>
+                    )}
+                    {!isDMMode && preparedInfo && (
                         <p className="text-[11px] text-ink-muted">
                             {t("Preparados", "Prepared")}: {currentPreparedCount}/
                             {preparedInfo.total}
+                        </p>
+                    )}
+                    {isDMMode && (
+                        <p className="text-[11px] text-ink-muted">
+                            {t("Modo DM: lista completa de conjuros SRD.", "DM mode: full SRD spell list.")}
                         </p>
                     )}
                 </div>
@@ -496,7 +529,22 @@ export function SpellManagerPanel({
                         <option value="unlearned">{t("No aprendidos", "Unlearned")}</option>
                     </select>
 
-                    {apiClass === "custom" && (
+                    {isDMMode && (
+                        <select
+                            value={classFilter}
+                            onChange={(e) => setClassFilter(e.target.value)}
+                            className="rounded-md bg-white/80 border border-ring px-3 py-2 text-xs"
+                        >
+                            <option value="all">{t("Todas las clases", "All classes")}</option>
+                            {DND_CLASS_OPTIONS.filter((c) => c.id !== "custom").map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {locale === "en" ? c.labelEn : c.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+
+                    {!isDMMode && apiClass === "custom" && (
                         <select
                             value={sourceClass}
                             onChange={(e) =>
@@ -516,7 +564,7 @@ export function SpellManagerPanel({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto styled-scrollbar px-6 py-4 space-y-2">
                 {error && (
                     <p className="text-xs text-red-400">{error}</p>
                 )}

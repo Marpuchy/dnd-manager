@@ -1,321 +1,545 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import { tr } from "@/lib/i18n/translate";
+import CharacterView from "../player/ui/CharacterView";
+import { CharacterForm } from "../player/ui/CharacterForm";
+import { SpellManagerPanel } from "../player/srd/SpellManagerPanel";
+import { useCharacterForm } from "../player/hooks/useCharacterForm";
+import type { Character, Details, Tab } from "../player/playerShared";
 
-type Member = {
+type MembershipRow = {
     role: "PLAYER" | "DM";
 };
 
-type Character = {
-    id: string;
-    name: string;
-    class: string | null;
-    level: number | null;
+type DMSection = "players" | "story" | "bestiary" | "characters";
+
+type MenuEntry = {
+    id: DMSection;
+    icon: string;
+    es: string;
+    en: string;
 };
+
+type PlayerPanelMode = "idle" | "view" | "edit" | "spellManager";
 
 export default function CampaignDMPage() {
     const params = useParams<{ id: string }>();
     const router = useRouter();
+    const locale = useClientLocale();
+    const t = (es: string, en: string) => tr(locale, es, en);
 
     const [loading, setLoading] = useState(true);
     const [allowed, setAllowed] = useState(false);
-
-    // Data
-    const [characters, setCharacters] = useState<Character[]>([]);
-    const [inviteCode, setInviteCode] = useState<string | null>(null);
-
-    // Editing state
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [charName, setCharName] = useState("");
-    const [charClass, setCharClass] = useState("");
-    const [charLevel, setCharLevel] = useState<number>(1);
-
     const [error, setError] = useState<string | null>(null);
 
+    const [activeSection, setActiveSection] = useState<DMSection>("players");
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+    const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
+    const [playerPanelMode, setPlayerPanelMode] = useState<PlayerPanelMode>("idle");
+    const [playerViewTab, setPlayerViewTab] = useState<Tab>("stats");
+
+    const [inviteCode, setInviteCode] = useState<string | null>(null);
+    const [characters, setCharacters] = useState<Character[]>([]);
+
+    const [storyDraft, setStoryDraft] = useState("");
+    const [storySaved, setStorySaved] = useState(false);
+    const { fields: formFields, loadFromCharacter } = useCharacterForm();
+
+    const storyStorageKey = useMemo(
+        () => `dnd-manager:dm-story:${String(params.id ?? "")}`,
+        [params.id]
+    );
+
+    const menuEntries: MenuEntry[] = [
+        {
+            id: "players",
+            icon: "\uD83D\uDC65",
+            es: "Gestor de jugadores",
+            en: "Player manager",
+        },
+        {
+            id: "story",
+            icon: "\uD83D\uDCD6",
+            es: "Gestor de historia",
+            en: "Story manager",
+        },
+        {
+            id: "bestiary",
+            icon: "\uD83D\uDC09",
+            es: "Gestor de bestiario",
+            en: "Bestiary manager",
+        },
+        {
+            id: "characters",
+            icon: "\uD83E\uDDD9",
+            es: "Gestor de personajes de la campana",
+            en: "Campaign character manager",
+        },
+    ];
+
     useEffect(() => {
+        if (typeof window === "undefined") return;
+        const cached = window.localStorage.getItem(storyStorageKey);
+        if (cached) setStoryDraft(cached);
+    }, [storyStorageKey]);
+
+    async function loadPanelData(campaignId: string): Promise<Character[]> {
+        const [campaignRes, charsRes] = await Promise.all([
+            supabase.from("campaigns").select("invite_code").eq("id", campaignId).maybeSingle(),
+            supabase
+                .from("characters")
+                .select(
+                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
+                )
+                .eq("campaign_id", campaignId)
+                .order("created_at", { ascending: true }),
+        ]);
+
+        if (campaignRes.error) throw campaignRes.error;
+        if (charsRes.error) throw charsRes.error;
+
+        setInviteCode(campaignRes.data?.invite_code ?? null);
+        const list = (charsRes.data ?? []) as Character[];
+        setCharacters(list);
+        return list;
+    }
+
+    useEffect(() => {
+        let cancelled = false;
+
         async function checkAccessAndLoad() {
             setLoading(true);
             setError(null);
 
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
+            try {
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
 
-            if (!session?.user) {
-                router.push("/login");
-                return;
+                if (!session?.user) {
+                    router.push("/login");
+                    return;
+                }
+
+                const { data: membership, error: membershipError } = await supabase
+                    .from("campaign_members")
+                    .select("role")
+                    .eq("user_id", session.user.id)
+                    .eq("campaign_id", params.id)
+                    .maybeSingle<MembershipRow>();
+
+                if (membershipError || !membership || membership.role !== "DM") {
+                    router.push("/campaigns");
+                    return;
+                }
+
+                if (cancelled) return;
+                setAllowed(true);
+                await loadPanelData(String(params.id));
+            } catch (err: any) {
+                console.error("DM panel load error:", err);
+                if (!cancelled) {
+                    setError(
+                        err?.message ??
+                            t(
+                                "No se pudo cargar el panel de master.",
+                                "Could not load the master panel."
+                            )
+                    );
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
             }
-
-            // Check membership
-            const { data: membership, error: membershipError } = await supabase
-                .from("campaign_members")
-                .select("role")
-                .eq("user_id", session.user.id)
-                .eq("campaign_id", params.id)
-                .maybeSingle<Member>();
-
-            if (membershipError || !membership || membership.role !== "DM") {
-                router.push("/campaigns");
-                return;
-            }
-
-            setAllowed(true);
-
-            // Load campaign invite code
-            const { data: campaignData } = await supabase
-                .from("campaigns")
-                .select("invite_code")
-                .eq("id", params.id)
-                .single();
-
-            if (campaignData) {
-                setInviteCode(campaignData.invite_code);
-            }
-
-            // Load all characters for this campaign
-            const { data: chars, error: charsError } = await supabase
-                .from("characters")
-                .select("id, name, class, level")
-                .eq("campaign_id", params.id);
-
-            if (charsError) {
-                console.error("Error loading characters:", charsError);
-                setError("No se pudieron cargar los personajes.");
-            } else if (chars) {
-                setCharacters(chars as Character[]);
-            }
-
-            setLoading(false);
         }
 
-        checkAccessAndLoad();
+        void checkAccessAndLoad();
+
+        return () => {
+            cancelled = true;
+        };
     }, [params.id, router]);
 
-    // Editing functions
-    function startEdit(char: Character) {
-        setEditingId(char.id);
-        setCharName(char.name);
-        setCharClass(char.class ?? "");
-        setCharLevel(char.level ?? 1);
-    }
-
-    function cancelEdit() {
-        setEditingId(null);
-        setCharName("");
-        setCharClass("");
-        setCharLevel(1);
-    }
-
-    async function handleSaveCharacter(e: FormEvent) {
-        e.preventDefault();
-        setError(null);
-
-        try {
-            if (!editingId) return;
-
-            const { error: updateError } = await supabase
-                .from("characters")
-                .update({
-                    name: charName.trim(),
-                    class: charClass.trim() || null,
-                    level: charLevel,
-                })
-                .eq("id", editingId)
-                .eq("campaign_id", params.id);
-
-            if (updateError) {
-                console.error("Error updating character:", updateError);
-                throw new Error(updateError.message);
-            }
-
-            // Refresh list
-            const { data: chars } = await supabase
-                .from("characters")
-                .select("id, name, class, level")
-                .eq("campaign_id", params.id);
-
-            if (chars) setCharacters(chars as Character[]);
-
-            cancelEdit();
-        } catch (err) {
-            console.error(err);
-            const message =
-                err instanceof Error
-                    ? err.message
-                    : "Error al guardar los cambios.";
-            setError(message);
+    useEffect(() => {
+        if (characters.length === 0) {
+            setEditingCharacterId(null);
+            setPlayerEditorOpen(false);
+            setPlayerPanelMode("idle");
+            return;
         }
+        if (editingCharacterId) {
+            const exists = characters.some((character) => character.id === editingCharacterId);
+            if (!exists) {
+                setEditingCharacterId(null);
+                setPlayerEditorOpen(false);
+                setPlayerPanelMode("idle");
+            }
+        }
+    }, [characters, editingCharacterId]);
+
+    function saveStory() {
+        if (typeof window === "undefined") return;
+        window.localStorage.setItem(storyStorageKey, storyDraft);
+        setStorySaved(true);
+        window.setTimeout(() => setStorySaved(false), 1200);
+    }
+
+    const editingCharacter =
+        characters.find((character) => character.id === editingCharacterId) ?? null;
+    const ownerOptions = characters
+        .filter((character) => character.character_type !== "companion")
+        .map((character) => ({ id: character.id, name: character.name }));
+
+    function flushEditorSaveIfNeeded() {
+        if (activeSection !== "players") return;
+        if (playerPanelMode !== "edit") return;
+        const form = document.getElementById("character-form") as HTMLFormElement | null;
+        form?.requestSubmit();
+    }
+
+    function handleOpenCharacterView(id: string) {
+        flushEditorSaveIfNeeded();
+        setEditingCharacterId(id);
+        setPlayerEditorOpen(true);
+        setPlayerPanelMode("view");
+    }
+
+    function handleEditCharacter(character: Character) {
+        setEditingCharacterId(character.id);
+        loadFromCharacter(character);
+        setPlayerEditorOpen(true);
+        setPlayerPanelMode("edit");
+        setPlayerViewTab("stats");
+    }
+
+    function handleOpenSpellManager() {
+        if (!editingCharacter) return;
+        setPlayerEditorOpen(true);
+        setPlayerPanelMode("spellManager");
+    }
+
+    function handlePlayerDetailsChange(nextDetails: Details) {
+        if (!editingCharacter) return;
+
+        setCharacters((prev) =>
+            prev.map((character) =>
+                character.id === editingCharacter.id
+                    ? { ...character, details: nextDetails }
+                    : character
+            )
+        );
+
+        void supabase
+            .from("characters")
+            .update({ details: nextDetails })
+            .eq("id", editingCharacter.id)
+            .eq("campaign_id", params.id);
     }
 
     if (loading || !allowed) {
         return (
             <main className="min-h-screen bg-surface text-ink flex items-center justify-center">
-                <p className="text-ink-muted">Cargando panel del DM...</p>
+                <p className="text-ink-muted">{t("Cargando panel DM...", "Loading DM panel...")}</p>
             </main>
         );
     }
 
     return (
         <main className="min-h-screen bg-surface text-ink flex">
-            {/* SIDEBAR */}
-            <aside className="w-64 border-r border-ring bg-panel/80 p-4 flex flex-col gap-4">
-                <div className="space-y-1">
-                    <h2 className="text-xl font-semibold text-emerald-300">Panel del DM</h2>
-                    <p className="text-xs text-ink-muted">Campaña ID: {String(params.id)}</p>
+            <aside
+                className={`border-r border-ring bg-panel/85 p-3 space-y-3 transition-all duration-200 ${
+                    sidebarOpen ? "w-72" : "w-16"
+                }`}
+            >
+                <div className="flex items-start justify-between gap-2">
+                    {sidebarOpen ? (
+                        <div className="space-y-1">
+                            <h2 className="text-lg font-semibold text-ink">
+                                {t("Panel de master", "Master panel")}
+                            </h2>
+                            <p className="text-xs text-ink-muted">
+                                {t("Campana", "Campaign")} #{String(params.id)}
+                            </p>
+                        </div>
+                    ) : (
+                        <div />
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={() => setSidebarOpen((prev) => !prev)}
+                        className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-ring bg-white/70 hover:bg-white text-sm"
+                        title={t("Desplegar panel", "Toggle panel")}
+                        aria-label={t("Desplegar panel", "Toggle panel")}
+                    >
+                        {sidebarOpen ? "«" : "»"}
+                    </button>
                 </div>
 
-                {/* Copy invite code */}
-                {inviteCode && (
+                {inviteCode && sidebarOpen && (
                     <button
-                        onClick={() => navigator.clipboard.writeText(inviteCode)}
-                        className="px-2 py-1 rounded hover:bg-white/80 text-left flex items-center gap-2"
+                        type="button"
+                        onClick={() => void navigator.clipboard.writeText(inviteCode)}
+                        className="w-full text-left rounded-md border border-ring bg-white/70 px-3 py-2 text-xs hover:bg-white"
                     >
-                        🔗 Copiar código:{" "}
-                        <span className="font-mono text-emerald-300">{inviteCode}</span>
+                        {t("Copiar codigo", "Copy code")}: <span className="font-mono">{inviteCode}</span>
                     </button>
                 )}
 
-                <nav className="flex flex-col gap-2 text-sm">
-                    <a
-                        href={`/campaigns/${params.id}/player`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2 py-1 rounded hover:bg-white/80"
-                    >
-                        👁 Ver vista de jugador
-                    </a>
-
-                    <div className="pt-4 text-xs text-ink-muted uppercase">
-                        Próximamente
-                    </div>
-
-                    <button className="opacity-50 px-2 py-1 rounded text-left cursor-default">
-                        🐉 Bestiario
-                    </button>
-                    <button className="opacity-50 px-2 py-1 rounded text-left cursor-default">
-                        🛒 Tiendas
-                    </button>
-                    <button className="opacity-50 px-2 py-1 rounded text-left cursor-default">
-                        📓 Notas de sesión
-                    </button>
+                <nav>
+                    <ul className="space-y-1">
+                        {menuEntries.map((entry) => {
+                            const selected = activeSection === entry.id;
+                            return (
+                                <li key={entry.id}>
+                                    <a
+                                        href="#"
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            if (entry.id !== activeSection) {
+                                                flushEditorSaveIfNeeded();
+                                            }
+                                            setActiveSection(entry.id);
+                                            if (entry.id !== "players") {
+                                                setPlayerPanelMode("idle");
+                                                setPlayerEditorOpen(false);
+                                            }
+                                        }}
+                                        className={`flex items-center gap-2 rounded-md px-2 py-2 text-sm ${
+                                            selected
+                                                ? "bg-accent/10 text-ink"
+                                                : "text-ink-muted hover:text-ink hover:bg-white/60"
+                                        }`}
+                                        aria-current={selected ? "page" : undefined}
+                                        title={t(entry.es, entry.en)}
+                                    >
+                                        <span className="w-5 text-center">{entry.icon}</span>
+                                        {sidebarOpen && <span>{t(entry.es, entry.en)}</span>}
+                                    </a>
+                                </li>
+                            );
+                        })}
+                    </ul>
                 </nav>
             </aside>
 
-            {/* MAIN CONTENT */}
-            <section className="flex-1 p-6 space-y-6">
-                <header>
-                    <h1 className="text-2xl font-bold text-emerald-300">
-                        Gestión de personajes
-                    </h1>
-                    <p className="text-sm text-ink-muted">
-                        Puedes modificar cualquier personaje que creen tus jugadores.
-                    </p>
-                </header>
-
+            <section className="flex-1 p-6 space-y-4">
                 {error && (
-                    <p className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2 inline-block">
+                    <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2">
                         {error}
                     </p>
                 )}
 
-                {/* CHARACTER EDIT FORM */}
-                {editingId && (
-                    <div className="max-w-lg border border-ring bg-panel/80 rounded-xl p-4 space-y-3">
-                        <h2 className="text-lg font-semibold text-ink">Editar personaje</h2>
+                {activeSection === "players" && (
+                    <div className="space-y-3">
+                        <h1 className="text-xl font-semibold text-ink">
+                            {t("Gestor de jugadores", "Player manager")}
+                        </h1>
+                        <p className="text-sm text-ink-muted">
+                            {t(
+                                "Aqui aparecen los personajes de jugadores en la campana.",
+                                "This section shows player characters in the campaign."
+                            )}
+                        </p>
 
-                        <form onSubmit={handleSaveCharacter} className="space-y-3">
-                            <div className="space-y-1">
-                                <label className="text-sm text-ink-muted">Nombre</label>
-                                <input
-                                    type="text"
-                                    value={charName}
-                                    onChange={(e) => setCharName(e.target.value)}
-                                    required
-                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
-                                />
+                        <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
+                            <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-2">
+                                {characters.length === 0 ? (
+                                    <p className="text-sm text-ink-muted">
+                                        {t(
+                                            "No hay personajes en la campana.",
+                                            "No characters in this campaign."
+                                        )}
+                                    </p>
+                                ) : (
+                                    <ul className="space-y-2">
+                                        {characters.map((char) => (
+                                            <li
+                                                key={char.id}
+                                                onClick={() => handleOpenCharacterView(char.id)}
+                                                className={`border rounded-md px-3 py-2 ${
+                                                    playerEditorOpen && editingCharacterId === char.id
+                                                        ? "border-accent bg-accent/10"
+                                                        : "border-ring bg-white/70 hover:bg-white cursor-pointer"
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-ink truncate">
+                                                            {char.name}
+                                                        </p>
+                                                        <p className="text-xs text-ink-muted truncate">
+                                                            {(char.class ?? t("Sin clase", "No class"))} -{" "}
+                                                            {t("Nivel", "Level")} {char.level ?? 1}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleEditCharacter(char);
+                                                        }}
+                                                        className="text-[11px] px-2 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
+                                                    >
+                                                        {t("Editar", "Edit")}
+                                                    </button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
                             </div>
 
-                            <div className="space-y-1">
-                                <label className="text-sm text-ink-muted">Clase</label>
-                                <input
-                                    type="text"
-                                    value={charClass}
-                                    onChange={(e) => setCharClass(e.target.value)}
-                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
-                                />
+                            <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 overflow-hidden min-h-[440px]">
+                                {playerEditorOpen && editingCharacter && playerPanelMode === "edit" ? (
+                                    <div className="p-3 pt-4">
+                                        <CharacterForm
+                                            key={`dm-edit-${editingCharacter.id}`}
+                                            mode="edit"
+                                            autoSave
+                                            autoSaveDelayMs={300}
+                                            onSaved={async (characterId) => {
+                                                const updatedList = await loadPanelData(
+                                                    String(params.id)
+                                                );
+                                                const updatedCharacter = updatedList.find(
+                                                    (character) => character.id === characterId
+                                                );
+                                                if (updatedCharacter) {
+                                                    loadFromCharacter(updatedCharacter);
+                                                }
+                                            }}
+                                            onCancel={() => {
+                                                setPlayerPanelMode("view");
+                                                void loadPanelData(String(params.id));
+                                            }}
+                                            fields={{
+                                                ...formFields,
+                                                campaignId: String(params.id),
+                                                characterId: editingCharacter.id,
+                                            }}
+                                            ownerOptions={ownerOptions}
+                                            characterId={editingCharacter.id}
+                                            profileImage={editingCharacter.profile_image ?? null}
+                                            onImageUpdated={() => {
+                                                void loadPanelData(String(params.id));
+                                            }}
+                                        />
+                                    </div>
+                                ) : playerEditorOpen &&
+                                  editingCharacter &&
+                                  playerPanelMode === "spellManager" ? (
+                                    <div className="p-3 pt-4">
+                                        <SpellManagerPanel
+                                            character={editingCharacter}
+                                            isDMMode
+                                            onClose={() => setPlayerPanelMode("view")}
+                                            onDetailsChange={handlePlayerDetailsChange}
+                                        />
+                                    </div>
+                                ) : playerEditorOpen && editingCharacter && playerPanelMode === "view" ? (
+                                    <div className="p-3 pt-4">
+                                        <CharacterView
+                                            character={editingCharacter}
+                                            companions={characters}
+                                            activeTab={playerViewTab}
+                                            onTabChange={setPlayerViewTab}
+                                            onDetailsChange={handlePlayerDetailsChange}
+                                            onOpenSpellManager={handleOpenSpellManager}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="p-4 text-sm text-ink-muted">
+                                        {t(
+                                            "Selecciona un jugador y pulsa Editar para abrir su vista.",
+                                            "Select a player and click Edit to open their view."
+                                        )}
+                                    </div>
+                                )}
                             </div>
-
-                            <div className="space-y-1">
-                                <label className="text-sm text-ink-muted">Nivel</label>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={20}
-                                    value={charLevel}
-                                    onChange={(e) => setCharLevel(Number(e.target.value))}
-                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
-                                />
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button
-                                    type="submit"
-                                    className="rounded-md bg-accent hover:bg-accent-strong px-4 py-2 text-sm font-medium"
-                                >
-                                    Guardar cambios
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={cancelEdit}
-                                    className="rounded-md bg-accent hover:bg-accent-strong px-4 py-2 text-sm font-medium"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
+                        </div>
                     </div>
                 )}
 
-                {/* CHARACTER LIST */}
-                <div className="space-y-2">
-                    <h2 className="text-lg font-semibold text-ink">
-                        Personajes de la campaña
-                    </h2>
+                {activeSection === "story" && (
+                    <div className="space-y-3">
+                        <h1 className="text-xl font-semibold text-ink">
+                            {t("Gestor de historia", "Story manager")}
+                        </h1>
+                        <p className="text-sm text-ink-muted">
+                            {t(
+                                "Notas privadas del master (guardado local en este navegador).",
+                                "Private master notes (saved locally in this browser)."
+                            )}
+                        </p>
+                        <textarea
+                            value={storyDraft}
+                            onChange={(event) => setStoryDraft(event.target.value)}
+                            rows={12}
+                            className="w-full rounded-md border border-ring bg-white/80 px-3 py-2 text-sm outline-none focus:border-accent"
+                            placeholder={t(
+                                "Eventos, escenas, NPCs, pistas...",
+                                "Events, scenes, NPCs, clues..."
+                            )}
+                        />
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={saveStory}
+                                className="text-xs px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
+                            >
+                                {t("Guardar historia", "Save story")}
+                            </button>
+                            {storySaved && (
+                                <span className="text-xs text-emerald-700">
+                                    {t("Guardado", "Saved")}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
 
-                    {characters.length === 0 ? (
-                        <p className="text-sm text-ink-muted">No hay personajes todavía.</p>
-                    ) : (
-                        <ul className="space-y-2">
-                            {characters.map((char) => (
-                                <li
-                                    key={char.id}
-                                    className="flex items-center justify-between border border-ring bg-panel/80 rounded-lg px-3 py-2"
-                                >
-                                    <div>
-                                        <p className="font-medium text-ink">
-                                            {char.name}{" "}
-                                            <span className="text-xs text-ink-muted">
-                        (Nivel {char.level ?? 1})
-                      </span>
-                                        </p>
-                                        <p className="text-xs text-ink-muted">{char.class ?? "—"}</p>
-                                    </div>
+                {activeSection === "bestiary" && (
+                    <div className="space-y-3">
+                        <h1 className="text-xl font-semibold text-ink">
+                            {t("Gestor de bestiario", "Bestiary manager")}
+                        </h1>
+                        <p className="text-sm text-ink-muted">
+                            {t(
+                                "Apartado listo para conectar criaturas y encuentros.",
+                                "Section ready to connect creatures and encounters."
+                            )}
+                        </p>
+                    </div>
+                )}
 
-                                    <button
-                                        className="text-xs px-3 py-1 border border-accent/60 rounded-md hover:bg-accent/10"
-                                        onClick={() => startEdit(char)}
-                                    >
-                                        Editar
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+                {activeSection === "characters" && (
+                    <div className="space-y-3">
+                        <h1 className="text-xl font-semibold text-ink">
+                            {t(
+                                "Gestor de personajes de la campana",
+                                "Campaign character manager"
+                            )}
+                        </h1>
+                        <p className="text-sm text-ink-muted">
+                            {t(
+                                "Este apartado queda vacio por ahora.",
+                                "This section is intentionally empty for now."
+                            )}
+                        </p>
+                    </div>
+                )}
             </section>
+            <style jsx global>{`
+                .dm-player-preview .space-y-4.min-w-0 > div.border-b.border-ring {
+                    margin-bottom: 0.5rem;
+                    gap: 0.75rem;
+                }
+            `}</style>
         </main>
     );
 }

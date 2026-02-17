@@ -38,7 +38,10 @@ type CharacterFormProps = {
     mode: Mode;
     onSubmit?: (e: FormEvent) => void;
     onCancel: () => void;
+    onSaved?: (characterId: string) => void | Promise<void>;
     fields: CharacterFormFields;
+    autoSave?: boolean;
+    autoSaveDelayMs?: number;
     ownerOptions?: { id: string; name: string }[];
     characterId?: string | null;
     profileImage?: string | null;
@@ -49,7 +52,10 @@ export function CharacterForm({
     mode,
     onSubmit,
     onCancel,
+    onSaved,
     fields,
+    autoSave = false,
+    autoSaveDelayMs = 500,
     ownerOptions = [],
     characterId = null,
     profileImage = null,
@@ -234,6 +240,7 @@ export function CharacterForm({
     const [subclassDraftUnlock, setSubclassDraftUnlock] = React.useState(3);
     const [isCreatingCustomSubclass, setIsCreatingCustomSubclass] = React.useState(false);
     const CREATE_SUBCLASS_OPTION = "__create_custom_subclass__";
+    const autoSaveSkipRef = React.useRef(true);
 
     // Resolver campaign id (prioridad: fields -> nested -> route)
     const campaignIdFromFields =
@@ -328,6 +335,172 @@ export function CharacterForm({
     const detailsForMods = React.useMemo(() => ({ items }), [items]);
     const proficiencyBonus =
         proficiencyBonusFromLevel(charLevel) + getModifierTotal(detailsForMods, "PROFICIENCY");
+
+    const autoSaveSignature = React.useMemo(
+        () =>
+            JSON.stringify({
+                charName,
+                characterType,
+                companionOwnerId,
+                charClass,
+                classSubclassId,
+                charLevel,
+                race,
+                experience,
+                armorClass,
+                speed,
+                currentHp,
+                hitDieSides,
+                str,
+                dex,
+                con,
+                intStat,
+                wis,
+                cha,
+                weaponName,
+                weaponDamage,
+                weaponDescription,
+                weaponStatAbility,
+                weaponStatModifier,
+                weaponProficient,
+                weaponEquipped,
+                weaponPassiveModifiers,
+                inventory,
+                equipment,
+                abilities,
+                weaponsExtra,
+                notes,
+                portraitNote,
+                background,
+                alignment,
+                personalityTraits,
+                ideals,
+                bonds,
+                flaws,
+                appearance,
+                backstory,
+                languages,
+                proficiencies,
+                skillProficiencies,
+                customSections,
+                items,
+                customSpells,
+                customCantrips,
+                customTraits,
+                customClassAbilities,
+                customSubclasses,
+                spellsL0,
+                spellsL1,
+                spellsL2,
+                spellsL3,
+                spellsL4,
+                spellsL5,
+                spellsL6,
+                spellsL7,
+                spellsL8,
+                spellsL9,
+                customClassName,
+                customCastingAbility,
+                armors,
+            }),
+        [
+            charName,
+            characterType,
+            companionOwnerId,
+            charClass,
+            classSubclassId,
+            charLevel,
+            race,
+            experience,
+            armorClass,
+            speed,
+            currentHp,
+            hitDieSides,
+            str,
+            dex,
+            con,
+            intStat,
+            wis,
+            cha,
+            weaponName,
+            weaponDamage,
+            weaponDescription,
+            weaponStatAbility,
+            weaponStatModifier,
+            weaponProficient,
+            weaponEquipped,
+            weaponPassiveModifiers,
+            inventory,
+            equipment,
+            abilities,
+            weaponsExtra,
+            notes,
+            portraitNote,
+            background,
+            alignment,
+            personalityTraits,
+            ideals,
+            bonds,
+            flaws,
+            appearance,
+            backstory,
+            languages,
+            proficiencies,
+            skillProficiencies,
+            customSections,
+            items,
+            customSpells,
+            customCantrips,
+            customTraits,
+            customClassAbilities,
+            customSubclasses,
+            spellsL0,
+            spellsL1,
+            spellsL2,
+            spellsL3,
+            spellsL4,
+            spellsL5,
+            spellsL6,
+            spellsL7,
+            spellsL8,
+            spellsL9,
+            customClassName,
+            customCastingAbility,
+            armors,
+        ]
+    );
+
+    React.useEffect(() => {
+        autoSaveSkipRef.current = true;
+    }, [mode, resolvedCharacterId]);
+
+    React.useEffect(() => {
+        if (!autoSave) return;
+        if (mode !== "edit") return;
+        if (!resolvedCharacterId) return;
+        if (!charName.trim()) return;
+
+        if (autoSaveSkipRef.current) {
+            autoSaveSkipRef.current = false;
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            const form = document.getElementById("character-form") as HTMLFormElement | null;
+            form?.requestSubmit();
+        }, autoSaveDelayMs);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [
+        autoSave,
+        autoSaveDelayMs,
+        mode,
+        resolvedCharacterId,
+        charName,
+        autoSaveSignature,
+    ]);
     const abilityTotals: Record<AbilityKey, number> = {
         STR: Number(str) + getModifierTotal(detailsForMods, "STR"),
         DEX: Number(dex) + getModifierTotal(detailsForMods, "DEX"),
@@ -577,9 +750,17 @@ export function CharacterForm({
             }
 
             // 1) create or update characters row
+            const isExistingCharacter = Boolean(localCharacterId ?? incomingCharacterId);
+            const statsPayload = {
+                str: Number(str ?? 8),
+                dex: Number(dex ?? 8),
+                con: Number(con ?? 8),
+                int: Number(intStat ?? 8),
+                wis: Number(wis ?? 8),
+                cha: Number(cha ?? 8),
+            };
             const basePayload: Record<string, any> = {
                 campaign_id: campaignId,
-                user_id: userId ?? null,
                 character_type: characterType ?? "character",
                 name: charName ?? null,
                 class: charClass ?? null,
@@ -590,8 +771,12 @@ export function CharacterForm({
                 speed: speed !== undefined && speed !== null ? Number(speed) : null,
                 max_hp: previewMaxHp !== undefined && previewMaxHp !== null ? Number(previewMaxHp) : null,
                 current_hp: currentHp !== undefined && currentHp !== null ? Number(currentHp) : null,
+                stats: statsPayload,
                 details: {} // actualizaremos después
             };
+            if (!isExistingCharacter) {
+                basePayload.user_id = userId ?? null;
+            }
 
             try {
                 const charRes = await createOrUpdateCharacterRow(localCharacterId ?? null, userId, campaignId, basePayload);
@@ -641,21 +826,13 @@ export function CharacterForm({
                 }
 
                 // 2) upsert stats
-                const statsRes = await upsertStats(cid, {
-                    str: Number(str ?? 8),
-                    dex: Number(dex ?? 8),
-                    con: Number(con ?? 8),
-                    int: Number(intStat ?? 8),
-                    wis: Number(wis ?? 8),
-                    cha: Number(cha ?? 8),
-                });
+                const statsRes = await upsertStats(cid, statsPayload);
                 if ((statsRes as any).error) {
-                    console.error("Error en upsertStats:", inspectError((statsRes as any).error));
-                    alert(
-                        `${t("Error al guardar stats", "Error saving stats")}: ${inspectError((statsRes as any).error)}`
+                    // Non-blocking: characters.stats already persisted in basePayload.
+                    console.warn(
+                        "upsertStats failed; continuing with characters.stats as source of truth:",
+                        inspectError((statsRes as any).error)
                     );
-                    setSaving(false);
-                    return;
                 }
 
                 // 3) update details JSON (items + contenido personalizado)
@@ -765,6 +942,13 @@ export function CharacterForm({
                 }
 
                 console.log("Personaje guardado correctamente", { characterId: cid });
+                if (typeof onSaved === "function") {
+                    try {
+                        await onSaved(cid);
+                    } catch (savedErr) {
+                        console.warn("onSaved callback failed:", savedErr);
+                    }
+                }
 
                 // final: if parent provided onSubmit we already delegated earlier; still call if present
                 if (typeof onSubmit === "function") {

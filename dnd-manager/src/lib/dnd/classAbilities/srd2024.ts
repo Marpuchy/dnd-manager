@@ -2683,43 +2683,165 @@ export const CLASS_PROGRESSIONS_2024: Record<string, ClassProgression> = {
   artificer: {
     classId: "artificer",
     className: "Artificer",
-    source: "Legacy 5e fallback",
+    source: "5e Artificer integration",
     subclassUnlockLevel: 3,
     classFeatures: [
       {
-        id: "artificer:lvl1:magical-tinkering:1",
+        id: "artificer:lvl1:magical-tinkering",
         name: "Magical Tinkering",
         class: "artificer",
         level: 1,
-        description: "Infuse tiny objects with simple magical effects."
+        description:
+          "You can touch a Tiny nonmagical object and give it one minor magical effect (light, recorded message, odor/sound, or a static visual effect). You can maintain several active effects at once and refresh them after rests."
       },
       {
-        id: "artificer:lvl2:infuse-item:1",
+        id: "artificer:lvl1:spellcasting",
+        name: "Spellcasting",
+        class: "artificer",
+        level: 1,
+        description:
+          "You cast spells using Intelligence as your spellcasting ability. Artificers prepare spells from the Artificer list and can use thieves' tools or artisan's tools as a spellcasting focus."
+      },
+      {
+        id: "artificer:lvl2:infuse-item",
         name: "Infuse Item",
         class: "artificer",
         level: 2,
-        description: "Create magical infusions for equipment."
+        description:
+          "You learn magical infusions and can turn nonmagical items into magic items at the end of a Long Rest. The number of active infusions is limited by your level."
       },
       {
-        id: "artificer:lvl3:artificer-subclass:1",
+        id: "artificer:lvl3:right-tool-for-the-job",
+        name: "The Right Tool for the Job",
+        class: "artificer",
+        level: 3,
+        description:
+          "With tinker's tools, you can create one set of artisan's tools in an hour if you have the necessary metal."
+      },
+      {
+        id: "artificer:lvl3:artificer-specialist",
         name: "Artificer Subclass",
         class: "artificer",
         level: 3,
-        description: "Choose a specialist path that grants subclass features at higher levels."
+        description:
+          "Choose an Artificer Specialist: Alchemist, Armorer, Artillerist, or Battle Smith. Your specialist grants extra features at levels 3, 5, 9, and 15."
       },
       {
-        id: "artificer:lvl5:tool-expertise:1",
-        name: "Tool Expertise",
+        id: "artificer:lvl4:asi",
+        name: "Ability Score Improvement",
+        class: "artificer",
+        level: 4,
+        description:
+          "Increase one ability score by 2, or increase two ability scores by 1 each, or take a feat if feats are allowed."
+      },
+      {
+        id: "artificer:lvl5:specialist-feature",
+        name: "Artificer Specialist Feature",
         class: "artificer",
         level: 5,
-        description: "Your proficiency bonus is doubled for tool checks using tools you are proficient with."
+        description: "You gain your specialist's level 5 feature."
       },
       {
-        id: "artificer:lvl7:flash-of-genius:1",
+        id: "artificer:lvl6:tool-expertise",
+        name: "Tool Expertise",
+        class: "artificer",
+        level: 6,
+        description:
+          "Your proficiency bonus is doubled for ability checks made with any tool proficiency you have."
+      },
+      {
+        id: "artificer:lvl7:flash-of-genius",
         name: "Flash of Genius",
         class: "artificer",
         level: 7,
-        description: "Use your reaction to add your Intelligence modifier to a check or save."
+        description:
+          "When you or a creature you can see within 30 feet makes an ability check or saving throw, you can use your reaction to add your Intelligence modifier. Uses per Long Rest equal your Intelligence modifier (minimum 1)."
+      },
+      {
+        id: "artificer:lvl8:asi",
+        name: "Ability Score Improvement",
+        class: "artificer",
+        level: 8,
+        description:
+          "Increase one ability score by 2, or increase two ability scores by 1 each, or take a feat if feats are allowed."
+      },
+      {
+        id: "artificer:lvl9:specialist-feature",
+        name: "Artificer Specialist Feature",
+        class: "artificer",
+        level: 9,
+        description: "You gain your specialist's level 9 feature."
+      },
+      {
+        id: "artificer:lvl10:magic-item-adept",
+        name: "Magic Item Adept",
+        class: "artificer",
+        level: 10,
+        description:
+          "Attuning to magic items becomes easier for you: you can attune up to 4 items at once, and crafting common or uncommon magic items is faster and cheaper."
+      },
+      {
+        id: "artificer:lvl11:spell-storing-item",
+        name: "Spell-Storing Item",
+        class: "artificer",
+        level: 11,
+        description:
+          "Store a 1st- or 2nd-level Artificer spell in an object and let a creature use an action to cast it several times."
+      },
+      {
+        id: "artificer:lvl12:asi",
+        name: "Ability Score Improvement",
+        class: "artificer",
+        level: 12,
+        description:
+          "Increase one ability score by 2, or increase two ability scores by 1 each, or take a feat if feats are allowed."
+      },
+      {
+        id: "artificer:lvl14:magic-item-savant",
+        name: "Magic Item Savant",
+        class: "artificer",
+        level: 14,
+        description:
+          "You can attune up to 5 magic items, and you ignore class, race, spell, and level requirements on attunement."
+      },
+      {
+        id: "artificer:lvl15:specialist-feature",
+        name: "Artificer Specialist Feature",
+        class: "artificer",
+        level: 15,
+        description: "You gain your specialist's level 15 feature."
+      },
+      {
+        id: "artificer:lvl16:asi",
+        name: "Ability Score Improvement",
+        class: "artificer",
+        level: 16,
+        description:
+          "Increase one ability score by 2, or increase two ability scores by 1 each, or take a feat if feats are allowed."
+      },
+      {
+        id: "artificer:lvl18:magic-item-master",
+        name: "Magic Item Master",
+        class: "artificer",
+        level: 18,
+        description:
+          "You can attune up to 6 magic items at once."
+      },
+      {
+        id: "artificer:lvl19:asi",
+        name: "Ability Score Improvement",
+        class: "artificer",
+        level: 19,
+        description:
+          "Increase one ability score by 2, or increase two ability scores by 1 each, or take a feat if feats are allowed."
+      },
+      {
+        id: "artificer:lvl20:soul-of-artifice",
+        name: "Soul of Artifice",
+        class: "artificer",
+        level: 20,
+        description:
+          "You gain +1 to all saving throws for each magic item you are attuned to, and you can use your reaction to end one infusion instead of dropping to 0 hit points."
       }
     ],
     subclasses: [
@@ -2728,32 +2850,296 @@ export const CLASS_PROGRESSIONS_2024: Record<string, ClassProgression> = {
         name: "Alchemist",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Legacy 5e fallback",
-        features: []
+        source: "5e Artificer integration",
+        features: [
+          {
+            id: "artificer:alchemist:lvl3:tool-proficiency",
+            name: "Tool Proficiency",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alchemist",
+            description:
+              "You gain proficiency with alchemist's supplies."
+          },
+          {
+            id: "artificer:alchemist:lvl3:alchemist-spells",
+            name: "Alchemist Spells",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alchemist",
+            description:
+              "You always have extra spells prepared from your specialist list at Artificer levels 3, 5, 9, 13, and 17."
+          },
+          {
+            id: "artificer:alchemist:lvl3:experimental-elixir",
+            name: "Experimental Elixir",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alchemist",
+            description:
+              "At the end of a Long Rest you create a random magical elixir; you can also spend spell slots to create specific elixirs."
+          },
+          {
+            id: "artificer:alchemist:lvl5:alchemical-savant",
+            name: "Alchemical Savant",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alchemist",
+            description:
+              "When casting a spell with alchemist's supplies as focus, add your Intelligence modifier to one healing or damage roll of listed spell types."
+          },
+          {
+            id: "artificer:alchemist:lvl9:restorative-reagents",
+            name: "Restorative Reagents",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alchemist",
+            description:
+              "You gain temporary hit points when creatures drink your elixirs, and you can cast Lesser Restoration without expending a spell slot a limited number of times."
+          },
+          {
+            id: "artificer:alchemist:lvl15:chemical-mastery",
+            name: "Chemical Mastery",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:alchemist",
+            subclassName: "Alchemist",
+            description:
+              "You gain resistance to acid and poison damage and immunity to the poisoned condition, and you can cast Greater Restoration and Heal with this feature."
+          }
+        ]
       },
       {
         id: "artificer:armorer",
         name: "Armorer",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Legacy 5e fallback",
-        features: []
+        source: "5e Artificer integration",
+        features: [
+          {
+            id: "artificer:armorer:lvl3:tools-of-the-trade",
+            name: "Tools of the Trade",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "You gain proficiency with heavy armor and smith's tools."
+          },
+          {
+            id: "artificer:armorer:lvl3:armorer-spells",
+            name: "Armorer Spells",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "You always have extra Armorer spells prepared at specialist milestones."
+          },
+          {
+            id: "artificer:armorer:lvl3:arcane-armor",
+            name: "Arcane Armor",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "Your armor becomes your arcane focus and can be donned or removed more efficiently. It replaces missing limbs and cannot be removed against your will."
+          },
+          {
+            id: "artificer:armorer:lvl3:armor-model",
+            name: "Armor Model",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "Choose Guardian or Infiltrator model, each granting built-in weapons and different combat benefits."
+          },
+          {
+            id: "artificer:armorer:lvl5:extra-attack",
+            name: "Extra Attack",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "You can attack twice, instead of once, whenever you take the Attack action."
+          },
+          {
+            id: "artificer:armorer:lvl9:armor-modifications",
+            name: "Armor Modifications",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "Your Arcane Armor counts as separate items (armor, boots, helm, special weapon), allowing additional infusions."
+          },
+          {
+            id: "artificer:armorer:lvl15:perfected-armor",
+            name: "Perfected Armor",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:armorer",
+            subclassName: "Armorer",
+            description:
+              "Your Guardian and Infiltrator models gain stronger control and mobility effects."
+          }
+        ]
       },
       {
         id: "artificer:artillerist",
         name: "Artillerist",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Legacy 5e fallback",
-        features: []
+        source: "5e Artificer integration",
+        features: [
+          {
+            id: "artificer:artillerist:lvl3:tool-proficiency",
+            name: "Tool Proficiency",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillerist",
+            description:
+              "You gain proficiency with woodcarver's tools."
+          },
+          {
+            id: "artificer:artillerist:lvl3:artillerist-spells",
+            name: "Artillerist Spells",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillerist",
+            description:
+              "You always have extra Artillerist spells prepared at specialist milestones."
+          },
+          {
+            id: "artificer:artillerist:lvl3:eldritch-cannon",
+            name: "Eldritch Cannon",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillerist",
+            description:
+              "Create a magical cannon (Flamethrower, Force Ballista, or Protector) that can be commanded as a bonus action."
+          },
+          {
+            id: "artificer:artillerist:lvl5:arcane-firearm",
+            name: "Arcane Firearm",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillerist",
+            description:
+              "Turn a wand, staff, or rod into an Arcane Firearm and add extra damage to one Artificer spell damage roll."
+          },
+          {
+            id: "artificer:artillerist:lvl9:explosive-cannon",
+            name: "Explosive Cannon",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillerist",
+            description:
+              "Your cannons deal more damage and can be detonated to create an area explosion."
+          },
+          {
+            id: "artificer:artillerist:lvl15:fortified-position",
+            name: "Fortified Position",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:artillerist",
+            subclassName: "Artillerist",
+            description:
+              "You and allies near your cannon gain improved protection, and you can control two cannons at once."
+          }
+        ]
       },
       {
         id: "artificer:battle-smith",
         name: "Battle Smith",
         classId: "artificer",
         unlockLevel: 3,
-        source: "Legacy 5e fallback",
-        features: []
+        source: "5e Artificer integration",
+        features: [
+          {
+            id: "artificer:battle-smith:lvl3:tool-proficiency",
+            name: "Tool Proficiency",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "You gain proficiency with smith's tools."
+          },
+          {
+            id: "artificer:battle-smith:lvl3:battle-smith-spells",
+            name: "Battle Smith Spells",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "You always have extra Battle Smith spells prepared at specialist milestones."
+          },
+          {
+            id: "artificer:battle-smith:lvl3:battle-ready",
+            name: "Battle Ready",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "You gain martial weapon proficiency and can use Intelligence for attack and damage rolls with magic weapons."
+          },
+          {
+            id: "artificer:battle-smith:lvl3:steel-defender",
+            name: "Steel Defender",
+            class: "artificer",
+            level: 3,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "You build a Steel Defender companion that acts in combat and can protect allies with its reaction."
+          },
+          {
+            id: "artificer:battle-smith:lvl5:extra-attack",
+            name: "Extra Attack",
+            class: "artificer",
+            level: 5,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "You can attack twice, instead of once, whenever you take the Attack action."
+          },
+          {
+            id: "artificer:battle-smith:lvl9:arcane-jolt",
+            name: "Arcane Jolt",
+            class: "artificer",
+            level: 9,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "When you or your Steel Defender hits a target, you can deal extra force damage or restore hit points to a nearby creature."
+          },
+          {
+            id: "artificer:battle-smith:lvl15:improved-defender",
+            name: "Improved Defender",
+            class: "artificer",
+            level: 15,
+            subclassId: "artificer:battle-smith",
+            subclassName: "Battle Smith",
+            description:
+              "Your Steel Defender gains stronger damage and durability, and its Deflect Attack reaction improves."
+          }
+        ]
       }
     ]
   }

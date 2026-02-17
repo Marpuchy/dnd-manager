@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  augmentClassLearningWithArtificer,
+  augmentSpellsDatasetWithArtificer,
+} from "@/lib/dnd/artificerCompat";
+
 type SupportedLocale = "en" | "es";
 
 type Dataset<T> = {
@@ -97,7 +102,12 @@ async function loadSpells(locale: SupportedLocale): Promise<Dataset<SpellRecord>
   if (!spellsCache.has(locale)) {
     spellsCache.set(
       locale,
-      importSpellsRaw(locale).then((raw) => normalizePayload<SpellRecord>(raw))
+      importSpellsRaw(locale).then((raw) =>
+        augmentSpellsDatasetWithArtificer(
+          normalizePayload<SpellRecord>(raw),
+          locale
+        )
+      )
     );
   }
   return spellsCache.get(locale)!;
@@ -109,7 +119,14 @@ async function loadClassLearning(
   if (!classLearningCache.has(locale)) {
     classLearningCache.set(
       locale,
-      importClassLearningRaw(locale).then((raw) => normalizePayload<ClassRecord>(raw))
+      Promise.all([importClassLearningRaw(locale), loadSpells(locale)]).then(
+        ([raw, localizedSpells]) =>
+          augmentClassLearningWithArtificer(
+            normalizePayload<ClassRecord>(raw),
+            locale,
+            localizedSpells.byIndex
+          )
+      )
     );
   }
   return classLearningCache.get(locale)!;
@@ -259,4 +276,22 @@ export async function getClientSpellsForClassLevel(
       if (levelDiff !== 0) return levelDiff;
       return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
     }) as SpellRecord[];
+}
+
+export async function getClientAllSpells(
+  localeInput: string | null | undefined
+): Promise<SpellRecord[]> {
+  const locale = normalizeClientLocale(localeInput);
+  const [localizedSpells, englishSpells] = await Promise.all([
+    loadSpells(locale),
+    loadSpells("en"),
+  ]);
+
+  return localizedSpells.results
+    .map((spell) => withEnglishName(spell, englishSpells.byIndex))
+    .sort((a, b) => {
+      const levelDiff = Number(a?.level ?? 0) - Number(b?.level ?? 0);
+      if (levelDiff !== 0) return levelDiff;
+      return String(a?.name ?? "").localeCompare(String(b?.name ?? ""));
+    });
 }

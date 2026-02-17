@@ -116,6 +116,8 @@ export type SpellMeta = {
     ritual?: boolean;
     shortDesc?: string | LocalizedText;
     fullDesc?: string | LocalizedText;
+    classes?: { index?: string; name?: string; url?: string }[];
+    subclasses?: { index?: string; name?: string; url?: string }[];
 };
 
 export type SpellComponentSet = {
