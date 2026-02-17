@@ -1,13 +1,15 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, DragEvent } from "react";
+import { Settings } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
 import CharacterView from "../player/ui/CharacterView";
 import { CharacterForm } from "../player/ui/CharacterForm";
 import { SpellManagerPanel } from "../player/srd/SpellManagerPanel";
+import SettingsPanel from "../player/ui/SettingsPanel";
 import { useCharacterForm } from "../player/hooks/useCharacterForm";
 import type { Character, Details, Tab } from "../player/playerShared";
 
@@ -42,6 +44,10 @@ export default function CampaignDMPage() {
     const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
     const [playerPanelMode, setPlayerPanelMode] = useState<PlayerPanelMode>("idle");
     const [playerViewTab, setPlayerViewTab] = useState<Tab>("stats");
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [isOverTrash, setIsOverTrash] = useState(false);
+    const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
+    const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
 
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [characters, setCharacters] = useState<Character[]>([]);
@@ -105,8 +111,22 @@ export default function CampaignDMPage() {
 
         setInviteCode(campaignRes.data?.invite_code ?? null);
         const list = (charsRes.data ?? []) as Character[];
-        setCharacters(list);
-        return list;
+        const sorted = [...list].sort((a, b) => {
+            const ao =
+                typeof a.details?.listOrder === "number"
+                    ? a.details.listOrder
+                    : Number.MAX_SAFE_INTEGER;
+            const bo =
+                typeof b.details?.listOrder === "number"
+                    ? b.details.listOrder
+                    : Number.MAX_SAFE_INTEGER;
+            if (ao !== bo) return ao - bo;
+            const at = new Date((a as any).created_at ?? 0).getTime();
+            const bt = new Date((b as any).created_at ?? 0).getTime();
+            return at - bt;
+        });
+        setCharacters(sorted);
+        return sorted;
     }
 
     useEffect(() => {
@@ -222,22 +242,339 @@ export default function CampaignDMPage() {
         setPlayerPanelMode("spellManager");
     }
 
-    function handlePlayerDetailsChange(nextDetails: Details) {
+    async function handlePlayerDetailsChange(nextDetails: Details) {
         if (!editingCharacter) return;
+        const characterId = editingCharacter.id;
+        const campaignId = String(params.id);
 
         setCharacters((prev) =>
             prev.map((character) =>
-                character.id === editingCharacter.id
+                character.id === characterId
                     ? { ...character, details: nextDetails }
                     : character
             )
         );
 
-        void supabase
+        const { data, error: updateError } = await supabase
             .from("characters")
             .update({ details: nextDetails })
-            .eq("id", editingCharacter.id)
-            .eq("campaign_id", params.id);
+            .eq("id", characterId)
+            .eq("campaign_id", campaignId)
+            .select("id")
+            .maybeSingle();
+
+        if (updateError || !data?.id) {
+            console.error("handlePlayerDetailsChange:", updateError);
+            setError(
+                t(
+                    "No se pudieron guardar los cambios del personaje.",
+                    "Could not persist character changes."
+                )
+            );
+            void loadPanelData(campaignId);
+        }
+    }
+
+    async function persistCharactersOrder(nextCharacters: Character[]) {
+        try {
+            await Promise.all(
+                nextCharacters.map((character, index) =>
+                    supabase
+                        .from("characters")
+                        .update({
+                            details: {
+                                ...(character.details ?? {}),
+                                listOrder: index,
+                            },
+                        })
+                        .eq("id", character.id)
+                        .eq("campaign_id", params.id)
+                )
+            );
+        } catch (err) {
+            console.error("Error guardando orden de personajes en DM:", err);
+        }
+    }
+
+    function reorderCharacters(list: Character[], sourceId: string, targetId: string) {
+        const sourceIndex = list.findIndex((character) => character.id === sourceId);
+        const targetIndex = list.findIndex((character) => character.id === targetId);
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return list;
+
+        const next = [...list];
+        const [moved] = next.splice(sourceIndex, 1);
+        next.splice(targetIndex, 0, moved);
+
+        return next.map((character, index) => ({
+            ...character,
+            details: {
+                ...(character.details ?? {}),
+                listOrder: index,
+            },
+        }));
+    }
+
+    function handleDragStartCharacter(event: DragEvent, characterId: string) {
+        setDraggedCharacterId(characterId);
+        try {
+            const payload = JSON.stringify({ type: "character", id: characterId });
+            event.dataTransfer.setData("application/x-dnd-manager-item", payload);
+            event.dataTransfer.effectAllowed = "move";
+        } catch {
+            // ignore
+        }
+    }
+
+    function handleDragOverCharacter(event: DragEvent, characterId: string) {
+        event.preventDefault();
+        if (!draggedCharacterId || draggedCharacterId === characterId) return;
+        setDragOverCharacterId(characterId);
+        event.dataTransfer.dropEffect = "move";
+    }
+
+    function handleDropOnCharacter(event: DragEvent, targetCharacterId: string) {
+        event.preventDefault();
+        setDragOverCharacterId(null);
+        const raw = event.dataTransfer.getData("application/x-dnd-manager-item");
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw) as { type?: string; id?: string };
+            if (parsed?.type !== "character" || !parsed.id || parsed.id === targetCharacterId) {
+                return;
+            }
+
+            setCharacters((prev) => {
+                const next = reorderCharacters(prev, parsed.id as string, targetCharacterId);
+                void persistCharactersOrder(next);
+                return next;
+            });
+        } catch {
+            // ignore
+        } finally {
+            setDraggedCharacterId(null);
+        }
+    }
+
+    function handleDragEndCharacter() {
+        setDraggedCharacterId(null);
+        setDragOverCharacterId(null);
+    }
+
+    function handleTrashDragOver(event: DragEvent) {
+        event.preventDefault();
+        setIsOverTrash(true);
+        event.dataTransfer.dropEffect = "move";
+    }
+
+    function handleTrashDragLeave() {
+        setIsOverTrash(false);
+        setDragOverCharacterId(null);
+    }
+
+    function handleTrashDrop(event: DragEvent) {
+        event.preventDefault();
+        setIsOverTrash(false);
+        setDragOverCharacterId(null);
+        setDraggedCharacterId(null);
+
+        const raw = event.dataTransfer.getData("application/x-dnd-manager-item");
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw) as { type?: string; id?: string };
+            if (parsed?.type !== "character" || !parsed.id) return;
+            const character = characters.find((entry) => entry.id === parsed.id);
+            if (!character) return;
+            void handleDeleteCharacter(character);
+        } catch {
+            // ignore
+        }
+    }
+
+    function isMissingRpcFunction(error: any) {
+        const code = String(error?.code ?? "");
+        const message = String(error?.message ?? "").toLowerCase();
+        const details = String(error?.details ?? "").toLowerCase();
+        const hint = String(error?.hint ?? "").toLowerCase();
+        return (
+            code === "42883" ||
+            code === "PGRST202" ||
+            message.includes("does not exist") ||
+            message.includes("could not find the function") ||
+            message.includes("schema cache") ||
+            details.includes("schema cache") ||
+            hint.includes("schema cache")
+        );
+    }
+
+    async function deleteCharacterViaServer(characterId: string, campaignId: string) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) return null;
+
+        const response = await fetch(
+            `/api/dnd/campaigns/${campaignId}/characters/${characterId}/delete`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            }
+        );
+
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404) {
+            return null;
+        }
+        if (!response.ok) {
+            throw new Error(
+                String(
+                    payload?.error ??
+                        payload?.message ??
+                        t(
+                            "No se ha podido eliminar el personaje.",
+                            "Could not delete character."
+                        )
+                )
+            );
+        }
+        return payload?.deleted === true;
+    }
+
+    async function deleteCharacterLegacy(characterId: string, campaignId: string) {
+        const tablesWithCharacterFk = [
+            "character_stats",
+            "character_spells",
+            "character_weapons",
+            "character_armors",
+            "character_equipments",
+        ];
+
+        for (const tableName of tablesWithCharacterFk) {
+            const { error: childDeleteError } = await supabase
+                .from(tableName)
+                .delete()
+                .eq("character_id", characterId);
+            if (childDeleteError) {
+                throw childDeleteError;
+            }
+        }
+
+        const { error: characterDeleteError } = await supabase
+            .from("characters")
+            .delete()
+            .eq("id", characterId)
+            .eq("campaign_id", campaignId);
+        if (characterDeleteError) {
+            throw characterDeleteError;
+        }
+    }
+
+    async function handleDeleteCharacter(character: Character) {
+        const confirmed = window.confirm(
+            t(
+                `Eliminar a ${character.name}? Esta accion no se puede deshacer.`,
+                `Delete ${character.name}? This action cannot be undone.`
+            )
+        );
+        if (!confirmed) return;
+
+        setError(null);
+        try {
+            const characterId = character.id;
+            const campaignId = String(params.id);
+
+            const deletedViaServer = await deleteCharacterViaServer(characterId, campaignId);
+            if (deletedViaServer === false) {
+                throw new Error(
+                    t(
+                        "No se pudo eliminar en base de datos (revisa permisos/RLS).",
+                        "Could not delete from database (check permissions/RLS)."
+                    )
+                );
+            }
+            if (deletedViaServer === true) {
+                const refreshed = await loadPanelData(campaignId);
+                const stillExists = refreshed.some((entry) => entry.id === characterId);
+                if (stillExists) {
+                    throw new Error(
+                        t(
+                            "No se pudo eliminar en base de datos (revisa permisos/RLS).",
+                            "Could not delete from database (check permissions/RLS)."
+                        )
+                    );
+                }
+                if (editingCharacterId === characterId) {
+                    setEditingCharacterId(null);
+                    setPlayerEditorOpen(false);
+                    setPlayerPanelMode("idle");
+                }
+                return;
+            }
+
+            const { data: rpcDeletedRaw, error: rpcDeleteError } = await supabase.rpc(
+                "dnd_manager_dm_delete_character",
+                {
+                    _campaign_id: campaignId,
+                    _character_id: characterId,
+                }
+            );
+
+            if (rpcDeleteError) {
+                if (isMissingRpcFunction(rpcDeleteError)) {
+                    await deleteCharacterLegacy(characterId, campaignId);
+                } else {
+                    throw rpcDeleteError;
+                }
+            } else {
+                const rpcDeleted =
+                    rpcDeletedRaw === true || rpcDeletedRaw === "true" || rpcDeletedRaw === 1;
+                if (!rpcDeleted) {
+                    throw new Error(
+                        t(
+                            "No se pudo eliminar en base de datos (revisa permisos/RLS).",
+                            "Could not delete from database (check permissions/RLS)."
+                        )
+                    );
+                }
+            }
+
+            const refreshed = await loadPanelData(campaignId);
+            const stillExists = refreshed.some((entry) => entry.id === characterId);
+            if (stillExists) {
+                throw new Error(
+                    t(
+                        "No se pudo eliminar en base de datos (revisa permisos/RLS).",
+                        "Could not delete from database (check permissions/RLS)."
+                    )
+                );
+            }
+
+            if (editingCharacterId === characterId) {
+                setEditingCharacterId(null);
+                setPlayerEditorOpen(false);
+                setPlayerPanelMode("idle");
+            }
+        } catch (err: any) {
+            console.error("handleDeleteCharacter:", {
+                code: err?.code,
+                message: err?.message,
+                details: err?.details,
+                hint: err?.hint,
+                raw: err,
+            });
+            setError(
+                err?.message ??
+                    err?.details ??
+                    t(
+                        "No se ha podido eliminar el personaje.",
+                        "Could not delete character."
+                    )
+            );
+        }
     }
 
     if (loading || !allowed) {
@@ -328,6 +665,19 @@ export default function CampaignDMPage() {
             </aside>
 
             <section className="flex-1 p-6 space-y-4">
+                <div className="flex items-center justify-end">
+                    <button
+                        type="button"
+                        onClick={() => setSettingsOpen(true)}
+                        className="inline-flex items-center gap-2 rounded-md border border-ring bg-white/70 px-3 py-1.5 text-[11px] text-ink hover:bg-white"
+                        aria-label={t("Abrir ajustes", "Open settings")}
+                        title={t("Ajustes", "Settings")}
+                    >
+                        <Settings className="h-3.5 w-3.5 text-ink" />
+                        <span className="hidden sm:inline">{t("Ajustes", "Settings")}</span>
+                    </button>
+                </div>
+
                 {error && (
                     <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2">
                         {error}
@@ -347,51 +697,96 @@ export default function CampaignDMPage() {
                         </p>
 
                         <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-                            <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-2">
-                                {characters.length === 0 ? (
-                                    <p className="text-sm text-ink-muted">
-                                        {t(
-                                            "No hay personajes en la campana.",
-                                            "No characters in this campaign."
-                                        )}
-                                    </p>
-                                ) : (
-                                    <ul className="space-y-2">
-                                        {characters.map((char) => (
-                                            <li
-                                                key={char.id}
-                                                onClick={() => handleOpenCharacterView(char.id)}
-                                                className={`border rounded-md px-3 py-2 ${
-                                                    playerEditorOpen && editingCharacterId === char.id
-                                                        ? "border-accent bg-accent/10"
-                                                        : "border-ring bg-white/70 hover:bg-white cursor-pointer"
-                                                }`}
-                                            >
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="min-w-0">
-                                                        <p className="font-medium text-ink truncate">
-                                                            {char.name}
-                                                        </p>
-                                                        <p className="text-xs text-ink-muted truncate">
-                                                            {(char.class ?? t("Sin clase", "No class"))} -{" "}
-                                                            {t("Nivel", "Level")} {char.level ?? 1}
-                                                        </p>
+                            <div className="space-y-3">
+                                <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-2">
+                                    {characters.length === 0 ? (
+                                        <p className="text-sm text-ink-muted">
+                                            {t(
+                                                "No hay personajes en la campana.",
+                                                "No characters in this campaign."
+                                            )}
+                                        </p>
+                                    ) : (
+                                        <ul className="space-y-2">
+                                            {characters.map((char) => (
+                                                <li
+                                                    key={char.id}
+                                                    onClick={() => handleOpenCharacterView(char.id)}
+                                                    draggable
+                                                    onDragStart={(event) =>
+                                                        handleDragStartCharacter(event, char.id)
+                                                    }
+                                                    onDragOver={(event) =>
+                                                        handleDragOverCharacter(event, char.id)
+                                                    }
+                                                    onDrop={(event) =>
+                                                        handleDropOnCharacter(event, char.id)
+                                                    }
+                                                    onDragEnd={handleDragEndCharacter}
+                                                    className={`border rounded-md px-3 py-2 ${
+                                                        dragOverCharacterId === char.id
+                                                            ? "border-accent bg-accent/15"
+                                                            : ""
+                                                    } ${
+                                                        playerEditorOpen && editingCharacterId === char.id
+                                                            ? "border-accent bg-accent/10"
+                                                            : "border-ring bg-white/70 hover:bg-white cursor-pointer"
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="font-medium text-ink truncate">
+                                                                {char.name}
+                                                            </p>
+                                                            <p className="text-xs text-ink-muted truncate">
+                                                                {(char.class ?? t("Sin clase", "No class"))} -{" "}
+                                                                {t("Nivel", "Level")} {char.level ?? 1}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                handleEditCharacter(char);
+                                                            }}
+                                                            className="text-[11px] px-2 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
+                                                        >
+                                                            {t("Editar", "Edit")}
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            handleEditCharacter(char);
-                                                        }}
-                                                        className="text-[11px] px-2 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
-                                                    >
-                                                        {t("Editar", "Edit")}
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                <div className="border border-ring rounded-xl bg-panel/80 p-3">
+                                    <div
+                                        onDragOver={handleTrashDragOver}
+                                        onDragLeave={handleTrashDragLeave}
+                                        onDrop={handleTrashDrop}
+                                        className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${
+                                            isOverTrash
+                                                ? "border-red-500 bg-red-500/10"
+                                                : "border-red-300/60 bg-white/60"
+                                        }`}
+                                    >
+                                        <div>
+                                            <p className="text-sm font-medium text-red-600 text-center">
+                                                {t(
+                                                    "Arrastra aqui para eliminar",
+                                                    "Drag here to delete"
+                                                )}
+                                            </p>
+                                            <p className="text-[11px] text-ink-muted text-center">
+                                                {t(
+                                                    "Suelta para eliminar el personaje arrastrado",
+                                                    "Release to remove the dragged character"
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 overflow-hidden min-h-[440px]">
@@ -540,6 +935,7 @@ export default function CampaignDMPage() {
                     gap: 0.75rem;
                 }
             `}</style>
+            <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </main>
     );
 }

@@ -236,6 +236,12 @@ export type CustomSubclassEntry = {
     source?: string;
 };
 
+export type ManualAdjustmentEntry = {
+    id: string;
+    target: string;
+    value: number;
+};
+
 export type Companion = {
     name: string;
     kind?: string;
@@ -282,6 +288,9 @@ export type Details = {
     classSubclassName?: string;
     customClassName?: string;
     customCastingAbility?: keyof Stats;
+    manualAdjustments?: ManualAdjustmentEntry[];
+    proficiencyBonusOverride?: number | null;
+    spellSlotsOverride?: Partial<Record<number, number>> | Record<string, number> | null;
     background?: string;
     alignment?: string;
     personalityTraits?: string;

@@ -183,7 +183,27 @@ export default function StatsPanel({
   const customClassAbilities = Array.isArray(details?.customClassAbilities)
     ? details.customClassAbilities
     : [];
+  const customNonActionClassAbilities = customClassAbilities.filter(
+    (ability) => ability.actionType !== "action"
+  );
   const skillProficiencies = details?.skillProficiencies ?? {};
+  const spellSlotModifiers = useMemo(() => {
+    const next: Record<string, number> = {};
+    const adjustments = Array.isArray(details?.manualAdjustments)
+      ? details.manualAdjustments
+      : [];
+    for (const adjustment of adjustments) {
+      const target = String(adjustment?.target ?? "").toUpperCase();
+      if (!target.startsWith("SPELL_SLOT_")) continue;
+      const level = target.replace("SPELL_SLOT_", "").trim();
+      const numericLevel = Number(level);
+      if (!Number.isFinite(numericLevel) || numericLevel < 1 || numericLevel > 9) continue;
+      const value = Number(adjustment?.value ?? 0);
+      if (!Number.isFinite(value) || value === 0) continue;
+      next[level] = (next[level] ?? 0) + value;
+    }
+    return next;
+  }, [details?.manualAdjustments]);
 
   const classLabels: Record<string, { es: string; en: string }> = {
     barbarian: { es: "Barbaro", en: "Barbarian" },
@@ -443,6 +463,7 @@ export default function StatsPanel({
           <SpellSlotsPanel
             characterClass={character?.class}
             characterLevel={character?.level}
+            spellSlotModifiers={spellSlotModifiers}
           />
         </div>
       </section>
@@ -729,12 +750,12 @@ export default function StatsPanel({
               </div>
             )}
 
-            {customClassAbilities.length > 0 && (
+            {customNonActionClassAbilities.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
                   {tr(locale, "Habilidades personalizadas", "Custom abilities")}
                 </p>
-                {customClassAbilities.map((ability) => {
+                {customNonActionClassAbilities.map((ability) => {
                   const desc = getLocalizedText(ability.description, locale);
                   return (
                     <details
@@ -764,7 +785,9 @@ export default function StatsPanel({
               <Markdown content={details.abilities} className="text-ink-muted" />
             ) : null}
 
-            {!details?.abilities && customTraits.length === 0 && customClassAbilities.length === 0 && (
+            {!details?.abilities &&
+              customTraits.length === 0 &&
+              customNonActionClassAbilities.length === 0 && (
               <p className="text-xs text-ink-muted">
                 {tr(
                   locale,

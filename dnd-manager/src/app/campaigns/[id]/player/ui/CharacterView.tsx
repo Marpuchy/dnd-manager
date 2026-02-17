@@ -80,7 +80,8 @@ export default function CharacterView({
             2,
             2 + Math.floor(((target.level ?? 1) - 1) / 4)
         );
-        const proficiencyBonus = baseProficiency + getModifierTotal(derivedDetails, "PROFICIENCY");
+        const proficiencyBonus =
+            baseProficiency + getModifierTotal(derivedDetails, "PROFICIENCY");
         const initiative = abilityModifier(totalDex) + getModifierTotal(derivedDetails, "INITIATIVE");
         const passivePerception =
             10 + abilityModifier(totalWis) + getModifierTotal(derivedDetails, "PASSIVE_PERCEPTION");
@@ -231,7 +232,7 @@ export default function CharacterView({
                                 : "border-transparent text-ink-muted hover:text-ink"
                         }`}
                     >
-                        {t("Reverso · Magia y rasgos", "Back · Magic and traits")}
+                        {t("Reverso · Acciones y hechizos", "Back · Actions and spells")}
                     </button>
                     <button
                         onClick={() => onTabChange("classFeatures")}
@@ -293,7 +294,7 @@ export default function CharacterView({
             {activeTab === "spells" && (
                 <>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-ink-muted">
-                        {t("Reverso de la hoja", "Back of the sheet")}
+                        {t("Acciones y hechizos", "Actions and spells")}
                     </div>
                     <AbilityPanel
                         character={character}

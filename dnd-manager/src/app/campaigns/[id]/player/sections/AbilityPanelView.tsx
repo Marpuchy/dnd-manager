@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import {
     Character,
@@ -15,6 +15,7 @@ import CustomContentManager from "./CustomContentManager";
 import { CustomFeatureEntry, CustomSpellEntry } from "@/lib/types/dnd";
 import SpellSlotsPanel from "@/app/components/SpellSlotsPanel";
 import { tr } from "@/lib/i18n/translate";
+import { getLocalizedText } from "@/lib/character/items";
 
 type Props = {
     character: Character;
@@ -42,6 +43,7 @@ type Props = {
     customClassAbilities: CustomFeatureEntry[];
     setCustomClassAbilities: (v: CustomFeatureEntry[]) => void;
     subclassOptions: { id: string; name: string }[];
+    spellSlotModifiers?: Record<string, number> | null;
     viewMode?: "full" | "classOnly" | "spellsOnly";
 };
 
@@ -138,6 +140,54 @@ function ClassAbilityBlock({
     );
 }
 
+function renderCustomActionContent(action: CustomFeatureEntry, locale: string) {
+    const description = getLocalizedText(action.description, locale)?.trim() ?? "";
+    const lines: string[] = [];
+
+    if (action.requirements) {
+        lines.push(`**${tr(locale, "Requisitos", "Requirements")}:** ${action.requirements}`);
+    }
+    if (action.effect) {
+        lines.push(`**${tr(locale, "Efecto", "Effect")}:** ${action.effect}`);
+    }
+    if (action.resourceCost) {
+        const parts: string[] = [];
+        if (action.resourceCost.usesSpellSlot) {
+            parts.push(
+                tr(locale, "Gasta espacio de conjuro", "Uses spell slot") +
+                    (action.resourceCost.slotLevel
+                        ? ` (${tr(locale, "nivel", "level")} ${action.resourceCost.slotLevel})`
+                        : "")
+            );
+        }
+        if (action.resourceCost.charges != null) {
+            const rechargeText =
+                action.resourceCost.recharge === "long"
+                    ? tr(locale, "descanso largo", "long rest")
+                    : tr(locale, "descanso corto", "short rest");
+            parts.push(
+                `${action.resourceCost.charges} ${tr(
+                    locale,
+                    action.resourceCost.charges === 1 ? "carga" : "cargas",
+                    action.resourceCost.charges === 1 ? "charge" : "charges"
+                )}${action.resourceCost.recharge ? ` / ${rechargeText}` : ""}`
+            );
+        }
+        if (action.resourceCost.points != null) {
+            parts.push(
+                `${action.resourceCost.points} ${
+                    action.resourceCost.pointsLabel || tr(locale, "puntos", "points")
+                }`
+            );
+        }
+        if (parts.length > 0) {
+            lines.push(`**${tr(locale, "Coste", "Cost")}:** ${parts.join(", ")}`);
+        }
+    }
+
+    return [description, ...lines].filter(Boolean).join("\n\n");
+}
+
 export default function AbilityPanelView({
                                              character,
                                              preparedInfo,
@@ -160,12 +210,25 @@ export default function AbilityPanelView({
                                              customClassAbilities,
                                              setCustomClassAbilities,
                                              subclassOptions,
+                                             spellSlotModifiers,
                                              viewMode = "full",
                                      }: Props) {
     const [customCreateOpen, setCustomCreateOpen] = useState(false);
     const [classAbilitiesOpen, setClassAbilitiesOpen] = useState(true);
     const [upcomingClassAbilitiesOpen, setUpcomingClassAbilitiesOpen] =
         useState(false);
+    const customActions = useMemo(
+        () =>
+            (Array.isArray(customClassAbilities) ? customClassAbilities : [])
+                .filter((action) => action.actionType === "action")
+                .sort((a, b) => {
+                    const levelA = Number(a.level ?? 0);
+                    const levelB = Number(b.level ?? 0);
+                    if (levelA !== levelB) return levelA - levelB;
+                    return a.name.localeCompare(b.name);
+                }),
+        [customClassAbilities]
+    );
 
     if (viewMode === "classOnly") {
         return (
@@ -234,7 +297,11 @@ export default function AbilityPanelView({
                     onClick={() => setCustomCreateOpen(true)}
                     className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
                 >
-                    {tr(locale, "Crear magia/rasgos personalizados", "Create custom magic/traits")}
+                    {tr(
+                        locale,
+                        "Crear acciones/hechizos personalizados",
+                        "Create custom actions/spells"
+                    )}
                 </button>
             </div>
 
@@ -268,7 +335,53 @@ export default function AbilityPanelView({
             <SpellSlotsPanel
                 characterClass={character.class}
                 characterLevel={character.level}
+                spellSlotModifiers={spellSlotModifiers}
             />
+
+            {customActions.length > 0 && (
+                <details
+                    open
+                    className="group border border-ring rounded-2xl bg-panel/80 overflow-hidden"
+                >
+                    <summary className="px-3 py-2 cursor-pointer bg-white/70 text-ink flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
+                        <ChevronRight className="h-4 w-4 text-ink-muted transition-transform group-open:rotate-90" />
+                        <span className="font-semibold">
+                            {tr(locale, "Acciones", "Actions")} ({customActions.length})
+                        </span>
+                    </summary>
+                    <div className="p-3 space-y-2">
+                        {customActions.map((action) => {
+                            const content = renderCustomActionContent(action, locale);
+                            return (
+                                <details
+                                    key={action.id}
+                                    open
+                                    className="rounded-xl border border-ring bg-white/80 p-3"
+                                >
+                                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                                        {action.name}
+                                        {action.level != null
+                                            ? ` · ${tr(locale, "Nivel", "Level")} ${action.level}`
+                                            : ""}
+                                    </summary>
+                                    {content ? (
+                                        <div className="mt-2">
+                                            <Markdown
+                                                content={content}
+                                                className="text-ink-muted text-xs"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <p className="mt-2 text-[11px] text-ink-muted">
+                                            {tr(locale, "Sin descripcion.", "No description.")}
+                                        </p>
+                                    )}
+                                </details>
+                            );
+                        })}
+                    </div>
+                </details>
+            )}
 
             {viewMode !== "spellsOnly" && (
                 <>
@@ -378,6 +491,12 @@ export default function AbilityPanelView({
                 customClassAbilities={customClassAbilities}
                 setCustomClassAbilities={setCustomClassAbilities}
                 subclassOptions={subclassOptions}
+                allowedTypes={
+                    viewMode === "spellsOnly"
+                        ? ["spell", "cantrip", "action"]
+                        : undefined
+                }
+                defaultFormType={viewMode === "spellsOnly" ? "spell" : undefined}
                 createOpen={customCreateOpen}
                 onToggleCreate={setCustomCreateOpen}
                 createAsModal

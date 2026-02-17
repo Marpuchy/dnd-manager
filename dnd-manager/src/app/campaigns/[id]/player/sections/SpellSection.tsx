@@ -9,6 +9,8 @@ import { getClientSpellsForClassLevel } from "@/lib/dnd/clientLocalData";
 type SpellSectionProps = {
   charClass: string;
   charLevel: number;
+  spellSlotsOverride?: Record<string, number> | null;
+  spellSlotModifiers?: Record<string, number> | null;
   spellsL0: string;
   setSpellsL0: (v: string) => void;
   spellsL1: string;
@@ -35,6 +37,8 @@ type SpellSectionProps = {
 export function SpellSection({
   charClass,
   charLevel,
+  spellSlotsOverride,
+  spellSlotModifiers,
   spellsL0,
   setSpellsL0,
   spellsL1,
@@ -60,6 +64,31 @@ export function SpellSection({
   const locale = useClientLocale();
   const t = (es: string, en: string) => tr(locale, es, en);
   const unlockedSpellLevels = useMemo(() => {
+    const normalizedModifiers: Record<string, number> = {};
+    if (spellSlotModifiers && typeof spellSlotModifiers === "object") {
+      for (let level = 1; level <= 9; level += 1) {
+        const key = String(level);
+        const value = Number(spellSlotModifiers[key] ?? 0);
+        if (Number.isFinite(value) && value !== 0) {
+          normalizedModifiers[key] = Math.floor(value);
+        }
+      }
+    }
+    const manualSlots =
+      spellSlotsOverride && typeof spellSlotsOverride === "object"
+        ? Object.fromEntries(
+            Object.entries(spellSlotsOverride)
+              .map(([lvl, count]) => [lvl, Number(count)])
+              .filter(
+                ([lvl, count]) =>
+                  Number.isFinite(Number(lvl)) &&
+                  Number(lvl) > 0 &&
+                  Number(lvl) <= 9 &&
+                  Number.isFinite(count)
+              )
+          )
+        : null;
+
     if (!charClass || !charLevel || charLevel < 1) return [] as number[];
 
     let clsForSlots = charClass;
@@ -68,19 +97,44 @@ export function SpellSection({
     }
 
     const slots = getSpellSlotsFor(clsForSlots, charLevel as number);
-    if (!slots) return [] as number[];
+    const baseCounts: Record<string, number> = {};
 
-    if ("slots" in (slots as any)) {
-      const slotLevel = Number((slots as any).slotLevel ?? 0);
-      return slotLevel > 0 ? [slotLevel] : [];
+    if (manualSlots) {
+      for (let level = 1; level <= 9; level += 1) {
+        const key = String(level);
+        const count = Number(manualSlots[key] ?? 0);
+        if (Number.isFinite(count)) {
+          baseCounts[key] = Math.max(0, Math.floor(count));
+        }
+      }
+    } else if (slots) {
+      if ("slots" in (slots as any)) {
+        const slotLevel = Number((slots as any).slotLevel ?? 0);
+        const slotCount = Number((slots as any).slots ?? 0);
+        if (slotLevel > 0 && slotLevel <= 9 && slotCount > 0) {
+          baseCounts[String(slotLevel)] = Math.floor(slotCount);
+        }
+      } else {
+        for (let level = 1; level <= 9; level += 1) {
+          const count = Number((slots as any)[level] ?? 0);
+          if (Number.isFinite(count) && count > 0) {
+            baseCounts[String(level)] = Math.floor(count);
+          }
+        }
+      }
     }
 
-    return Object.entries(slots as any)
-      .map(([lvl, num]) => ({ lvl: Number(lvl), num: Number(num) }))
-      .filter((entry) => entry.lvl > 0 && entry.num > 0)
-      .map((entry) => entry.lvl)
+    return Array.from({ length: 9 }, (_, index) => index + 1)
+      .map((level) => {
+        const key = String(level);
+        const base = Number(baseCounts[key] ?? 0);
+        const modifier = Number(normalizedModifiers[key] ?? 0);
+        return { level, count: Math.max(0, base + modifier) };
+      })
+      .filter((entry) => entry.count > 0)
+      .map((entry) => entry.level)
       .sort((a, b) => a - b);
-  }, [charClass, charLevel]);
+  }, [charClass, charLevel, spellSlotsOverride, spellSlotModifiers]);
 
   const spellLevelFields = [
     { level: 0, label: t("Trucos (nivel 0)", "Cantrips (level 0)"), value: spellsL0, setter: setSpellsL0 },
