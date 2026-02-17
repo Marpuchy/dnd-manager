@@ -99,6 +99,25 @@ export default function AbilityPanel({
     )
         ? details.customClassAbilities
         : [];
+    const spellSlotModifiers = useMemo(() => {
+        const next: Record<string, number> = {};
+        const adjustments = Array.isArray(details.manualAdjustments)
+            ? details.manualAdjustments
+            : [];
+        for (const adjustment of adjustments) {
+            const target = String(adjustment?.target ?? "").toUpperCase();
+            if (!target.startsWith("SPELL_SLOT_")) continue;
+            const level = target.replace("SPELL_SLOT_", "").trim();
+            const numericLevel = Number(level);
+            if (!Number.isFinite(numericLevel) || numericLevel < 1 || numericLevel > 9) {
+                continue;
+            }
+            const value = Number(adjustment?.value ?? 0);
+            if (!Number.isFinite(value) || value === 0) continue;
+            next[level] = (next[level] ?? 0) + value;
+        }
+        return next;
+    }, [details.manualAdjustments]);
 
     const customSpellEntries = useMemo(() => {
         const spells = Array.isArray(customSpells) ? customSpells : [];
@@ -169,10 +188,6 @@ export default function AbilityPanel({
         reaction: t("Reaccion", "Reaction"),
         passive: t("Pasiva", "Passive"),
     };
-    const selectedSubclassId =
-        typeof details.classSubclassId === "string"
-            ? details.classSubclassId
-            : undefined;
     const baseSubclassOptions = useMemo(
         () =>
             getClassSubclasses(character.class, undefined, locale).map((subclass) => ({
@@ -214,6 +229,33 @@ export default function AbilityPanel({
         () => Object.fromEntries(subclassOptions.map((subclass) => [subclass.id, subclass.name])),
         [subclassOptions]
     );
+    const selectedSubclassId = useMemo(() => {
+        const rawId =
+            typeof details.classSubclassId === "string"
+                ? details.classSubclassId.trim()
+                : "";
+        if (rawId && subclassOptions.some((subclass) => subclass.id === rawId)) {
+            return rawId;
+        }
+
+        const rawName =
+            typeof details.classSubclassName === "string"
+                ? details.classSubclassName.trim()
+                : "";
+        if (!rawName) return undefined;
+
+        const normalizeToken = (value: string) =>
+            value
+                .toLowerCase()
+                .trim()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+
+        const byName = subclassOptions.find(
+            (subclass) => normalizeToken(subclass.name) === normalizeToken(rawName)
+        );
+        return byName?.id;
+    }, [details.classSubclassId, details.classSubclassName, subclassOptions]);
 
     const classAbilityTimeline = useMemo(
         () =>
@@ -231,6 +273,8 @@ export default function AbilityPanel({
     const mappedCustomClassAbilities = useMemo(
         () =>
             customClassAbilities
+                // Custom actions belong to "Acciones y hechizos", not class progression.
+                .filter((ability) => ability.actionType !== "action")
                 .filter((ability) => {
                     if (!ability.subclassId) return true;
                     return ability.subclassId === selectedSubclassId;
@@ -559,6 +603,7 @@ export default function AbilityPanel({
                     patchDetails({ customClassAbilities: next })
                 }
                 subclassOptions={subclassOptions}
+                spellSlotModifiers={spellSlotModifiers}
                 viewMode={viewMode}
             />
         </>

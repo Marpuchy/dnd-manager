@@ -128,6 +128,12 @@ export type CharacterFormFields = {
     setProficiencies?: (v: string) => void;
     skillProficiencies?: SkillProficiencies;
     setSkillProficiencies?: (v: SkillProficiencies) => void;
+    manualAdjustments?: { id: string; target: string; value: number }[];
+    setManualAdjustments?: (v: { id: string; target: string; value: number }[]) => void;
+    proficiencyBonusOverride?: number | null;
+    setProficiencyBonusOverride?: (v: number | null) => void;
+    spellSlotsOverride?: Record<string, number>;
+    setSpellSlotsOverride?: (v: Record<string, number>) => void;
     customSections?: { id: string; title: string; content: string }[];
     setCustomSections?: (sections: { id: string; title: string; content: string }[]) => void;
     companionEnabled?: boolean;
@@ -300,6 +306,11 @@ export function useCharacterForm(): UseCharacterFormResult {
     const [languages, setLanguages] = useState("");
     const [proficiencies, setProficiencies] = useState("");
     const [skillProficiencies, setSkillProficiencies] = useState<SkillProficiencies>({});
+    const [manualAdjustments, setManualAdjustments] = useState<
+        { id: string; target: string; value: number }[]
+    >([]);
+    const [proficiencyBonusOverride, setProficiencyBonusOverride] = useState<number | null>(null);
+    const [spellSlotsOverride, setSpellSlotsOverride] = useState<Record<string, number>>({});
     const [customSections, setCustomSections] = useState<{ id: string; title: string; content: string }[]>([]);
     const [companionEnabled, setCompanionEnabled] = useState(false);
     const [companionName, setCompanionName] = useState("");
@@ -403,6 +414,9 @@ export function useCharacterForm(): UseCharacterFormResult {
         setLanguages("");
         setProficiencies("");
         setSkillProficiencies({});
+        setManualAdjustments([]);
+        setProficiencyBonusOverride(null);
+        setSpellSlotsOverride({});
         setCustomSections([]);
         setCompanionEnabled(false);
         setCompanionName("");
@@ -539,6 +553,47 @@ export function useCharacterForm(): UseCharacterFormResult {
                 ? details.skillProficiencies
                 : {}
         );
+        setManualAdjustments(
+            Array.isArray(details.manualAdjustments)
+                ? details.manualAdjustments
+                      .filter(
+                          (entry) =>
+                              entry &&
+                              typeof entry === "object" &&
+                              typeof (entry as any).target === "string" &&
+                              Number.isFinite(Number((entry as any).value))
+                      )
+                      .map((entry) => ({
+                          id:
+                              typeof (entry as any).id === "string" &&
+                              (entry as any).id.trim().length > 0
+                                  ? (entry as any).id
+                                  : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                          target: String((entry as any).target).trim().toUpperCase(),
+                          value: Number((entry as any).value),
+                      }))
+                : []
+        );
+        setProficiencyBonusOverride(
+            typeof details.proficiencyBonusOverride === "number" &&
+            Number.isFinite(details.proficiencyBonusOverride)
+                ? details.proficiencyBonusOverride
+                : null
+        );
+        if (details.spellSlotsOverride && typeof details.spellSlotsOverride === "object") {
+            const rawSlots = details.spellSlotsOverride as Record<string, unknown>;
+            const normalizedSlots: Record<string, number> = {};
+            for (let level = 1; level <= 9; level += 1) {
+                const key = String(level);
+                const parsed = Number(rawSlots[key]);
+                if (Number.isFinite(parsed) && parsed >= 0) {
+                    normalizedSlots[key] = Math.floor(parsed);
+                }
+            }
+            setSpellSlotsOverride(normalizedSlots);
+        } else {
+            setSpellSlotsOverride({});
+        }
         setCustomSections(Array.isArray(details.customSections) ? details.customSections : []);
         const companion = details.companion;
         if (companion) {
@@ -690,10 +745,16 @@ export function useCharacterForm(): UseCharacterFormResult {
             setBackstory,
             languages,
             setLanguages,
-        proficiencies,
-        setProficiencies,
-        skillProficiencies,
-        setSkillProficiencies,
+            proficiencies,
+            setProficiencies,
+            skillProficiencies,
+            setSkillProficiencies,
+            manualAdjustments,
+            setManualAdjustments,
+            proficiencyBonusOverride,
+            setProficiencyBonusOverride,
+            spellSlotsOverride,
+            setSpellSlotsOverride,
             customSections,
             setCustomSections,
             companionEnabled,
@@ -728,10 +789,10 @@ export function useCharacterForm(): UseCharacterFormResult {
             setCompanionAbilities,
             companionSpells,
             setCompanionSpells,
-        companionNotes,
-        setCompanionNotes,
-        companionOwnerId,
-        setCompanionOwnerId,
+            companionNotes,
+            setCompanionNotes,
+            companionOwnerId,
+            setCompanionOwnerId,
             items,
             setItems,
             customSpells,

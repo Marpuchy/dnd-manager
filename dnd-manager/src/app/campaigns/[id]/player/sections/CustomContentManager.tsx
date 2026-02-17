@@ -14,8 +14,14 @@ import {
 } from "@/lib/character/items";
 import { tr } from "@/lib/i18n/translate";
 
-type FormType = "spell" | "cantrip" | "trait" | "classAbility";
-const ALL_FORM_TYPES: FormType[] = ["spell", "cantrip", "trait", "classAbility"];
+type FormType = "spell" | "cantrip" | "trait" | "classAbility" | "action";
+const ALL_FORM_TYPES: FormType[] = [
+    "spell",
+    "cantrip",
+    "trait",
+    "classAbility",
+    "action",
+];
 
 const SPELL_SCHOOLS = [
     { es: "Abjuración", en: "Abjuration" },
@@ -102,6 +108,163 @@ export default function CustomContentManager({
     const isCreateControlled = typeof createOpen === "boolean";
     const isCreateOpen = isCreateControlled ? createOpen : internalCreateOpen;
     const showCreateToggle = isCreateControlled || typeof onToggleCreate === "function";
+
+    function formatCustomEntryDetails(
+        entry: CustomSpellEntry | CustomFeatureEntry,
+        type: FormType
+    ) {
+        const desc = getLocalizedText(entry.description, locale)?.trim() ?? "";
+        const lines: string[] = [];
+
+        if (type === "spell" || type === "cantrip") {
+            const spell = entry as CustomSpellEntry;
+            if (spell.school) {
+                lines.push(`**${t("Escuela", "School")}:** ${spell.school}`);
+            }
+            if (spell.castingTime?.value) {
+                lines.push(
+                    `**${t("Tiempo de lanzamiento", "Casting time")}:** ${spell.castingTime.value}${
+                        spell.castingTime.note ? ` (${spell.castingTime.note})` : ""
+                    }`
+                );
+            }
+            if (spell.range) {
+                lines.push(`**${t("Alcance", "Range")}:** ${spell.range}`);
+            }
+            if (spell.duration) {
+                lines.push(`**${t("Duracion", "Duration")}:** ${spell.duration}`);
+            }
+
+            const components: string[] = [];
+            if (spell.components?.verbal) components.push("V");
+            if (spell.components?.somatic) components.push("S");
+            if (spell.components?.material) components.push("M");
+            if (components.length > 0) {
+                lines.push(`**${t("Componentes", "Components")}:** ${components.join(", ")}`);
+            }
+            if (spell.materials) {
+                lines.push(`**${t("Materiales", "Materials")}:** ${spell.materials}`);
+            }
+            if (spell.concentration) {
+                lines.push(`**${t("Concentracion", "Concentration")}:** ${t("Si", "Yes")}`);
+            }
+            if (spell.ritual) {
+                lines.push(`**${t("Ritual", "Ritual")}:** ${t("Si", "Yes")}`);
+            }
+
+            if (spell.resourceCost) {
+                const parts: string[] = [];
+                if (spell.resourceCost.usesSpellSlot) {
+                    parts.push(
+                        t("Gasta espacio de conjuro", "Uses spell slot") +
+                            (spell.resourceCost.slotLevel
+                                ? ` (${t("nivel", "level")} ${spell.resourceCost.slotLevel})`
+                                : "")
+                    );
+                }
+                if (spell.resourceCost.charges != null) {
+                    parts.push(
+                        `${spell.resourceCost.charges} ${t(
+                            spell.resourceCost.charges === 1 ? "carga" : "cargas",
+                            spell.resourceCost.charges === 1 ? "charge" : "charges"
+                        )}`
+                    );
+                }
+                if (spell.resourceCost.points != null) {
+                    parts.push(`${spell.resourceCost.points} ${t("puntos", "points")}`);
+                }
+                if (parts.length > 0) {
+                    lines.push(`**${t("Coste", "Cost")}:** ${parts.join(", ")}`);
+                }
+            }
+
+            if (spell.save && spell.save.type && spell.save.type !== "none") {
+                const saveType =
+                    spell.save.type === "attack"
+                        ? t("Ataque", "Attack")
+                        : t("Salvacion", "Save");
+                const detail = [
+                    spell.save.saveAbility ? spell.save.saveAbility : "",
+                    spell.save.dcType === "fixed" && spell.save.dcValue != null
+                        ? `CD ${spell.save.dcValue}`
+                        : "",
+                    spell.save.dcType === "stat" && spell.save.dcStat
+                        ? `${t("CD por", "DC by")} ${spell.save.dcStat}`
+                        : "",
+                ]
+                    .filter(Boolean)
+                    .join(" · ");
+                lines.push(
+                    `**${t("Tirada / salvacion", "Roll / save")}:** ${saveType}${
+                        detail ? ` (${detail})` : ""
+                    }`
+                );
+            }
+
+            if (spell.damage && (spell.damage.damageType || spell.damage.dice || spell.damage.scaling)) {
+                const parts = [
+                    spell.damage.damageType ? `${t("Tipo", "Type")}: ${spell.damage.damageType}` : "",
+                    spell.damage.dice ? `${t("Dados", "Dice")}: ${spell.damage.dice}` : "",
+                    spell.damage.scaling ? `${t("Escalado", "Scaling")}: ${spell.damage.scaling}` : "",
+                ]
+                    .filter(Boolean)
+                    .join(" · ");
+                if (parts) {
+                    lines.push(`**${t("Dano", "Damage")}:** ${parts}`);
+                }
+            }
+        } else if (type === "classAbility" || type === "action") {
+            const ability = entry as CustomFeatureEntry;
+            if (ability.actionType) {
+                const actionLabel =
+                    ACTION_TYPES.find((item) => item.value === ability.actionType)?.[
+                        locale === "en" ? "en" : "es"
+                    ] ?? ability.actionType;
+                lines.push(`**${t("Tipo", "Type")}:** ${actionLabel}`);
+            }
+            if (ability.requirements) {
+                lines.push(`**${t("Requisitos", "Requirements")}:** ${ability.requirements}`);
+            }
+            if (ability.effect) {
+                lines.push(`**${t("Efecto", "Effect")}:** ${ability.effect}`);
+            }
+            if (ability.resourceCost) {
+                const parts: string[] = [];
+                if (ability.resourceCost.usesSpellSlot) {
+                    parts.push(
+                        t("Gasta espacio de conjuro", "Uses spell slot") +
+                            (ability.resourceCost.slotLevel
+                                ? ` (${t("nivel", "level")} ${ability.resourceCost.slotLevel})`
+                                : "")
+                    );
+                }
+                if (ability.resourceCost.charges != null) {
+                    const rechargeText =
+                        ability.resourceCost.recharge === "long"
+                            ? t("descanso largo", "long rest")
+                            : t("descanso corto", "short rest");
+                    parts.push(
+                        `${ability.resourceCost.charges} ${t(
+                            ability.resourceCost.charges === 1 ? "carga" : "cargas",
+                            ability.resourceCost.charges === 1 ? "charge" : "charges"
+                        )}${ability.resourceCost.recharge ? ` / ${rechargeText}` : ""}`
+                    );
+                }
+                if (ability.resourceCost.points != null) {
+                    parts.push(
+                        `${ability.resourceCost.points} ${
+                            ability.resourceCost.pointsLabel || t("puntos", "points")
+                        }`
+                    );
+                }
+                if (parts.length > 0) {
+                    lines.push(`**${t("Coste", "Cost")}:** ${parts.join(", ")}`);
+                }
+            }
+        }
+
+        return [desc, ...lines].filter(Boolean).join("\n\n");
+    }
 
     function setCreateOpen(next: boolean) {
         if (isCreateControlled) {
@@ -202,13 +365,29 @@ export default function CustomContentManager({
                 return t("Rasgo", "Trait");
             case "classAbility":
                 return t("Habilidad", "Ability");
+            case "action":
+                return t("Accion", "Action");
             default:
                 return t("Contenido", "Content");
         }
     }, [formType, t]);
 
     const isSpellForm = formType === "spell" || formType === "cantrip";
-    const isAbilityForm = formType === "classAbility";
+    const isAbilityForm = formType === "classAbility" || formType === "action";
+    const customActionEntries = useMemo(
+        () =>
+            (Array.isArray(customClassAbilities) ? customClassAbilities : []).filter(
+                (entry) => entry.actionType === "action"
+            ),
+        [customClassAbilities]
+    );
+    const customNonActionAbilityEntries = useMemo(
+        () =>
+            (Array.isArray(customClassAbilities) ? customClassAbilities : []).filter(
+                (entry) => entry.actionType !== "action"
+            ),
+        [customClassAbilities]
+    );
 
     React.useEffect(() => {
         if (!allowedFormTypes.includes(formType)) {
@@ -257,8 +436,12 @@ export default function CustomContentManager({
 
     function startEdit(entry: CustomSpellEntry | CustomFeatureEntry, type: FormType) {
         resetForm();
-        setFormType(type);
-        setEditing({ id: entry.id, type });
+        const resolvedType: FormType =
+            type === "classAbility" && (entry as CustomFeatureEntry).actionType === "action"
+                ? "action"
+                : type;
+        setFormType(resolvedType);
+        setEditing({ id: entry.id, type: resolvedType });
         setCreateOpen(true);
         setName(entry.name ?? "");
 
@@ -329,7 +512,7 @@ export default function CustomContentManager({
             return;
         }
 
-        if (type === "classAbility") {
+        if (type === "classAbility" || type === "action") {
             const ability = entry as CustomFeatureEntry;
             setLevel(typeof ability.level === "number" ? ability.level : 1);
             setAbilitySubclassId(ability.subclassId ?? "");
@@ -462,23 +645,28 @@ export default function CustomContentManager({
                     }
                     : undefined;
 
+            const isAbilityEntry = formType === "classAbility" || formType === "action";
             const entry: CustomFeatureEntry = {
                 id: editing?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 name: trimmed,
-                level: formType === "classAbility" ? Number(level) || undefined : undefined,
+                level: isAbilityEntry ? Number(level) || undefined : undefined,
                 description: desc,
                 subclassId:
-                    formType === "classAbility" && abilitySubclassId
+                    isAbilityEntry && abilitySubclassId
                         ? abilitySubclassId
                         : undefined,
                 subclassName:
-                    formType === "classAbility" && abilitySubclassId
+                    isAbilityEntry && abilitySubclassId
                         ? subclassNameById[abilitySubclassId]
                         : undefined,
-                actionType: formType === "classAbility" ? abilityActionType : undefined,
-                resourceCost: formType === "classAbility" ? abilityCost : undefined,
-                requirements: formType === "classAbility" ? requirements.trim() || undefined : undefined,
-                effect: formType === "classAbility" ? effect.trim() || undefined : undefined,
+                actionType: isAbilityEntry
+                    ? formType === "action"
+                        ? "action"
+                        : abilityActionType
+                    : undefined,
+                resourceCost: isAbilityEntry ? abilityCost : undefined,
+                requirements: isAbilityEntry ? requirements.trim() || undefined : undefined,
+                effect: isAbilityEntry ? effect.trim() || undefined : undefined,
             };
 
             if (formType === "trait") {
@@ -514,6 +702,10 @@ export default function CustomContentManager({
             setCustomTraits(customTraits.filter((item) => item.id !== id));
             return;
         }
+        if (type === "action") {
+            setCustomClassAbilities(customClassAbilities.filter((item) => item.id !== id));
+            return;
+        }
         setCustomClassAbilities(customClassAbilities.filter((item) => item.id !== id));
     }
 
@@ -536,10 +728,11 @@ export default function CustomContentManager({
                 </h4>
                 <div className="grid gap-2 md:grid-cols-2">
                     {entries.map((entry) => {
-                        const desc = getLocalizedText(entry.description, locale);
+                        const content = formatCustomEntryDetails(entry, type);
                         return (
                             <details
                                 key={entry.id}
+                                open
                                 className="rounded-2xl border border-ring bg-white/80 p-3"
                             >
                                 <summary className="cursor-pointer list-none">
@@ -587,10 +780,10 @@ export default function CustomContentManager({
                                         </div>
                                     </div>
                                 </summary>
-                                {desc ? (
+                                {content ? (
                                     <div className="mt-2">
                                         <Markdown
-                                            content={desc}
+                                            content={content}
                                             className="text-ink-muted text-xs"
                                         />
                                     </div>
@@ -675,6 +868,7 @@ export default function CustomContentManager({
                                 setFormType(next);
                                 if (next === "cantrip") setLevel(0);
                                 if (next === "spell" && level === 0) setLevel(1);
+                                if (next === "action") setAbilityActionType("action");
                             }}
                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                         >
@@ -689,6 +883,9 @@ export default function CustomContentManager({
                             )}
                             {allowedFormTypes.includes("classAbility") && (
                                 <option value="classAbility">{t("Habilidad", "Ability")}</option>
+                            )}
+                            {allowedFormTypes.includes("action") && (
+                                <option value="action">{t("Accion", "Action")}</option>
                             )}
                         </select>
                     </div>
@@ -748,6 +945,7 @@ export default function CustomContentManager({
                                             event.target.value as CustomFeatureEntry["actionType"]
                                         )
                                     }
+                                    disabled={formType === "action"}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                 >
                                     {ACTION_TYPES.map((action) => (
@@ -1212,8 +1410,14 @@ export default function CustomContentManager({
                 {allowedFormTypes.includes("classAbility") &&
                     renderList(
                         t("Habilidades personalizadas", "Custom abilities"),
-                        customClassAbilities,
+                        customNonActionAbilityEntries,
                         "classAbility"
+                    )}
+                {allowedFormTypes.includes("action") &&
+                    renderList(
+                        t("Acciones personalizadas", "Custom actions"),
+                        customActionEntries,
+                        "action"
                     )}
             </div>
         </section>

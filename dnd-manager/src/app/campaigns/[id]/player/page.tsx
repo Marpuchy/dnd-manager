@@ -1261,7 +1261,11 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                                 : "border-transparent text-ink-muted hover:text-ink"
                                         }`}
                                     >
-                                        {tr(locale, "Reverso · Magia y rasgos", "Back · Magic and traits")}
+                                        {tr(
+                                            locale,
+                                            "Reverso · Acciones y hechizos",
+                                            "Back · Actions and spells"
+                                        )}
                                     </button>
                                     <button
                                         onClick={() => setActiveTab("classFeatures")}

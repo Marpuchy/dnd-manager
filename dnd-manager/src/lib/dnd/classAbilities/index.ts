@@ -2,6 +2,7 @@ import { CLASS_PROGRESSIONS_2024 } from "./srd2024";
 import { CLASS_PROGRESSIONS_2024_ES } from "./srd2024.es";
 import { OFFICIAL_SUBCLASS_CATALOG } from "./officialSubclasses";
 import { OFFICIAL_SUBCLASS_NAMES_ES } from "./officialSubclasses.es";
+import { getFallbackSubclassFeatures } from "./fallbackSubclassFeatures";
 import { ClassAbility, ClassProgression, ClassSubclass } from "./types";
 
 const CLASS_IDS = new Set(Object.keys(CLASS_PROGRESSIONS_2024));
@@ -61,7 +62,21 @@ function mergeOfficialSubclasses(
 
     const catalog = OFFICIAL_SUBCLASS_CATALOG[classId] ?? [];
     for (const seed of catalog) {
-        if (merged.has(seed.id)) continue;
+        const fallbackFeatures = getFallbackSubclassFeatures(seed.id, locale);
+        const existing = merged.get(seed.id);
+        if (existing) {
+            const existingFeatures = Array.isArray(existing.features)
+                ? existing.features
+                : [];
+            if (existingFeatures.length === 0 && fallbackFeatures.length > 0) {
+                merged.set(seed.id, {
+                    ...existing,
+                    features: fallbackFeatures,
+                });
+            }
+            continue;
+        }
+
         merged.set(seed.id, {
             id: seed.id,
             name:
@@ -74,7 +89,7 @@ function mergeOfficialSubclasses(
                     ? Number(seed.unlockLevel)
                     : subclassUnlockLevel,
             source: seed.source,
-            features: [],
+            features: fallbackFeatures,
         });
     }
 

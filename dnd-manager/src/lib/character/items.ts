@@ -144,6 +144,22 @@ export function collectItemModifiers(details?: Details | null) {
     }
   }
 
+  const manualAdjustments = Array.isArray(details?.manualAdjustments)
+    ? details.manualAdjustments
+    : [];
+  for (const adjustment of manualAdjustments) {
+    if (!adjustment) continue;
+    const target = normalizeTarget(String(adjustment.target ?? ""));
+    if (!target) continue;
+    const numeric = Number(adjustment.value);
+    if (Number.isNaN(numeric)) continue;
+    modifiers.push({
+      target,
+      value: numeric,
+      source: "Ajuste manual",
+    });
+  }
+
   return modifiers;
 }
 

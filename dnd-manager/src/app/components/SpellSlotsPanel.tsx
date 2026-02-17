@@ -11,6 +11,8 @@ type ClassColor = { stroke: string; fill: string };
 type Props = {
   characterClass?: string | null;
   characterLevel?: number | null;
+  spellSlotsOverride?: Record<string, number> | null;
+  spellSlotModifiers?: Record<string, number> | null;
   className?: string;
 };
 
@@ -68,34 +70,82 @@ function SpellSlotOrb({
 export default function SpellSlotsPanel({
   characterClass,
   characterLevel,
+  spellSlotsOverride,
+  spellSlotModifiers,
   className,
 }: Props) {
   const locale = useClientLocale();
   const safeLevel = typeof characterLevel === "number" ? characterLevel : null;
-  const spellSlots =
+  const automaticSlots =
     characterClass && safeLevel ? getSpellSlotsFor(characterClass, safeLevel) : null;
+  const normalizedManualSlots = useMemo(() => {
+    if (!spellSlotsOverride || typeof spellSlotsOverride !== "object") {
+      return {} as Record<string, number>;
+    }
+    const parsed: Record<string, number> = {};
+    for (let level = 1; level <= 9; level += 1) {
+      const key = String(level);
+      const value = Number(spellSlotsOverride[key]);
+      if (Number.isFinite(value) && value >= 0) {
+        parsed[key] = Math.floor(value);
+      }
+    }
+    return parsed;
+  }, [spellSlotsOverride]);
+  const normalizedSlotModifiers = useMemo(() => {
+    if (!spellSlotModifiers || typeof spellSlotModifiers !== "object") {
+      return {} as Record<string, number>;
+    }
+    const parsed: Record<string, number> = {};
+    for (let level = 1; level <= 9; level += 1) {
+      const key = String(level);
+      const value = Number(spellSlotModifiers[key]);
+      if (Number.isFinite(value) && value !== 0) {
+        parsed[key] = Math.floor(value);
+      }
+    }
+    return parsed;
+  }, [spellSlotModifiers]);
+  const hasManualSlots = Object.keys(normalizedManualSlots).length > 0;
   const classColor = getClassColor(characterClass ?? undefined);
 
   const spellSlotCounts = useMemo(() => {
     const levels = Array.from({ length: 9 }, (_, i) => i + 1);
-    if (!spellSlots) {
+    if (hasManualSlots) {
+      return levels.map((lvl) => ({
+        level: lvl,
+        slots: Number(normalizedManualSlots[String(lvl)] ?? 0),
+      }));
+    }
+    if (!automaticSlots) {
       return levels.map((lvl) => ({ level: lvl, slots: 0 }));
     }
-    if ("slots" in spellSlots) {
+    if ("slots" in automaticSlots) {
       return levels.map((lvl) => ({
         level: lvl,
         slots:
-          lvl === Number((spellSlots as any).slotLevel)
-            ? Number((spellSlots as any).slots)
+          lvl === Number((automaticSlots as any).slotLevel)
+            ? Number((automaticSlots as any).slots)
             : 0,
       }));
     }
     return levels.map((lvl) => ({
       level: lvl,
-      slots: Number((spellSlots as any)[lvl] ?? 0),
+      slots: Number((automaticSlots as any)[lvl] ?? 0),
     }));
-  }, [spellSlots]);
-  const visibleSpellSlots = spellSlotCounts.filter((entry) => entry.slots > 0);
+  }, [automaticSlots, hasManualSlots, normalizedManualSlots]);
+  const adjustedSpellSlotCounts = useMemo(
+    () =>
+      spellSlotCounts.map((entry) => {
+        const modifier = Number(normalizedSlotModifiers[String(entry.level)] ?? 0);
+        return {
+          ...entry,
+          slots: Math.max(0, Number(entry.slots) + modifier),
+        };
+      }),
+    [spellSlotCounts, normalizedSlotModifiers]
+  );
+  const visibleSpellSlots = adjustedSpellSlotCounts.filter((entry) => entry.slots > 0);
   const gridColumns = useMemo(() => {
     const count = visibleSpellSlots.length;
     if (count <= 1) return 1;
@@ -118,16 +168,16 @@ export default function SpellSlotsPanel({
         <h3 className="text-sm font-display font-semibold text-ink">
           {tr(locale, "Espacios de conjuro", "Spell slots")}
         </h3>
-        {spellSlots && "slots" in spellSlots ? (
+        {!hasManualSlots && automaticSlots && "slots" in automaticSlots ? (
           <span className="text-[11px] text-ink-muted">
             {tr(locale, "Brujo", "Warlock")} · {tr(locale, "nivel", "level")}{" "}
-            {(spellSlots as any).slotLevel}
+            {(automaticSlots as any).slotLevel}
           </span>
         ) : null}
       </div>
 
       <div className="mt-3">
-        {!spellSlots ? (
+        {!hasManualSlots && !automaticSlots ? (
           <p className="text-xs text-ink-muted">
             {tr(locale, "Esta clase no tiene espacios de conjuro.", "This class has no spell slots.")}
           </p>

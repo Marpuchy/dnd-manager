@@ -11,7 +11,12 @@ import {
     SKILL_DEFINITIONS,
     type SkillDefinition,
 } from "@/lib/dnd/skills";
-import type { AbilityKey, CustomSubclassEntry, SkillKey } from "@/lib/types/dnd";
+import type {
+    AbilityKey,
+    CustomSubclassEntry,
+    ManualAdjustmentEntry,
+    SkillKey,
+} from "@/lib/types/dnd";
 import { Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
 import { InfoBox } from "./InfoBox";
 import { StatInput } from "./StatInput";
@@ -167,6 +172,8 @@ export function CharacterForm({
         setProficiencies,
         skillProficiencies,
         setSkillProficiencies,
+        manualAdjustments,
+        setManualAdjustments,
         customSections,
         setCustomSections,
         items,
@@ -229,7 +236,9 @@ export function CharacterForm({
     const [cropFileName, setCropFileName] = React.useState<string>("personaje.jpg");
 
     // Retenemos localmente el id para siguientes guardados
-    const [localCharacterId, setLocalCharacterId] = React.useState<string | null | undefined>(incomingCharacterId ?? undefined);
+    const [localCharacterId, setLocalCharacterId] = React.useState<string | null | undefined>(
+        characterId ?? incomingCharacterId ?? undefined
+    );
     const resolvedCharacterId = characterId || localCharacterId || incomingCharacterId || null;
 
     // Bloqueo de envío para evitar dobles llamadas
@@ -331,10 +340,201 @@ export function CharacterForm({
     }, [charClass]);
 
     const customSectionsSafe = Array.isArray(customSections) ? customSections : [];
+    const manualAdjustmentsSafe = Array.isArray(manualAdjustments)
+        ? manualAdjustments.filter(
+              (entry): entry is ManualAdjustmentEntry =>
+                  !!entry &&
+                  typeof entry.target === "string" &&
+                  Number.isFinite(Number(entry.value))
+          )
+        : [];
     const ownerOptionsSafe = Array.isArray(ownerOptions) ? ownerOptions : [];
-    const detailsForMods = React.useMemo(() => ({ items }), [items]);
+    const detailsForMods = React.useMemo(
+        () => ({ items, manualAdjustments: manualAdjustmentsSafe }),
+        [items, manualAdjustmentsSafe]
+    );
     const proficiencyBonus =
         proficiencyBonusFromLevel(charLevel) + getModifierTotal(detailsForMods, "PROFICIENCY");
+    const spellSlotModifiers = React.useMemo(() => {
+        const next: Record<string, number> = {};
+        for (const adjustment of manualAdjustmentsSafe) {
+            const upperTarget = adjustment.target.toUpperCase();
+            if (!upperTarget.startsWith("SPELL_SLOT_")) continue;
+            const level = upperTarget.replace("SPELL_SLOT_", "").trim();
+            const numericLevel = Number(level);
+            if (!Number.isFinite(numericLevel) || numericLevel < 1 || numericLevel > 9) {
+                continue;
+            }
+            const value = Number(adjustment.value);
+            if (!Number.isFinite(value)) continue;
+            next[level] = (next[level] ?? 0) + value;
+        }
+        return next;
+    }, [manualAdjustmentsSafe]);
+
+    const statAdjustmentTargets = React.useMemo(
+        () => [
+            { key: "STR", label: t("Fuerza (STR)", "Strength (STR)") },
+            { key: "DEX", label: t("Destreza (DEX)", "Dexterity (DEX)") },
+            { key: "CON", label: t("Constitucion (CON)", "Constitution (CON)") },
+            { key: "INT", label: t("Inteligencia (INT)", "Intelligence (INT)") },
+            { key: "WIS", label: t("Sabiduria (WIS)", "Wisdom (WIS)") },
+            { key: "CHA", label: t("Carisma (CHA)", "Charisma (CHA)") },
+            { key: "AC", label: t("Clase de armadura (AC)", "Armor class (AC)") },
+            { key: "HP_MAX", label: t("Vida maxima", "Maximum life") },
+            { key: "HP_CURRENT", label: t("Vida actual", "Current life") },
+            { key: "SPEED", label: t("Velocidad", "Speed") },
+            { key: "INITIATIVE", label: t("Iniciativa", "Initiative") },
+            { key: "PASSIVE_PERCEPTION", label: t("Percepcion pasiva", "Passive perception") },
+            { key: "PROFICIENCY", label: t("Competencia", "Proficiency") },
+        ],
+        [locale]
+    );
+    const skillAdjustmentTargets = React.useMemo(
+        () => {
+            const orderedSkillKeys: SkillKey[] = [
+                "acrobatics",
+                "animalHandling",
+                "arcana",
+                "athletics",
+                "deception",
+                "history",
+                "insight",
+                "intimidation",
+                "investigation",
+                "medicine",
+                "nature",
+                "perception",
+                "performance",
+                "persuasion",
+                "religion",
+                "sleightOfHand",
+                "stealth",
+                "survival",
+            ];
+            const abilityShortLocal: Record<AbilityKey, string> =
+                locale === "en"
+                    ? {
+                          STR: "STR",
+                          DEX: "DEX",
+                          CON: "CON",
+                          INT: "INT",
+                          WIS: "WIS",
+                          CHA: "CHA",
+                      }
+                    : {
+                          STR: "FUE",
+                          DEX: "DES",
+                          CON: "CON",
+                          INT: "INT",
+                          WIS: "SAB",
+                          CHA: "CAR",
+                      };
+
+            return orderedSkillKeys
+                .map((key) => SKILL_DEFINITIONS.find((skill) => skill.key === key))
+                .filter((skill): skill is SkillDefinition => Boolean(skill))
+                .map((skill) => ({
+                    key: skill.modifierTarget,
+                    label: `${getSkillLabel(skill, locale)} (${abilityShortLocal[skill.ability]})`,
+                }));
+        },
+        [locale]
+    );
+    const adjustmentCategoryOptions = React.useMemo(
+        () => [
+            { key: "stats", label: t("Estadisticas", "Statistics") },
+            { key: "skills", label: t("Habilidades", "Skills") },
+            { key: "spells", label: t("Conjuros", "Spells") },
+        ],
+        [locale]
+    );
+    const adjustmentTargetsByCategory = React.useMemo(
+        () => ({
+            stats: statAdjustmentTargets,
+            skills: skillAdjustmentTargets,
+            spells: [
+                {
+                    key: "SPELL_SLOT",
+                    label: t("Espacios de conjuro", "Spell slots"),
+                },
+            ],
+        }),
+        [statAdjustmentTargets, skillAdjustmentTargets, locale]
+    );
+
+    const [adjustmentCategory, setAdjustmentCategory] = React.useState<
+        "stats" | "skills" | "spells"
+    >("stats");
+    const [adjustmentTarget, setAdjustmentTarget] = React.useState<string>("STR");
+    const [adjustmentSpellLevel, setAdjustmentSpellLevel] = React.useState<number>(1);
+    const [adjustmentValue, setAdjustmentValue] = React.useState<string>("");
+
+    React.useEffect(() => {
+        const targets = adjustmentTargetsByCategory[adjustmentCategory] ?? [];
+        if (targets.length === 0) {
+            setAdjustmentTarget("");
+            return;
+        }
+        const exists = targets.some((target) => target.key === adjustmentTarget);
+        if (!exists) {
+            setAdjustmentTarget(targets[0].key);
+        }
+    }, [adjustmentCategory, adjustmentTarget, adjustmentTargetsByCategory]);
+
+    function buildAdjustmentTargetKey() {
+        if (adjustmentCategory === "spells" && adjustmentTarget === "SPELL_SLOT") {
+            return `SPELL_SLOT_${adjustmentSpellLevel}`;
+        }
+        return adjustmentTarget;
+    }
+
+    function addManualAdjustment() {
+        if (!setManualAdjustments) return;
+        const parsedValue = Number(adjustmentValue);
+        if (!Number.isFinite(parsedValue) || parsedValue === 0) {
+            return;
+        }
+        const targetKey = buildAdjustmentTargetKey();
+        if (!targetKey) return;
+
+        const next: ManualAdjustmentEntry[] = [
+            ...manualAdjustmentsSafe,
+            {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                target: targetKey,
+                value: parsedValue,
+            },
+        ];
+        setManualAdjustments(next);
+        setAdjustmentValue("");
+    }
+
+    function removeManualAdjustment(id: string) {
+        if (!setManualAdjustments) return;
+        setManualAdjustments(
+            manualAdjustmentsSafe.filter((adjustment) => adjustment.id !== id)
+        );
+    }
+
+    function getAdjustmentTargetLabel(target: string) {
+        const normalized = target.toUpperCase();
+        if (normalized.startsWith("SPELL_SLOT_")) {
+            const level = normalized.replace("SPELL_SLOT_", "");
+            return `${t("Espacios de conjuro", "Spell slots")} · ${t(
+                "Nivel",
+                "Level"
+            )} ${level}`;
+        }
+
+        const statTarget = statAdjustmentTargets.find((option) => option.key === normalized);
+        if (statTarget) return statTarget.label;
+
+        const skillTarget = skillAdjustmentTargets.find((option) => option.key === normalized);
+        if (skillTarget) return skillTarget.label;
+
+        return normalized;
+    }
 
     const autoSaveSignature = React.useMemo(
         () =>
@@ -382,6 +582,7 @@ export function CharacterForm({
                 languages,
                 proficiencies,
                 skillProficiencies,
+                manualAdjustments,
                 customSections,
                 items,
                 customSpells,
@@ -447,6 +648,7 @@ export function CharacterForm({
             languages,
             proficiencies,
             skillProficiencies,
+            manualAdjustments,
             customSections,
             items,
             customSpells,
@@ -469,6 +671,12 @@ export function CharacterForm({
             armors,
         ]
     );
+
+    React.useEffect(() => {
+        if (characterId) {
+            setLocalCharacterId(characterId);
+        }
+    }, [characterId]);
 
     React.useEffect(() => {
         autoSaveSkipRef.current = true;
@@ -750,7 +958,7 @@ export function CharacterForm({
             }
 
             // 1) create or update characters row
-            const isExistingCharacter = Boolean(localCharacterId ?? incomingCharacterId);
+            const isExistingCharacter = Boolean(resolvedCharacterId);
             const statsPayload = {
                 str: Number(str ?? 8),
                 dex: Number(dex ?? 8),
@@ -779,7 +987,12 @@ export function CharacterForm({
             }
 
             try {
-                const charRes = await createOrUpdateCharacterRow(localCharacterId ?? null, userId, campaignId, basePayload);
+                const charRes = await createOrUpdateCharacterRow(
+                    resolvedCharacterId ?? null,
+                    userId,
+                    campaignId,
+                    basePayload
+                );
                 console.debug("createOrUpdateCharacterRow response (raw):", charRes);
 
                 if ((charRes as any).error) {
@@ -797,8 +1010,8 @@ export function CharacterForm({
                     const d = (charRes as any).data;
                     cid = Array.isArray(d) ? (d[0]?.id ?? null) : (d?.id ?? null);
                 }
-                if (!cid && (localCharacterId || incomingCharacterId)) {
-                    cid = localCharacterId ?? incomingCharacterId ?? null;
+                if (!cid && resolvedCharacterId) {
+                    cid = resolvedCharacterId;
                 }
 
                 if (!cid) {
@@ -895,6 +1108,12 @@ export function CharacterForm({
                     languages: languages ?? null,
                     proficiencies: proficiencies ?? null,
                     skillProficiencies: skillProficiencies ?? null,
+                    manualAdjustments:
+                        manualAdjustmentsSafe.length > 0
+                            ? manualAdjustmentsSafe
+                            : null,
+                    proficiencyBonusOverride: null,
+                    spellSlotsOverride: null,
                     customSections: customSectionsSafe ?? null,
                     items: orderedItems,
                     customSpells: Array.isArray(customSpells) ? customSpells : [],
@@ -1546,6 +1765,149 @@ export function CharacterForm({
                     </div>
                 </section>
 
+                <section className="space-y-3">
+                    <h3 className="text-sm font-semibold text-ink">
+                        {t("Ajustes avanzados", "Advanced adjustments")}
+                    </h3>
+                    <p className="text-xs text-ink-muted">
+                        {t(
+                            "Selecciona referencia, objetivo y modificador. Ejemplo: Estadisticas > Fuerza > -1 o Conjuros > Espacios de conjuro > Nivel 1 > +1.",
+                            "Select reference, target and modifier. Example: Statistics > Strength > -1 or Spells > Spell slots > Level 1 > +1."
+                        )}
+                    </p>
+
+                    <div className="rounded-xl border border-ring bg-panel/80 p-3 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Referencia", "Reference")}
+                                </label>
+                                <select
+                                    value={adjustmentCategory}
+                                    onChange={(event) =>
+                                        setAdjustmentCategory(
+                                            event.target.value as "stats" | "skills" | "spells"
+                                        )
+                                    }
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                >
+                                    {adjustmentCategoryOptions.map((option) => (
+                                        <option key={option.key} value={option.key}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Objetivo", "Target")}
+                                </label>
+                                <select
+                                    value={adjustmentTarget}
+                                    onChange={(event) => setAdjustmentTarget(event.target.value)}
+                                    className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                >
+                                    {(adjustmentTargetsByCategory[adjustmentCategory] ?? []).map(
+                                        (option) => (
+                                            <option key={option.key} value={option.key}>
+                                                {option.label}
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Subobjetivo", "Subtarget")}
+                                </label>
+                                {adjustmentCategory === "spells" ? (
+                                    <select
+                                        value={adjustmentSpellLevel}
+                                        onChange={(event) =>
+                                            setAdjustmentSpellLevel(Number(event.target.value) || 1)
+                                        }
+                                        className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                    >
+                                        {Array.from({ length: 9 }, (_, index) => index + 1).map(
+                                            (level) => (
+                                                <option key={level} value={level}>
+                                                    {t("Nivel", "Level")} {level}
+                                                </option>
+                                            )
+                                        )}
+                                    </select>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={t("No aplica", "N/A")}
+                                        readOnly
+                                        className="w-full rounded-md bg-white/40 border border-ring px-3 py-2 text-sm text-ink-muted"
+                                    />
+                                )}
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Modificador", "Modifier")}
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        step="1"
+                                        value={adjustmentValue}
+                                        onChange={(event) => setAdjustmentValue(event.target.value)}
+                                        className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                        placeholder="+1 / -1"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={addManualAdjustment}
+                                        className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
+                                    >
+                                        {t("Anadir", "Add")}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {manualAdjustmentsSafe.length === 0 ? (
+                            <p className="text-xs text-ink-muted">
+                                {t(
+                                    "Sin ajustes avanzados activos.",
+                                    "No active advanced adjustments."
+                                )}
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {manualAdjustmentsSafe.map((adjustment) => (
+                                    <div
+                                        key={adjustment.id}
+                                        className="flex items-center justify-between gap-2 rounded-md border border-ring bg-white/70 px-3 py-2 text-xs"
+                                    >
+                                        <span className="text-ink">
+                                            {getAdjustmentTargetLabel(adjustment.target)}:{" "}
+                                            <strong>
+                                                {adjustment.value >= 0
+                                                    ? `+${adjustment.value}`
+                                                    : adjustment.value}
+                                            </strong>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeManualAdjustment(adjustment.id)}
+                                            className="text-[10px] px-2 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
+                                        >
+                                            {t("Eliminar", "Delete")}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
+
                 {/* Inventario y equipamiento */}
                 <ItemManagerSection items={items} setItems={setItems} />
 
@@ -1573,6 +1935,7 @@ export function CharacterForm({
                 <SpellSection
                     charClass={charClass}
                     charLevel={charLevel}
+                    spellSlotModifiers={spellSlotModifiers}
                     spellsL0={spellsL0}
                     setSpellsL0={setSpellsL0}
                     spellsL1={spellsL1}
