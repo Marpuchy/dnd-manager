@@ -33,7 +33,7 @@ import {
   getSkillLabel,
   type SkillDefinition,
 } from "@/lib/dnd/skills";
-import type { AbilityKey, SkillKey } from "@/lib/types/dnd";
+import type { AbilityKey, CustomFeatureEntry, SkillKey } from "@/lib/types/dnd";
 import { tr } from "@/lib/i18n/translate";
 
 type MetricCardProps = {
@@ -186,6 +186,12 @@ export default function StatsPanel({
   const customNonActionClassAbilities = customClassAbilities.filter(
     (ability) => ability.actionType !== "action"
   );
+  const actionTypeLabel: Record<string, string> = {
+    action: tr(locale, "Accion", "Action"),
+    bonus: tr(locale, "Accion bonus", "Bonus action"),
+    reaction: tr(locale, "Reaccion", "Reaction"),
+    passive: tr(locale, "Pasiva", "Passive"),
+  };
   const skillProficiencies = details?.skillProficiencies ?? {};
   const spellSlotModifiers = useMemo(() => {
     const next: Record<string, number> = {};
@@ -221,6 +227,75 @@ export default function StatsPanel({
     artificer: { es: "Artificiero", en: "Artificer" },
     custom: { es: "Clase personalizada", en: "Custom class" },
   };
+
+  function getFeatureContent(
+    feature: CustomFeatureEntry,
+    includeActionType: boolean
+  ): string {
+    const desc = getLocalizedText(feature.description, locale)?.trim() ?? "";
+    const lines: string[] = [];
+    const pushMarkdownField = (
+      label: string,
+      value: string | number | null | undefined
+    ) => {
+      const text = value == null ? "" : String(value).trim();
+      if (!text) return;
+      lines.push(`**${label}:**\n\n${text}`);
+    };
+
+    if (includeActionType && feature.actionType) {
+      pushMarkdownField(
+        tr(locale, "Tipo", "Type"),
+        actionTypeLabel[feature.actionType] ?? feature.actionType
+      );
+    }
+    if (feature.requirements) {
+      pushMarkdownField(
+        tr(locale, "Requisitos", "Requirements"),
+        feature.requirements
+      );
+    }
+    if (feature.effect) {
+      pushMarkdownField(tr(locale, "Efecto", "Effect"), feature.effect);
+    }
+    if (feature.resourceCost) {
+      const parts: string[] = [];
+      if (feature.resourceCost.usesSpellSlot) {
+        parts.push(
+          tr(locale, "Gasta espacio de conjuro", "Uses spell slot") +
+            (feature.resourceCost.slotLevel
+              ? ` (${tr(locale, "nivel", "level")} ${feature.resourceCost.slotLevel})`
+              : "")
+        );
+      }
+      if (feature.resourceCost.charges != null) {
+        const rechargeText =
+          feature.resourceCost.recharge === "long"
+            ? tr(locale, "descanso largo", "long rest")
+            : tr(locale, "descanso corto", "short rest");
+        parts.push(
+          `${feature.resourceCost.charges} ${tr(
+            locale,
+            feature.resourceCost.charges === 1 ? "carga" : "cargas",
+            feature.resourceCost.charges === 1 ? "charge" : "charges"
+          )}${feature.resourceCost.recharge ? ` / ${rechargeText}` : ""}`
+        );
+      }
+      if (feature.resourceCost.points != null) {
+        parts.push(
+          `${feature.resourceCost.points} ${
+            feature.resourceCost.pointsLabel || tr(locale, "puntos", "points")
+          }`
+        );
+      }
+      if (parts.length > 0) {
+        pushMarkdownField(tr(locale, "Coste", "Cost"), parts.join(", "));
+      }
+    }
+    pushMarkdownField(tr(locale, "Descripcion", "Description"), desc);
+
+    return lines.join("\n\n");
+  }
   const classId = String(character?.class ?? "")
     .toLowerCase()
     .trim();
@@ -636,6 +711,9 @@ export default function StatsPanel({
             {equippedItems.map((item) => {
               const description = getLocalizedText(item.description, locale);
               const modifiers = Array.isArray(item.modifiers) ? item.modifiers : [];
+              const attachments = Array.isArray((item as any).attachments)
+                ? ((item as any).attachments as Array<any>)
+                : [];
               const tags = [
                 item.category ? item.category : null,
                 item.rarity ? item.rarity : null,
@@ -707,6 +785,54 @@ export default function StatsPanel({
                     {description && (
                       <Markdown content={description} className="text-ink-muted text-xs" />
                     )}
+
+                    {attachments.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                          {tr(locale, "Adjuntos", "Attachments")}
+                        </p>
+                        {attachments.map((attachment) => {
+                          const attachmentDescription = getLocalizedText(
+                            attachment.description,
+                            locale
+                          );
+                          return (
+                            <div
+                              key={attachment.id}
+                              className="rounded-md border border-ring bg-panel/70 p-2"
+                            >
+                              <p className="text-xs font-semibold text-ink">
+                                {attachment.name}
+                                {typeof attachment.level === "number"
+                                  ? ` · ${tr(locale, "Nivel", "Level")} ${attachment.level}`
+                                  : ""}
+                              </p>
+                              <p className="text-[11px] text-ink-muted">
+                                {attachment.type === "action"
+                                  ? tr(locale, "Accion", "Action")
+                                  : attachment.type === "ability"
+                                  ? tr(locale, "Habilidad", "Ability")
+                                  : attachment.type === "trait"
+                                  ? tr(locale, "Rasgo", "Trait")
+                                  : attachment.type === "spell"
+                                  ? tr(locale, "Hechizo", "Spell")
+                                  : attachment.type === "cantrip"
+                                  ? tr(locale, "Truco", "Cantrip")
+                                  : attachment.type === "classFeature"
+                                  ? tr(locale, "Rasgo de clase", "Class feature")
+                                  : tr(locale, "Otro", "Other")}
+                              </p>
+                              {attachmentDescription && (
+                                <Markdown
+                                  content={attachmentDescription}
+                                  className="mt-1 text-ink-muted text-xs"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </details>
               );
@@ -728,7 +854,7 @@ export default function StatsPanel({
                   {tr(locale, "Rasgos personalizados", "Custom traits")}
                 </p>
                 {customTraits.map((trait) => {
-                  const desc = getLocalizedText(trait.description, locale);
+                  const content = getFeatureContent(trait, false);
                   return (
                     <details
                       key={trait.id}
@@ -737,8 +863,8 @@ export default function StatsPanel({
                       <summary className="cursor-pointer text-sm font-semibold text-ink">
                         {trait.name}
                       </summary>
-                      {desc ? (
-                        <Markdown content={desc} className="text-ink-muted text-xs mt-2" />
+                      {content ? (
+                        <Markdown content={content} className="text-ink-muted text-xs mt-2" />
                       ) : (
                         <p className="text-[11px] text-ink-muted mt-2">
                           {tr(locale, "Sin descripcion.", "No description.")}
@@ -756,7 +882,7 @@ export default function StatsPanel({
                   {tr(locale, "Habilidades personalizadas", "Custom abilities")}
                 </p>
                 {customNonActionClassAbilities.map((ability) => {
-                  const desc = getLocalizedText(ability.description, locale);
+                  const content = getFeatureContent(ability, true);
                   return (
                     <details
                       key={ability.id}
@@ -768,8 +894,8 @@ export default function StatsPanel({
                           ? ` · ${tr(locale, "Nivel", "Level")} ${ability.level}`
                           : ""}
                       </summary>
-                      {desc ? (
-                        <Markdown content={desc} className="text-ink-muted text-xs mt-2" />
+                      {content ? (
+                        <Markdown content={content} className="text-ink-muted text-xs mt-2" />
                       ) : (
                         <p className="text-[11px] text-ink-muted mt-2">
                           {tr(locale, "Sin descripcion.", "No description.")}

@@ -10,6 +10,9 @@ import CharacterView from "../player/ui/CharacterView";
 import { CharacterForm } from "../player/ui/CharacterForm";
 import { SpellManagerPanel } from "../player/srd/SpellManagerPanel";
 import SettingsPanel from "../player/ui/SettingsPanel";
+import AIAssistantPanel, {
+    type AIAssistantClientContext,
+} from "../player/ui/AIAssistantPanel";
 import { useCharacterForm } from "../player/hooks/useCharacterForm";
 import type { Character, Details, Tab } from "../player/playerShared";
 
@@ -45,6 +48,7 @@ export default function CampaignDMPage() {
     const [playerPanelMode, setPlayerPanelMode] = useState<PlayerPanelMode>("idle");
     const [playerViewTab, setPlayerViewTab] = useState<Tab>("stats");
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [assistantOpen, setAssistantOpen] = useState(false);
     const [isOverTrash, setIsOverTrash] = useState(false);
     const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
     const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
@@ -213,6 +217,42 @@ export default function CampaignDMPage() {
     const ownerOptions = characters
         .filter((character) => character.character_type !== "companion")
         .map((character) => ({ id: character.id, name: character.name }));
+    const assistantContext: AIAssistantClientContext = useMemo(
+        () => ({
+            surface: "dm",
+            locale,
+            section: activeSection,
+            panelMode: playerPanelMode,
+            activeTab: playerViewTab,
+            selectedCharacter: editingCharacter
+                ? {
+                      id: editingCharacter.id,
+                      name: editingCharacter.name,
+                      class: editingCharacter.class,
+                      race: editingCharacter.race,
+                      level: editingCharacter.level,
+                      character_type: editingCharacter.character_type ?? "character",
+                  }
+                : undefined,
+            availableActions: [
+                "update-any-campaign-character",
+                "create-companion-for-player",
+                "reorder-character-list",
+                "delete-character",
+            ],
+            hints: [
+                "dm-can-target-any-visible-character",
+                "prefer-current-ui-section-when-context-is-ambiguous",
+            ],
+        }),
+        [
+            activeSection,
+            editingCharacter,
+            locale,
+            playerPanelMode,
+            playerViewTab,
+        ]
+    );
 
     function flushEditorSaveIfNeeded() {
         if (activeSection !== "players") return;
@@ -586,9 +626,9 @@ export default function CampaignDMPage() {
     }
 
     return (
-        <main className="min-h-screen bg-surface text-ink flex">
+        <main className="h-screen bg-surface text-ink flex overflow-hidden">
             <aside
-                className={`border-r border-ring bg-panel/85 p-3 space-y-3 transition-all duration-200 ${
+                className={`h-full overflow-y-auto styled-scrollbar border-r border-ring bg-panel/85 p-3 space-y-3 transition-all duration-200 ${
                     sidebarOpen ? "w-72" : "w-16"
                 }`}
             >
@@ -664,7 +704,7 @@ export default function CampaignDMPage() {
                 </nav>
             </aside>
 
-            <section className="flex-1 p-6 space-y-4">
+            <section className="flex-1 min-h-0 p-6 space-y-4 overflow-y-auto styled-scrollbar">
                 <div className="flex items-center justify-end">
                     <button
                         type="button"
@@ -697,7 +737,7 @@ export default function CampaignDMPage() {
                         </p>
 
                         <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-                            <div className="space-y-3">
+                            <div className="space-y-3 max-h-[calc(100vh-12rem)] overflow-y-auto styled-scrollbar pr-1">
                                 <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-2">
                                     {characters.length === 0 ? (
                                         <p className="text-sm text-ink-muted">
@@ -789,7 +829,7 @@ export default function CampaignDMPage() {
                                 </div>
                             </div>
 
-                            <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 overflow-hidden min-h-[440px]">
+                            <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 min-h-[440px] max-h-[calc(100vh-12rem)] overflow-y-auto styled-scrollbar">
                                 {playerEditorOpen && editingCharacter && playerPanelMode === "edit" ? (
                                     <div className="p-3 pt-4">
                                         <CharacterForm
@@ -930,11 +970,65 @@ export default function CampaignDMPage() {
                 )}
             </section>
             <style jsx global>{`
+                .styled-scrollbar {
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(178, 126, 74, 0.9) rgba(96, 72, 47, 0.16);
+                }
+
+                .styled-scrollbar::-webkit-scrollbar {
+                    width: 10px;
+                    height: 10px;
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-track {
+                    background: linear-gradient(
+                        180deg,
+                        rgba(137, 104, 69, 0.12),
+                        rgba(93, 69, 44, 0.2)
+                    );
+                    border: 1px solid rgba(126, 94, 60, 0.24);
+                    border-radius: 9999px;
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-thumb {
+                    background: linear-gradient(
+                        180deg,
+                        rgba(214, 170, 112, 0.95),
+                        rgba(165, 114, 64, 0.92)
+                    );
+                    border: 2px solid rgba(62, 45, 29, 0.28);
+                    border-radius: 9999px;
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: linear-gradient(
+                        180deg,
+                        rgba(229, 187, 130, 0.98),
+                        rgba(184, 128, 74, 0.96)
+                    );
+                }
+
+                .styled-scrollbar::-webkit-scrollbar-corner {
+                    background: transparent;
+                }
+
                 .dm-player-preview .space-y-4.min-w-0 > div.border-b.border-ring {
                     margin-bottom: 0.5rem;
                     gap: 0.75rem;
                 }
             `}</style>
+            <AIAssistantPanel
+                open={assistantOpen}
+                onOpenChange={setAssistantOpen}
+                campaignId={String(params.id)}
+                locale={locale}
+                selectedCharacterId={editingCharacter?.id ?? null}
+                selectedCharacterName={editingCharacter?.name ?? null}
+                assistantContext={assistantContext}
+                onApplied={async () => {
+                    await loadPanelData(String(params.id));
+                }}
+            />
             <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </main>
     );

@@ -1286,11 +1286,11 @@ export function CharacterForm({
             </header>
 
             <form id="character-form" onSubmit={handleSubmit} className="space-y-6 min-w-0">
-                <section className="space-y-3">
-                    <h3 className="text-sm font-semibold text-ink">
+                <details open className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
                         {t("Imagen y datos basicos", "Image and basics")}
-                    </h3>
-                    <div className="grid grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)] gap-4 items-start">
+                    </summary>
+                    <div className="mt-3 grid grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)] gap-4 items-start">
                         <div className="space-y-3">
                             <div className="rounded-xl border border-ring bg-white/70 p-2 space-y-2">
                                 <div className="w-full max-w-[190px] sm:max-w-[220px] mx-auto aspect-[4/5] rounded-xl overflow-hidden bg-white/70 border border-ring">
@@ -1684,14 +1684,14 @@ export function CharacterForm({
                             </div>
                         </div>
                     </div>
-                </section>
+                </details>
 
                 {/* Stats base */}
-                <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-ink">
+                <details open className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
                         {t("Atributos (stats)", "Attributes (stats)")}
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                    </summary>
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-3">
                         <StatInput
                             label={t("FUE (STR)", "STR")}
                             value={str}
@@ -1715,18 +1715,21 @@ export function CharacterForm({
                             onChange={setCha}
                         />
                     </div>
-                </section>
+                </details>
 
-                <section className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-ink">
-                            {t("Habilidades (skills)", "Skills")}
-                        </h3>
+                <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {t("Habilidades (skills)", "Skills")}
+                    </summary>
+                    <div className="mt-3 flex items-center justify-between">
+                        <p className="text-xs text-ink-muted">
+                            {t("Bonificador por habilidad", "Skill bonus")}
+                        </p>
                         <span className="text-[11px] text-ink-muted">
                             {t("Elige +1 o +2 por habilidad", "Choose +1 or +2 per skill")}
                         </span>
                     </div>
-                    <div className="grid gap-2 md:grid-cols-3">
+                    <div className="mt-2 grid gap-2 md:grid-cols-3">
                         {orderedSkills.map((skill) => {
                             const bonus = getSkillBonusValue(skill.key);
                             const total = getSkillTotal(skill);
@@ -1763,20 +1766,20 @@ export function CharacterForm({
                             );
                         })}
                     </div>
-                </section>
+                </details>
 
-                <section className="space-y-3">
-                    <h3 className="text-sm font-semibold text-ink">
+                <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
                         {t("Ajustes avanzados", "Advanced adjustments")}
-                    </h3>
-                    <p className="text-xs text-ink-muted">
+                    </summary>
+                    <p className="mt-3 text-xs text-ink-muted">
                         {t(
                             "Selecciona referencia, objetivo y modificador. Ejemplo: Estadisticas > Fuerza > -1 o Conjuros > Espacios de conjuro > Nivel 1 > +1.",
                             "Select reference, target and modifier. Example: Statistics > Strength > -1 or Spells > Spell slots > Level 1 > +1."
                         )}
                     </p>
 
-                    <div className="rounded-xl border border-ring bg-panel/80 p-3 space-y-3">
+                    <div className="mt-3 rounded-xl border border-ring bg-panel/80 p-3 space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                             <div className="space-y-1">
                                 <label className="text-[11px] text-ink-muted">
@@ -1906,58 +1909,77 @@ export function CharacterForm({
                             </div>
                         )}
                     </div>
-                </section>
+                </details>
 
                 {/* Inventario y equipamiento */}
-                <ItemManagerSection items={items} setItems={setItems} />
+                <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {t("Inventario y equipamiento", "Inventory and equipment")}
+                    </summary>
+                    <div className="mt-3">
+                        <ItemManagerSection items={items} setItems={setItems} />
+                    </div>
+                </details>
 
-                <div ref={customContentRef}>
-                    <CustomContentManager
-                        locale={locale}
-                        customSpells={customSpells}
-                        setCustomSpells={setCustomSpells}
-                        customCantrips={customCantrips}
-                        setCustomCantrips={setCustomCantrips}
-                        customTraits={customTraits}
-                        setCustomTraits={setCustomTraits}
-                        customClassAbilities={customClassAbilities}
-                        setCustomClassAbilities={setCustomClassAbilities}
-                        subclassOptions={availableSubclasses.map((subclass) => ({
-                            id: subclass.id,
-                            name: subclass.name,
-                        }))}
-                        createOpen={customCreateOpen}
-                        onToggleCreate={setCustomCreateOpen}
-                    />
-                </div>
+                <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {t("Contenido personalizado", "Custom content")}
+                    </summary>
+                    <div className="mt-3" ref={customContentRef}>
+                        <CustomContentManager
+                            locale={locale}
+                            customSpells={customSpells}
+                            setCustomSpells={setCustomSpells}
+                            customCantrips={customCantrips}
+                            setCustomCantrips={setCustomCantrips}
+                            customTraits={customTraits}
+                            setCustomTraits={setCustomTraits}
+                            customClassAbilities={customClassAbilities}
+                            setCustomClassAbilities={setCustomClassAbilities}
+                            subclassOptions={availableSubclasses.map((subclass) => ({
+                                id: subclass.id,
+                                name: subclass.name,
+                            }))}
+                            createOpen={customCreateOpen}
+                            onToggleCreate={setCustomCreateOpen}
+                        />
+                    </div>
+                </details>
 
                 {/* Conjuros (chips + buscador) */}
-                <SpellSection
-                    charClass={charClass}
-                    charLevel={charLevel}
-                    spellSlotModifiers={spellSlotModifiers}
-                    spellsL0={spellsL0}
-                    setSpellsL0={setSpellsL0}
-                    spellsL1={spellsL1}
-                    setSpellsL1={setSpellsL1}
-                    spellsL2={spellsL2}
-                    setSpellsL2={setSpellsL2}
-                    spellsL3={spellsL3}
-                    setSpellsL3={setSpellsL3}
-                    spellsL4={spellsL4}
-                    setSpellsL4={setSpellsL4}
-                    spellsL5={spellsL5}
-                    setSpellsL5={setSpellsL5}
-                    spellsL6={spellsL6}
-                    setSpellsL6={setSpellsL6}
-                    spellsL7={spellsL7}
-                    setSpellsL7={setSpellsL7}
-                    spellsL8={spellsL8}
-                    setSpellsL8={setSpellsL8}
-                    spellsL9={spellsL9}
-                    setSpellsL9={setSpellsL9}
-                    onOpenCustomCreate={openCustomCreator}
-                />
+                <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {t("Conjuros y gestor SRD", "Spells and SRD manager")}
+                    </summary>
+                    <div className="mt-3">
+                        <SpellSection
+                            charClass={charClass}
+                            charLevel={charLevel}
+                            spellSlotModifiers={spellSlotModifiers}
+                            spellsL0={spellsL0}
+                            setSpellsL0={setSpellsL0}
+                            spellsL1={spellsL1}
+                            setSpellsL1={setSpellsL1}
+                            spellsL2={spellsL2}
+                            setSpellsL2={setSpellsL2}
+                            spellsL3={spellsL3}
+                            setSpellsL3={setSpellsL3}
+                            spellsL4={spellsL4}
+                            setSpellsL4={setSpellsL4}
+                            spellsL5={spellsL5}
+                            setSpellsL5={setSpellsL5}
+                            spellsL6={spellsL6}
+                            setSpellsL6={setSpellsL6}
+                            spellsL7={spellsL7}
+                            setSpellsL7={setSpellsL7}
+                            spellsL8={spellsL8}
+                            setSpellsL8={setSpellsL8}
+                            spellsL9={spellsL9}
+                            setSpellsL9={setSpellsL9}
+                            onOpenCustomCreate={openCustomCreator}
+                        />
+                    </div>
+                </details>
 
                 {/* Perfil y notas */}
                 <section className="space-y-3">
@@ -2059,57 +2081,59 @@ export function CharacterForm({
                     </details>
                 </section>
 
-                <section className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-ink">
-                            {t("Secciones personalizadas", "Custom sections")}
-                        </h3>
-                        <button
-                            type="button"
-                            onClick={addCustomSection}
-                            className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                        >
-                            {t("Anadir seccion", "Add section")}
-                        </button>
-                    </div>
-
-                    {customSectionsSafe.length === 0 ? (
-                        <p className="text-xs text-ink-muted">
-                            {t(
-                                "Aun no has creado secciones personalizadas.",
-                                "You have not created custom sections yet."
-                            )}
-                        </p>
-                    ) : (
-                        <div className="space-y-4">
-                            {customSectionsSafe.map((section, index) => (
-                                <div key={section.id} className="rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <TextField
-                                            label={t("Titulo", "Title")}
-                                            value={section.title}
-                                            onChange={(value) => updateCustomSection(index, { title: value })}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeCustomSection(section.id)}
-                                            className="text-[11px] px-3 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
-                                        >
-                                            {t("Eliminar", "Delete")}
-                                        </button>
-                                    </div>
-                                    <MarkdownField
-                                        label={t("Contenido", "Content")}
-                                        value={section.content}
-                                        onChange={(value) => updateCustomSection(index, { content: value })}
-                                        helper={t("Markdown soportado.", "Markdown supported.")}
-                                        rows={5}
-                                    />
-                                </div>
-                            ))}
+                <details className="rounded-2xl border border-ring bg-panel/80 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-ink">
+                        {t("Secciones personalizadas", "Custom sections")}
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={addCustomSection}
+                                className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                            >
+                                {t("Anadir seccion", "Add section")}
+                            </button>
                         </div>
-                    )}
-                </section>
+
+                        {customSectionsSafe.length === 0 ? (
+                            <p className="text-xs text-ink-muted">
+                                {t(
+                                    "Aun no has creado secciones personalizadas.",
+                                    "You have not created custom sections yet."
+                                )}
+                            </p>
+                        ) : (
+                            <div className="space-y-4">
+                                {customSectionsSafe.map((section, index) => (
+                                    <div key={section.id} className="rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <TextField
+                                                label={t("Titulo", "Title")}
+                                                value={section.title}
+                                                onChange={(value) => updateCustomSection(index, { title: value })}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCustomSection(section.id)}
+                                                className="text-[11px] px-3 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
+                                            >
+                                                {t("Eliminar", "Delete")}
+                                            </button>
+                                        </div>
+                                        <MarkdownField
+                                            label={t("Contenido", "Content")}
+                                            value={section.content}
+                                            onChange={(value) => updateCustomSection(index, { content: value })}
+                                            helper={t("Markdown soportado.", "Markdown supported.")}
+                                            rows={5}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </details>
 
                 <div className="flex justify-end pt-1">
                     <button type="submit" className="rounded-md bg-accent hover:bg-accent-strong px-4 py-2 text-sm font-medium" disabled={saving}>

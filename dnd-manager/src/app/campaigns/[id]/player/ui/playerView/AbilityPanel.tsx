@@ -282,16 +282,25 @@ export default function AbilityPanel({
                 .map((ability) => {
                     const desc = getLocalizedText(ability.description, locale);
                     const detailsLines: string[] = [];
+                    const pushMarkdownField = (
+                        label: string,
+                        value: string | number | null | undefined
+                    ) => {
+                        const text = value == null ? "" : String(value).trim();
+                        if (!text) return;
+                        detailsLines.push(`**${label}:**\n\n${text}`);
+                    };
                     if (ability.actionType) {
-                        detailsLines.push(
-                            `**${t("Tipo", "Type")}:** ${actionTypeLabel[ability.actionType] ?? ability.actionType}`
+                        pushMarkdownField(
+                            t("Tipo", "Type"),
+                            actionTypeLabel[ability.actionType] ?? ability.actionType
                         );
                     }
                     if (ability.requirements) {
-                        detailsLines.push(`**${t("Requisitos", "Requirements")}:** ${ability.requirements}`);
+                        pushMarkdownField(t("Requisitos", "Requirements"), ability.requirements);
                     }
                     if (ability.effect) {
-                        detailsLines.push(`**${t("Efecto", "Effect")}:** ${ability.effect}`);
+                        pushMarkdownField(t("Efecto", "Effect"), ability.effect);
                     }
                     if (ability.resourceCost) {
                         const costParts: string[] = [];
@@ -327,9 +336,10 @@ export default function AbilityPanel({
                             );
                         }
                         if (costParts.length > 0) {
-                            detailsLines.push(`**${t("Coste", "Cost")}:** ${costParts.join(", ")}`);
+                            pushMarkdownField(t("Coste", "Cost"), costParts.join(", "));
                         }
                     }
+                    pushMarkdownField(t("Descripcion", "Description"), desc);
 
                     const level = Number.isFinite(Number(ability.level))
                         ? Number(ability.level)
@@ -347,9 +357,7 @@ export default function AbilityPanel({
                         level,
                         subclassId: ability.subclassId,
                         subclassName,
-                        description:
-                            [desc, ...detailsLines].filter(Boolean).join("\n\n") ||
-                            undefined,
+                        description: detailsLines.join("\n\n") || undefined,
                     } as ClassAbility;
                 }),
         [customClassAbilities, locale, selectedSubclassId, subclassNameById]

@@ -22,6 +22,7 @@ import { SpellManagerPanel } from "./srd/SpellManagerPanel";
 import { useCharacterForm } from "./hooks/useCharacterForm";
 import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide-react";
 import SettingsPanel from "./ui/SettingsPanel";
+import AIAssistantPanel, { type AIAssistantClientContext } from "./ui/AIAssistantPanel";
 import { getSubclassName } from "@/lib/dnd/classAbilities";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
@@ -61,6 +62,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
     const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [assistantOpen, setAssistantOpen] = useState(false);
 
     // Edición / creación
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -603,6 +605,39 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         characterType === "companion"
             ? tr(locale, "Nuevo compañero", "New companion")
             : tr(locale, "Nuevo personaje", "New character");
+    const assistantContext: AIAssistantClientContext = useMemo(
+        () => ({
+            surface: isDmMode ? "dm" : "player",
+            locale,
+            section: "character-workspace",
+            panelMode: `${mode}:${rightPanelMode}`,
+            activeTab,
+            selectedCharacter: selectedChar
+                ? {
+                      id: selectedChar.id,
+                      name: selectedChar.name,
+                      class: selectedChar.class,
+                      race: selectedChar.race,
+                      level: selectedChar.level,
+                      character_type: selectedChar.character_type ?? "character",
+                  }
+                : undefined,
+            availableActions: [
+                "create-character",
+                "create-companion",
+                "update-stats",
+                "update-character-details",
+                "delete-character",
+                "reorder-character-list",
+            ],
+            hints: [
+                "use-current-selected-character-if-not-specified",
+                "if-companion-require-owner-when-possible",
+                "keep-changes-concrete-and-atomic",
+            ],
+        }),
+        [activeTab, isDmMode, locale, mode, rightPanelMode, selectedChar]
+    );
 
     function localizedClassLabel(rawClass: string | null | undefined): string {
         const normalized = (rawClass ?? "").toLowerCase().trim();
@@ -1405,6 +1440,16 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 }
             `}</style>
 
+            <AIAssistantPanel
+                open={assistantOpen}
+                onOpenChange={setAssistantOpen}
+                campaignId={params.id}
+                locale={locale}
+                selectedCharacterId={selectedChar?.id ?? null}
+                selectedCharacterName={selectedChar?.name ?? null}
+                assistantContext={assistantContext}
+                onApplied={loadCharacters}
+            />
             <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </main>
     );

@@ -115,41 +115,42 @@ export default function CustomContentManager({
     ) {
         const desc = getLocalizedText(entry.description, locale)?.trim() ?? "";
         const lines: string[] = [];
+        const pushMarkdownField = (
+            label: string,
+            value: string | number | null | undefined
+        ) => {
+            const text = value == null ? "" : String(value).trim();
+            if (!text) return;
+            lines.push(`**${label}:**\n\n${text}`);
+        };
 
         if (type === "spell" || type === "cantrip") {
             const spell = entry as CustomSpellEntry;
-            if (spell.school) {
-                lines.push(`**${t("Escuela", "School")}:** ${spell.school}`);
-            }
+            pushMarkdownField(t("Escuela", "School"), spell.school);
+
             if (spell.castingTime?.value) {
-                lines.push(
-                    `**${t("Tiempo de lanzamiento", "Casting time")}:** ${spell.castingTime.value}${
-                        spell.castingTime.note ? ` (${spell.castingTime.note})` : ""
-                    }`
-                );
+                const castingText = `${spell.castingTime.value}${
+                    spell.castingTime.note ? ` (${spell.castingTime.note})` : ""
+                }`;
+                pushMarkdownField(t("Tiempo de lanzamiento", "Casting time"), castingText);
             }
-            if (spell.range) {
-                lines.push(`**${t("Alcance", "Range")}:** ${spell.range}`);
-            }
-            if (spell.duration) {
-                lines.push(`**${t("Duracion", "Duration")}:** ${spell.duration}`);
-            }
+
+            pushMarkdownField(t("Alcance", "Range"), spell.range);
+            pushMarkdownField(t("Duracion", "Duration"), spell.duration);
 
             const components: string[] = [];
             if (spell.components?.verbal) components.push("V");
             if (spell.components?.somatic) components.push("S");
             if (spell.components?.material) components.push("M");
             if (components.length > 0) {
-                lines.push(`**${t("Componentes", "Components")}:** ${components.join(", ")}`);
+                pushMarkdownField(t("Componentes", "Components"), components.join(", "));
             }
-            if (spell.materials) {
-                lines.push(`**${t("Materiales", "Materials")}:** ${spell.materials}`);
-            }
+            pushMarkdownField(t("Materiales", "Materials"), spell.materials);
             if (spell.concentration) {
-                lines.push(`**${t("Concentracion", "Concentration")}:** ${t("Si", "Yes")}`);
+                pushMarkdownField(t("Concentracion", "Concentration"), t("Si", "Yes"));
             }
             if (spell.ritual) {
-                lines.push(`**${t("Ritual", "Ritual")}:** ${t("Si", "Yes")}`);
+                pushMarkdownField(t("Ritual", "Ritual"), t("Si", "Yes"));
             }
 
             if (spell.resourceCost) {
@@ -174,7 +175,7 @@ export default function CustomContentManager({
                     parts.push(`${spell.resourceCost.points} ${t("puntos", "points")}`);
                 }
                 if (parts.length > 0) {
-                    lines.push(`**${t("Coste", "Cost")}:** ${parts.join(", ")}`);
+                    pushMarkdownField(t("Coste", "Cost"), parts.join(", "));
                 }
             }
 
@@ -193,24 +194,30 @@ export default function CustomContentManager({
                         : "",
                 ]
                     .filter(Boolean)
-                    .join(" · ");
-                lines.push(
-                    `**${t("Tirada / salvacion", "Roll / save")}:** ${saveType}${
-                        detail ? ` (${detail})` : ""
-                    }`
+                    .join(" - ");
+                pushMarkdownField(
+                    t("Tirada / salvacion", "Roll / save"),
+                    `${saveType}${detail ? ` (${detail})` : ""}`
                 );
             }
 
-            if (spell.damage && (spell.damage.damageType || spell.damage.dice || spell.damage.scaling)) {
+            if (
+                spell.damage &&
+                (spell.damage.damageType || spell.damage.dice || spell.damage.scaling)
+            ) {
                 const parts = [
-                    spell.damage.damageType ? `${t("Tipo", "Type")}: ${spell.damage.damageType}` : "",
+                    spell.damage.damageType
+                        ? `${t("Tipo", "Type")}: ${spell.damage.damageType}`
+                        : "",
                     spell.damage.dice ? `${t("Dados", "Dice")}: ${spell.damage.dice}` : "",
-                    spell.damage.scaling ? `${t("Escalado", "Scaling")}: ${spell.damage.scaling}` : "",
+                    spell.damage.scaling
+                        ? `${t("Escalado", "Scaling")}: ${spell.damage.scaling}`
+                        : "",
                 ]
                     .filter(Boolean)
-                    .join(" · ");
+                    .join(" - ");
                 if (parts) {
-                    lines.push(`**${t("Dano", "Damage")}:** ${parts}`);
+                    pushMarkdownField(t("Dano", "Damage"), parts);
                 }
             }
         } else if (type === "classAbility" || type === "action") {
@@ -220,14 +227,10 @@ export default function CustomContentManager({
                     ACTION_TYPES.find((item) => item.value === ability.actionType)?.[
                         locale === "en" ? "en" : "es"
                     ] ?? ability.actionType;
-                lines.push(`**${t("Tipo", "Type")}:** ${actionLabel}`);
+                pushMarkdownField(t("Tipo", "Type"), actionLabel);
             }
-            if (ability.requirements) {
-                lines.push(`**${t("Requisitos", "Requirements")}:** ${ability.requirements}`);
-            }
-            if (ability.effect) {
-                lines.push(`**${t("Efecto", "Effect")}:** ${ability.effect}`);
-            }
+            pushMarkdownField(t("Requisitos", "Requirements"), ability.requirements);
+            pushMarkdownField(t("Efecto", "Effect"), ability.effect);
             if (ability.resourceCost) {
                 const parts: string[] = [];
                 if (ability.resourceCost.usesSpellSlot) {
@@ -258,12 +261,13 @@ export default function CustomContentManager({
                     );
                 }
                 if (parts.length > 0) {
-                    lines.push(`**${t("Coste", "Cost")}:** ${parts.join(", ")}`);
+                    pushMarkdownField(t("Coste", "Cost"), parts.join(", "));
                 }
             }
         }
 
-        return [desc, ...lines].filter(Boolean).join("\n\n");
+        pushMarkdownField(t("Descripcion", "Description"), desc);
+        return lines.join("\n\n");
     }
 
     function setCreateOpen(next: boolean) {

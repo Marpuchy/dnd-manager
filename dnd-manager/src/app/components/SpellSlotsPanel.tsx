@@ -162,6 +162,14 @@ export default function SpellSlotsPanel({
     ? `rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] w-full ${className}`
     : "rounded-3xl border border-ring bg-panel/90 p-[var(--panel-pad)] w-full";
 
+  if (!hasManualSlots && !automaticSlots) {
+    return null;
+  }
+
+  if (visibleSpellSlots.length === 0) {
+    return null;
+  }
+
   return (
     <div className={panelClassName}>
       <div className="flex items-center justify-between gap-2">
@@ -177,43 +185,33 @@ export default function SpellSlotsPanel({
       </div>
 
       <div className="mt-3">
-        {!hasManualSlots && !automaticSlots ? (
-          <p className="text-xs text-ink-muted">
-            {tr(locale, "Esta clase no tiene espacios de conjuro.", "This class has no spell slots.")}
-          </p>
-        ) : visibleSpellSlots.length === 0 ? (
-          <p className="text-xs text-ink-muted">
-            {tr(locale, "No hay espacios de conjuro desbloqueados.", "No unlocked spell slots.")}
-          </p>
-        ) : (
-          <div
-            className="grid gap-2"
-            style={{
-              gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
-            }}
-          >
-            {visibleSpellSlots.map((entry) => (
-              <div
-                key={entry.level}
-                className="rounded-xl border border-ring bg-white/80 px-2 py-2"
-              >
-                <div className="text-[10px] uppercase tracking-[0.25em] text-ink-muted">
-                  {tr(locale, "Nivel", "Level")} {entry.level}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {Array.from({ length: entry.slots }).map((_, i) => (
-                    <SpellSlotOrb
-                      key={i}
-                      level={entry.level}
-                      classColor={classColor}
-                      locale={locale}
-                    />
-                  ))}
-                </div>
+        <div
+          className="grid gap-2"
+          style={{
+            gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+          }}
+        >
+          {visibleSpellSlots.map((entry) => (
+            <div
+              key={entry.level}
+              className="rounded-xl border border-ring bg-white/80 px-2 py-2"
+            >
+              <div className="text-[10px] uppercase tracking-[0.25em] text-ink-muted">
+                {tr(locale, "Nivel", "Level")} {entry.level}
               </div>
-            ))}
-          </div>
-        )}
+              <div className="mt-2 flex flex-wrap gap-1">
+                {Array.from({ length: entry.slots }).map((_, i) => (
+                  <SpellSlotOrb
+                    key={i}
+                    level={entry.level}
+                    classColor={classColor}
+                    locale={locale}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

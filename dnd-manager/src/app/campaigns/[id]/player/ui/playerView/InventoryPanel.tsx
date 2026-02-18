@@ -88,6 +88,21 @@ function getCategoryLabel(category: string | undefined, locale: string) {
   return locale === "en" ? entry.en : entry.es;
 }
 
+function getAttachmentTypeLabel(type: string, locale: string) {
+  const map: Record<string, { es: string; en: string }> = {
+    action: { es: "Accion", en: "Action" },
+    ability: { es: "Habilidad", en: "Ability" },
+    trait: { es: "Rasgo", en: "Trait" },
+    spell: { es: "Hechizo", en: "Spell" },
+    cantrip: { es: "Truco", en: "Cantrip" },
+    classFeature: { es: "Rasgo de clase", en: "Class feature" },
+    other: { es: "Otro", en: "Other" },
+  };
+  const entry = map[type];
+  if (!entry) return type;
+  return locale === "en" ? entry.en : entry.es;
+}
+
 function ItemCard({
   item,
   locale,
@@ -99,6 +114,7 @@ function ItemCard({
 }) {
   const description = getLocalizedText(item.description, locale);
   const modifiers = Array.isArray(item.modifiers) ? item.modifiers : [];
+  const attachments = Array.isArray(item.attachments) ? item.attachments : [];
   const tags = [
     item.category ? getCategoryLabel(item.category, locale) : null,
     item.rarity ? item.rarity : null,
@@ -164,6 +180,42 @@ function ItemCard({
         )}
 
         {description && <Markdown content={description} className="text-ink-muted text-xs" />}
+
+        {attachments.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+              {tr(locale, "Adjuntos", "Attachments")}
+            </p>
+            {attachments.map((attachment: any) => {
+              const attachmentDescription = getLocalizedText(
+                attachment.description,
+                locale
+              );
+              return (
+                <div
+                  key={attachment.id}
+                  className="rounded-md border border-ring bg-panel/70 p-2"
+                >
+                  <p className="text-xs font-semibold text-ink">
+                    {attachment.name}
+                    {typeof attachment.level === "number"
+                      ? ` · ${tr(locale, "Nivel", "Level")} ${attachment.level}`
+                      : ""}
+                  </p>
+                  <p className="text-[11px] text-ink-muted">
+                    {getAttachmentTypeLabel(String(attachment.type ?? "other"), locale)}
+                  </p>
+                  {attachmentDescription && (
+                    <Markdown
+                      content={attachmentDescription}
+                      className="mt-1 text-ink-muted text-xs"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </details>
   );

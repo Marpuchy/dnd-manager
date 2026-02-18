@@ -175,6 +175,23 @@ export type ItemModifier = {
     note?: string;
 };
 
+export type ItemAttachmentType =
+    | "action"
+    | "ability"
+    | "trait"
+    | "spell"
+    | "cantrip"
+    | "classFeature"
+    | "other";
+
+export type ItemAttachmentEntry = {
+    id: string;
+    type: ItemAttachmentType;
+    name: string;
+    level?: number;
+    description?: LocalizedText;
+};
+
 export type CharacterItem = {
     id: string;
     name: string;
@@ -195,6 +212,7 @@ export type CharacterItem = {
     slot?: string;
     source?: string;
     sortOrder?: number;
+    attachments?: ItemAttachmentEntry[];
 };
 
 export type CustomSpellEntry = {

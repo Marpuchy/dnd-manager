@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import type { CharacterItem, ItemCategory, ItemModifier } from "@/lib/types/dnd";
+import type {
+    CharacterItem,
+    ItemAttachmentEntry,
+    ItemCategory,
+    ItemModifier,
+} from "@/lib/types/dnd";
 import {
     MODIFIER_TARGETS,
     buildItemBase,
@@ -21,6 +26,20 @@ const CATEGORY_LABELS: Record<ItemCategory, { es: string; en: string }> = {
     tool: { es: "Herramienta", en: "Tool" },
     misc: { es: "Miscelaneo", en: "Misc" },
 };
+
+const ATTACHMENT_TYPE_OPTIONS: Array<{
+    value: ItemAttachmentEntry["type"];
+    es: string;
+    en: string;
+}> = [
+    { value: "action", es: "Accion", en: "Action" },
+    { value: "ability", es: "Habilidad", en: "Ability" },
+    { value: "trait", es: "Rasgo", en: "Trait" },
+    { value: "spell", es: "Hechizo", en: "Spell" },
+    { value: "cantrip", es: "Truco", en: "Cantrip" },
+    { value: "classFeature", es: "Rasgo de clase", en: "Class feature" },
+    { value: "other", es: "Otro", en: "Other" },
+];
 
 const TARGET_LABEL_EN: Record<string, string> = {
     STR: "Strength (STR)",
@@ -74,6 +93,15 @@ function getTargetLabel(target: string, locale: string) {
     return targetLabelMap.get(normalized) ?? target;
 }
 
+function getAttachmentTypeLabel(
+    type: ItemAttachmentEntry["type"],
+    locale: string
+) {
+    const option = ATTACHMENT_TYPE_OPTIONS.find((entry) => entry.value === type);
+    if (!option) return type;
+    return locale === "en" ? option.en : option.es;
+}
+
 type ItemManagerSectionProps = {
     items: CharacterItem[];
     setItems: (items: CharacterItem[]) => void;
@@ -99,6 +127,12 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
     const [modValue, setModValue] = useState("1");
     const [modNote, setModNote] = useState("");
     const [advancedOpen, setAdvancedOpen] = useState(false);
+    const [attachments, setAttachments] = useState<ItemAttachmentEntry[]>([]);
+    const [attachmentType, setAttachmentType] =
+        useState<ItemAttachmentEntry["type"]>("action");
+    const [attachmentName, setAttachmentName] = useState("");
+    const [attachmentLevel, setAttachmentLevel] = useState("");
+    const [attachmentDescription, setAttachmentDescription] = useState("");
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -120,6 +154,11 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         setModValue("1");
         setModNote("");
         setAdvancedOpen(false);
+        setAttachments([]);
+        setAttachmentType("action");
+        setAttachmentName("");
+        setAttachmentLevel("");
+        setAttachmentDescription("");
     }
 
     function openEditItem(item: CharacterItem) {
@@ -133,6 +172,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         setRarity(item.rarity ?? "");
         setTags(Array.isArray(item.tags) ? item.tags.join(", ") : "");
         setModifiers(Array.isArray(item.modifiers) ? item.modifiers : []);
+        setAttachments(Array.isArray(item.attachments) ? item.attachments : []);
         setIsFormOpen(true);
     }
 
@@ -162,6 +202,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
             quantity: quantity ?? 1,
             rarity: rarity.trim() || undefined,
             tags: parsedTags.length > 0 ? parsedTags : undefined,
+            attachments: attachments.length > 0 ? attachments : undefined,
         };
 
         if (editingId) {
@@ -228,6 +269,44 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         ]);
         setModValue("1");
         setModNote("");
+    }
+
+    function addAttachment() {
+        const trimmedName = attachmentName.trim();
+        const trimmedDescription = attachmentDescription.trim();
+        if (!trimmedName) return;
+
+        const parsedLevel = Number(attachmentLevel);
+        const shouldUseLevel =
+            (attachmentType === "spell" ||
+                attachmentType === "cantrip" ||
+                attachmentType === "ability" ||
+                attachmentType === "classFeature") &&
+            Number.isFinite(parsedLevel);
+
+        const normalizedLevel =
+            attachmentType === "cantrip"
+                ? 0
+                : shouldUseLevel
+                ? Math.max(0, Math.min(20, Math.floor(parsedLevel)))
+                : undefined;
+
+        const entry: ItemAttachmentEntry = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            type: attachmentType,
+            name: trimmedName,
+            level: normalizedLevel,
+            description: normalizeLocalizedText(trimmedDescription, locale),
+        };
+
+        setAttachments((prev) => [...prev, entry]);
+        setAttachmentName("");
+        setAttachmentLevel("");
+        setAttachmentDescription("");
+    }
+
+    function removeAttachment(id: string) {
+        setAttachments((prev) => prev.filter((entry) => entry.id !== id));
     }
 
     return (
@@ -416,6 +495,169 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                         </button>
                     </div>
 
+                    <div className="rounded-xl border border-ring bg-white/80 p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-ink">
+                                {t(
+                                    "Contenido adjunto al objeto",
+                                    "Content attached to item"
+                                )}
+                            </p>
+                            <span className="text-[11px] text-ink-muted">
+                                {attachments.length}{" "}
+                                {attachments.length === 1
+                                    ? t("adjunto", "attachment")
+                                    : t("adjuntos", "attachments")}
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-ink-muted">
+                            {t(
+                                "Puedes adjuntar una accion, habilidad, rasgo, hechizo o cualquier contenido personalizado del objeto.",
+                                "Attach an action, ability, trait, spell, or any custom content to this item."
+                            )}
+                        </p>
+
+                        {attachments.length === 0 ? (
+                            <p className="text-[11px] text-ink-muted">
+                                {t(
+                                    "Aun no has anadido contenido adjunto.",
+                                    "No attached content yet."
+                                )}
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {attachments.map((attachment) => {
+                                    const attachmentDescription = getLocalizedText(
+                                        attachment.description,
+                                        locale
+                                    );
+                                    return (
+                                        <details
+                                            key={attachment.id}
+                                            className="rounded-lg border border-ring bg-panel/80 p-2"
+                                        >
+                                            <summary className="cursor-pointer list-none">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-ink">
+                                                            {attachment.name}
+                                                            {typeof attachment.level === "number"
+                                                                ? ` · ${t("Nivel", "Level")} ${attachment.level}`
+                                                                : ""}
+                                                        </p>
+                                                        <p className="text-[11px] text-ink-muted">
+                                                            {getAttachmentTypeLabel(
+                                                                attachment.type,
+                                                                locale
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            event.preventDefault();
+                                                            removeAttachment(attachment.id);
+                                                        }}
+                                                        className="text-[10px] px-2 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
+                                                    >
+                                                        {t("Eliminar", "Delete")}
+                                                    </button>
+                                                </div>
+                                            </summary>
+                                            {attachmentDescription && (
+                                                <div className="mt-2">
+                                                    <Markdown
+                                                        content={attachmentDescription}
+                                                        className="text-ink-muted text-xs"
+                                                    />
+                                                </div>
+                                            )}
+                                        </details>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className="grid gap-2 md:grid-cols-3">
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Tipo", "Type")}
+                                </label>
+                                <select
+                                    value={attachmentType}
+                                    onChange={(event) =>
+                                        setAttachmentType(
+                                            event.target.value as ItemAttachmentEntry["type"]
+                                        )
+                                    }
+                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                >
+                                    {ATTACHMENT_TYPE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {t(option.es, option.en)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Nombre", "Name")}
+                                </label>
+                                <input
+                                    value={attachmentName}
+                                    onChange={(event) => setAttachmentName(event.target.value)}
+                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                    placeholder={t(
+                                        "Ej. Robar una carta",
+                                        "e.g. Draw a card"
+                                    )}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Nivel (opcional)", "Level (optional)")}
+                                </label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={20}
+                                    value={attachmentLevel}
+                                    onChange={(event) =>
+                                        setAttachmentLevel(event.target.value)
+                                    }
+                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                    placeholder={
+                                        attachmentType === "cantrip" ? "0" : "1"
+                                    }
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[11px] text-ink-muted">
+                                {t("Descripcion (Markdown)", "Description (Markdown)")}
+                            </label>
+                            <textarea
+                                value={attachmentDescription}
+                                onChange={(event) =>
+                                    setAttachmentDescription(event.target.value)
+                                }
+                                rows={4}
+                                className="w-full rounded-md bg-white/90 border border-ring px-3 py-2 text-xs text-ink outline-none focus:border-accent"
+                                placeholder={t(
+                                    "Ej. Robar una carta: tira 1d20 y aplica el resultado.",
+                                    "e.g. Draw one card: roll 1d20 and apply the result."
+                                )}
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addAttachment}
+                            className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
+                        >
+                            {t("Anadir adjunto", "Add attachment")}
+                        </button>
+                    </div>
+
                     <details className="rounded-xl border border-ring bg-white/80 p-3" open={advancedOpen}>
                         <summary
                             className="cursor-pointer text-xs text-ink-muted"
@@ -474,6 +716,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             {equippedItems.map((item) => {
                                 const desc = getLocalizedText(item.description, locale);
                                 const mods = Array.isArray(item.modifiers) ? item.modifiers : [];
+                                const itemAttachments = Array.isArray(item.attachments)
+                                    ? item.attachments
+                                    : [];
                                 return (
                                     <details
                                         key={item.id}
@@ -511,6 +756,45 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                             </div>
                                         )}
                                         {desc && <Markdown content={desc} className="mt-2 text-ink-muted text-xs" />}
+                                        {itemAttachments.length > 0 && (
+                                            <div className="mt-2 space-y-2">
+                                                <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                                                    {t("Adjuntos", "Attachments")}
+                                                </p>
+                                                {itemAttachments.map((attachment) => {
+                                                    const attachmentDescription =
+                                                        getLocalizedText(
+                                                            attachment.description,
+                                                            locale
+                                                        );
+                                                    return (
+                                                        <div
+                                                            key={attachment.id}
+                                                            className="rounded-md border border-ring bg-panel/70 p-2"
+                                                        >
+                                                            <p className="text-xs font-semibold text-ink">
+                                                                {attachment.name}
+                                                                {typeof attachment.level === "number"
+                                                                    ? ` · ${t("Nivel", "Level")} ${attachment.level}`
+                                                                    : ""}
+                                                            </p>
+                                                            <p className="text-[11px] text-ink-muted">
+                                                                {getAttachmentTypeLabel(
+                                                                    attachment.type,
+                                                                    locale
+                                                                )}
+                                                            </p>
+                                                            {attachmentDescription && (
+                                                                <Markdown
+                                                                    content={attachmentDescription}
+                                                                    className="mt-1 text-ink-muted text-xs"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </details>
                                 );
                             })}
@@ -532,6 +816,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             {items.map((item) => {
                                 const desc = getLocalizedText(item.description, locale);
                                 const mods = Array.isArray(item.modifiers) ? item.modifiers : [];
+                                const itemAttachments = Array.isArray(item.attachments)
+                                    ? item.attachments
+                                    : [];
                                 return (
                                     <details
                                         key={item.id}
@@ -607,6 +894,45 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                             </div>
                                         )}
                                         {desc && <Markdown content={desc} className="mt-2 text-ink-muted text-xs" />}
+                                        {itemAttachments.length > 0 && (
+                                            <div className="mt-2 space-y-2">
+                                                <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                                                    {t("Adjuntos", "Attachments")}
+                                                </p>
+                                                {itemAttachments.map((attachment) => {
+                                                    const attachmentDescription =
+                                                        getLocalizedText(
+                                                            attachment.description,
+                                                            locale
+                                                        );
+                                                    return (
+                                                        <div
+                                                            key={attachment.id}
+                                                            className="rounded-md border border-ring bg-panel/70 p-2"
+                                                        >
+                                                            <p className="text-xs font-semibold text-ink">
+                                                                {attachment.name}
+                                                                {typeof attachment.level === "number"
+                                                                    ? ` · ${t("Nivel", "Level")} ${attachment.level}`
+                                                                    : ""}
+                                                            </p>
+                                                            <p className="text-[11px] text-ink-muted">
+                                                                {getAttachmentTypeLabel(
+                                                                    attachment.type,
+                                                                    locale
+                                                                )}
+                                                            </p>
+                                                            {attachmentDescription && (
+                                                                <Markdown
+                                                                    content={attachmentDescription}
+                                                                    className="mt-1 text-ink-muted text-xs"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </details>
                                 );
                             })}

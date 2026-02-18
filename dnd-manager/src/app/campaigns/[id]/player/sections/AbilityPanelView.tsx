@@ -143,12 +143,20 @@ function ClassAbilityBlock({
 function renderCustomActionContent(action: CustomFeatureEntry, locale: string) {
     const description = getLocalizedText(action.description, locale)?.trim() ?? "";
     const lines: string[] = [];
+    const pushMarkdownField = (
+        label: string,
+        value: string | number | null | undefined
+    ) => {
+        const text = value == null ? "" : String(value).trim();
+        if (!text) return;
+        lines.push(`**${label}:**\n\n${text}`);
+    };
 
     if (action.requirements) {
-        lines.push(`**${tr(locale, "Requisitos", "Requirements")}:** ${action.requirements}`);
+        pushMarkdownField(tr(locale, "Requisitos", "Requirements"), action.requirements);
     }
     if (action.effect) {
-        lines.push(`**${tr(locale, "Efecto", "Effect")}:** ${action.effect}`);
+        pushMarkdownField(tr(locale, "Efecto", "Effect"), action.effect);
     }
     if (action.resourceCost) {
         const parts: string[] = [];
@@ -181,11 +189,12 @@ function renderCustomActionContent(action: CustomFeatureEntry, locale: string) {
             );
         }
         if (parts.length > 0) {
-            lines.push(`**${tr(locale, "Coste", "Cost")}:** ${parts.join(", ")}`);
+            pushMarkdownField(tr(locale, "Coste", "Cost"), parts.join(", "));
         }
     }
+    pushMarkdownField(tr(locale, "Descripcion", "Description"), description);
 
-    return [description, ...lines].filter(Boolean).join("\n\n");
+    return lines.join("\n\n");
 }
 
 export default function AbilityPanelView({
