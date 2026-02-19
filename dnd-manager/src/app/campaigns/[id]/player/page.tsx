@@ -23,11 +23,13 @@ import { useCharacterForm } from "./hooks/useCharacterForm";
 import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide-react";
 import SettingsPanel from "./ui/SettingsPanel";
 import AIAssistantPanel, { type AIAssistantClientContext } from "./ui/AIAssistantPanel";
+import StoryPlayerView from "./ui/StoryPlayerView";
 import { getSubclassName } from "@/lib/dnd/classAbilities";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
 
 type RightPanelMode = "character" | "spellManager";
+type PlayerSection = "characters" | "story";
 
 type CampaignPlayerPageProps = {
     forceDmMode?: boolean;
@@ -48,6 +50,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("character");
+    const [activeSection, setActiveSection] = useState<PlayerSection>("characters");
     const locale = useClientLocale();
 
     // mounted guard para evitar hydration mismatch
@@ -252,6 +255,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         resetForm();
         setCharacterType?.(type);
         setEditingId(null);
+        setActiveSection("characters");
         setMode("create");
         setActiveTab("stats");
         setRightPanelMode("character");
@@ -263,6 +267,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     function startEdit(char: Character) {
         autoSaveGuardRef.current = true;
         setEditingId(char.id);
+        setActiveSection("characters");
         setMode("edit");
         setActiveTab("stats");
         setRightPanelMode("character");
@@ -281,6 +286,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 
     function selectCharacter(id: string) {
         setSelectedId(id);
+        setActiveSection("characters");
         setMode("view");
         setRightPanelMode("character");
         if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -613,7 +619,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         () => ({
             surface: isDmMode ? "dm" : "player",
             locale,
-            section: "character-workspace",
+            section: activeSection === "story" ? "story-view" : "character-workspace",
             panelMode: `${mode}:${rightPanelMode}`,
             activeTab,
             selectedCharacter: selectedChar
@@ -640,7 +646,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 "keep-changes-concrete-and-atomic",
             ],
         }),
-        [activeTab, isDmMode, locale, mode, rightPanelMode, selectedChar]
+        [activeSection, activeTab, isDmMode, locale, mode, rightPanelMode, selectedChar]
     );
 
     function localizedClassLabel(rawClass: string | null | undefined): string {
@@ -1077,6 +1083,35 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                     <div className="grid grid-cols-2 gap-2 mb-3">
                         <button
                             type="button"
+                            onClick={() => setActiveSection("characters")}
+                            className={`w-full text-[11px] px-3 py-2 rounded-md border transition-colors ${
+                                activeSection === "characters"
+                                    ? "border-accent/60 bg-accent/10 text-accent-strong"
+                                    : "border-ring text-ink hover:bg-ink/5"
+                            }`}
+                        >
+                            {tr(locale, "Personajes", "Characters")}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActiveSection("story");
+                                setMode("view");
+                                setRightPanelMode("character");
+                            }}
+                            className={`w-full text-[11px] px-3 py-2 rounded-md border transition-colors ${
+                                activeSection === "story"
+                                    ? "border-accent/60 bg-accent/10 text-accent-strong"
+                                    : "border-ring text-ink hover:bg-ink/5"
+                            }`}
+                        >
+                            {tr(locale, "Historia", "Story")}
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                        <button
+                            type="button"
                             onClick={() => startCreate("character")}
                             className="w-full text-[11px] px-3 py-2 rounded-md border border-accent/60 text-accent-strong hover:bg-accent/10 flex items-center justify-center"
                         >
@@ -1243,12 +1278,20 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 min-w-0">
                             <div className="min-w-0">
                                 <h1 className="text-lg font-semibold text-ink">
-                                    {mode === "create"
+                                    {activeSection === "story"
+                                        ? tr(locale, "Historia de campaña", "Campaign story")
+                                        : mode === "create"
                                         ? createTitle
                                         : selectedChar?.name ?? tr(locale, "Personaje", "Character")}
                                 </h1>
                                 <p className="text-xs text-ink-muted mt-1 break-words">
-                                    {selectedChar
+                                    {activeSection === "story"
+                                        ? tr(
+                                              locale,
+                                              "Explora lo que el master ha publicado desde el gestor de historia.",
+                                              "Browse what the DM has published from the story manager."
+                                          )
+                                        : selectedChar
                                         ? characterSummary(selectedChar)
                                         : tr(
                                             locale,
@@ -1269,7 +1312,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                     <Settings className="h-3.5 w-3.5 text-ink" />
                                     <span className="hidden sm:inline">{tr(locale, "Ajustes", "Settings")}</span>
                                 </button>
-                                {(mode === "create" || mode === "edit") && (
+                                {activeSection === "characters" && (mode === "create" || mode === "edit") && (
                                     <span className="text-[11px] text-ink-muted">
                                         {autoSaving
                                             ? tr(locale, "Guardado automatico...", "Auto-saving...")
@@ -1279,7 +1322,10 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             </div>
                         </div>
 
-                        {rightPanelMode === "character" && mode === "view" && selectedChar && (
+                        {activeSection === "characters" &&
+                            rightPanelMode === "character" &&
+                            mode === "view" &&
+                            selectedChar && (
                             <div className="mt-4 -mx-4 px-4 pt-4 border-t border-ring/70 bg-panel/95">
                                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 text-sm sm:overflow-x-auto sm:whitespace-nowrap styled-scrollbar pb-0">
                                     <button
@@ -1345,7 +1391,13 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 
                     {/* CONTENIDO con scroll interno */}
                     <div className="relative p-4 min-w-0 flex-1 overflow-y-auto overflow-x-hidden styled-scrollbar">
-                        {rightPanelMode === "character" && (
+                        {activeSection === "story" ? (
+                            <StoryPlayerView
+                                campaignId={String(params.id)}
+                                locale={locale}
+                            />
+                        ) : (
+                            rightPanelMode === "character" && (
                             <>
                                 {mode === "view" && selectedChar && (
                                     <CharacterView
@@ -1383,9 +1435,12 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                     </p>
                                 )}
                             </>
+                            )
                         )}
 
-                        {rightPanelMode === "spellManager" && selectedChar && (
+                        {activeSection === "characters" &&
+                            rightPanelMode === "spellManager" &&
+                            selectedChar && (
                             <SpellManagerPanel
                                 character={selectedChar}
                                 onClose={() => setRightPanelMode("character")}

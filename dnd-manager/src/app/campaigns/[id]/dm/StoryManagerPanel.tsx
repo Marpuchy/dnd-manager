@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
+import StoryPlayerView from "../player/ui/StoryPlayerView";
 
 type StoryManagerPanelProps = {
     campaignId: string;
@@ -89,6 +90,7 @@ type ZoneRow = {
     name: string;
     shape_type: "polygon" | "rect" | "circle" | "ellipse" | "path";
     geometry: unknown;
+    is_visible: boolean;
     action_type: "OPEN_NODE" | "OPEN_MAP" | "OPEN_URL" | "NONE";
     target_node_id: string | null;
     target_map_id: string | null;
@@ -107,6 +109,7 @@ type DocumentRow = {
     content: unknown;
     plain_text: string;
     latest_revision: number;
+    metadata: unknown;
 };
 
 type LinkRow = {
@@ -338,6 +341,13 @@ function zoneLabelFontSize(radius: number, label: string): number {
     return clamp(Math.round(scaled), 10, Math.round(radius * 1.35));
 }
 
+function normalizeDocDefaultTextColor(value: unknown): string {
+    if (typeof value !== "string") return "theme";
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || normalized === "theme" || normalized === "auto") return "theme";
+    return normalizeHexColor(normalized) ?? "theme";
+}
+
 function zoneNodeId(zone: ZoneRow) {
     return zone.node_id ?? zone.target_node_id ?? null;
 }
@@ -501,6 +511,8 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         startX: number;
         startWidth: number;
     } | null>(null);
+    const zoneLiveSaveTimeoutRef = useRef<number | null>(null);
+    const zoneLiveSaveInFlightRef = useRef(false);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -534,16 +546,21 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const [zoneColorDraft, setZoneColorDraft] = useState("#4f46e5");
     const [zoneOpacityDraft, setZoneOpacityDraft] = useState("100");
     const [zoneRadiusDraft, setZoneRadiusDraft] = useState("54");
+    const [zoneVisibleDraft, setZoneVisibleDraft] = useState(false);
 
     const [referenceQuery, setReferenceQuery] = useState("");
 
     const [docTitleDraft, setDocTitleDraft] = useState("");
     const [docHtmlDraft, setDocHtmlDraft] = useState("");
     const [docTypeDraft, setDocTypeDraft] = useState<DocumentType>("LORE");
-    const [docVisibilityDraft, setDocVisibilityDraft] = useState<DocumentVisibility>("CAMPAIGN");
+    const [docVisibilityDraft, setDocVisibilityDraft] = useState<DocumentVisibility>("DM_ONLY");
+    const [docDefaultTextColorDraft, setDocDefaultTextColorDraft] = useState("theme");
+    const [editorPanelCollapsed, setEditorPanelCollapsed] = useState(false);
+    const [editorPanelExpanded, setEditorPanelExpanded] = useState(false);
     const [editorPanelWidth, setEditorPanelWidth] = useState(EDITOR_PANEL_DEFAULT_WIDTH);
     const [isResizingEditorPanel, setIsResizingEditorPanel] = useState(false);
     const [hideUpperTools, setHideUpperTools] = useState(false);
+    const [playerPreviewMode, setPlayerPreviewMode] = useState(false);
     const [isDarkTheme, setIsDarkTheme] = useState(false);
 
     const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
@@ -657,8 +674,17 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             || nextRadius !== base.radius
             || !colorsEquivalent(nextColor, base.color)
             || nextIcon !== base.icon
+            || zoneVisibleDraft !== Boolean(selectedZone.is_visible)
         );
-    }, [selectedZone, zoneNameDraft, zoneRadiusDraft, zoneColorDraft, zoneOpacityDraft, zoneIconDraft]);
+    }, [
+        selectedZone,
+        zoneNameDraft,
+        zoneRadiusDraft,
+        zoneColorDraft,
+        zoneOpacityDraft,
+        zoneIconDraft,
+        zoneVisibleDraft,
+    ]);
 
     const selectedDocumentHtml = useMemo(
         () => (selectedDocument ? getDocumentHtml(selectedDocument) : ""),
@@ -668,11 +694,20 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const isDocumentDirty = useMemo(() => {
         if (!selectedDocument) return false;
         const nextTitle = docTitleDraft.trim() || selectedDocument.title;
+        const baseMetadata =
+            selectedDocument.metadata && typeof selectedDocument.metadata === "object"
+                ? (selectedDocument.metadata as Record<string, unknown>)
+                : {};
+        const baseDefaultTextColor = normalizeDocDefaultTextColor(
+            baseMetadata.story_default_text_color
+        );
+        const nextDefaultTextColor = normalizeDocDefaultTextColor(docDefaultTextColorDraft);
         return (
             nextTitle !== selectedDocument.title
             || docTypeDraft !== selectedDocument.doc_type
             || docVisibilityDraft !== selectedDocument.visibility
             || docHtmlDraft !== selectedDocumentHtml
+            || nextDefaultTextColor !== baseDefaultTextColor
         );
     }, [
         selectedDocument,
@@ -681,7 +716,11 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         docTypeDraft,
         docVisibilityDraft,
         docHtmlDraft,
+        docDefaultTextColorDraft,
     ]);
+
+    const showMapPanel = !editorPanelExpanded;
+    const showEditorPanel = editorPanelExpanded || !editorPanelCollapsed;
 
     async function loadIndex() {
         setLoading(true);
@@ -818,6 +857,15 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         };
     }, []);
 
+    useEffect(() => {
+        return () => {
+            if (zoneLiveSaveTimeoutRef.current !== null) {
+                window.clearTimeout(zoneLiveSaveTimeoutRef.current);
+                zoneLiveSaveTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
     async function ensureActRootNode(actId: string): Promise<NodeRow> {
         const existing = nodes.find((node) => node.act_id === actId && node.parent_id === null);
         if (existing) return existing;
@@ -893,7 +941,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
     async function loadZones(mapId: string): Promise<ZoneRow[]> {
         const selectColumns =
-            "id, campaign_id, map_id, node_id, name, shape_type, geometry, action_type, target_node_id, target_map_id, target_url, sort_order";
+            "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order";
 
         const withTrashFilter = await supabase
             .from("campaign_map_zones")
@@ -1010,7 +1058,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             supabase
                 .from("campaign_documents")
                 .select(
-                    "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision"
+                    "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision, metadata"
                 )
                 .eq("campaign_id", campaignId)
                 .eq("node_id", zoneNodeId)
@@ -1036,11 +1084,12 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             node_id: zoneNodeId,
             title: node ? `Ficha - ${node.title}` : t("Nueva ficha", "New sheet"),
             doc_type: "LORE" as DocumentType,
-            visibility: "CAMPAIGN" as DocumentVisibility,
+            visibility: "DM_ONLY" as DocumentVisibility,
             editor_format: "HTML",
             content: { html: "" },
             plain_text: "",
             latest_revision: 1,
+            metadata: { story_default_text_color: "theme" },
             created_by: userId,
             updated_by: userId,
         };
@@ -1049,7 +1098,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             .from("campaign_documents")
             .insert(payload)
             .select(
-                "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision"
+                "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision, metadata"
             )
             .maybeSingle();
 
@@ -1076,6 +1125,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             setZoneColorDraft("#4f46e5");
             setZoneOpacityDraft("100");
             setZoneRadiusDraft(String(DEFAULT_ZONE_RADIUS));
+            setZoneVisibleDraft(false);
             setReferences([]);
             setSelectedDocument(null);
             return;
@@ -1088,6 +1138,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         setZoneColorDraft(parsedColor.hex);
         setZoneOpacityDraft(String(Math.round(parsedColor.alpha * 100)));
         setZoneRadiusDraft(String(geometry.radius));
+        setZoneVisibleDraft(Boolean(selectedZone.is_visible));
 
         const nodeId = selectedZone.node_id ?? selectedZone.target_node_id;
         if (!nodeId) return;
@@ -1121,13 +1172,21 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             setDocTitleDraft("");
             setDocHtmlDraft("");
             setDocTypeDraft("LORE");
-            setDocVisibilityDraft("CAMPAIGN");
+            setDocVisibilityDraft("DM_ONLY");
+            setDocDefaultTextColorDraft("theme");
             return;
         }
+        const metadata =
+            selectedDocument.metadata && typeof selectedDocument.metadata === "object"
+                ? (selectedDocument.metadata as Record<string, unknown>)
+                : {};
         setDocTitleDraft(selectedDocument.title);
         setDocHtmlDraft(getDocumentHtml(selectedDocument));
         setDocTypeDraft(selectedDocument.doc_type);
         setDocVisibilityDraft(selectedDocument.visibility);
+        setDocDefaultTextColorDraft(
+            normalizeDocDefaultTextColor(metadata.story_default_text_color)
+        );
     }, [selectedDocument?.id]);
 
     useEffect(() => {
@@ -1656,6 +1715,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 name: zoneNode.title,
                 shape_type: "circle",
                 geometry,
+                is_visible: false,
                 action_type: "OPEN_NODE",
                 target_node_id: zoneNode.id,
                 target_map_id: null,
@@ -1669,7 +1729,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 .from("campaign_map_zones")
                 .insert(zonePayload)
                 .select(
-                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, action_type, target_node_id, target_map_id, target_url, sort_order"
+                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order"
                 )
                 .maybeSingle();
 
@@ -1901,6 +1961,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     color: nextColor,
                     icon: zoneIconDraft || base.icon,
                 },
+                is_visible: zoneVisibleDraft,
                 updated_by: userId,
             };
 
@@ -1910,7 +1971,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 .eq("id", selectedZone.id)
                 .eq("campaign_id", campaignId)
                 .select(
-                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, action_type, target_node_id, target_map_id, target_url, sort_order"
+                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order"
                 )
                 .maybeSingle();
 
@@ -2033,6 +2094,13 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
         await runMutation(async () => {
             const nextRevision = Math.max(1, selectedDocument.latest_revision ?? 1) + 1;
+            const currentMetadata =
+                selectedDocument.metadata && typeof selectedDocument.metadata === "object"
+                    ? (selectedDocument.metadata as Record<string, unknown>)
+                    : {};
+            const nextDefaultTextColor = normalizeDocDefaultTextColor(
+                docDefaultTextColorDraft
+            );
 
             const payload = {
                 title: docTitleDraft.trim() || selectedDocument.title,
@@ -2042,6 +2110,10 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 content: { html: docHtmlDraft },
                 plain_text: stripHtml(docHtmlDraft),
                 latest_revision: nextRevision,
+                metadata: {
+                    ...currentMetadata,
+                    story_default_text_color: nextDefaultTextColor,
+                },
                 updated_by: userId,
             };
 
@@ -2051,7 +2123,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 .eq("id", selectedDocument.id)
                 .eq("campaign_id", campaignId)
                 .select(
-                    "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision"
+                    "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision, metadata"
                 )
                 .maybeSingle();
 
@@ -2072,6 +2144,47 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             });
         }, { es: "Ficha guardada.", en: "Sheet saved." }, options);
     }
+
+    useEffect(() => {
+        if (!selectedZoneId || !selectedZone) return undefined;
+        if (!isZoneDirty) return undefined;
+        if (saving) return undefined;
+
+        if (zoneLiveSaveTimeoutRef.current !== null) {
+            window.clearTimeout(zoneLiveSaveTimeoutRef.current);
+            zoneLiveSaveTimeoutRef.current = null;
+        }
+
+        zoneLiveSaveTimeoutRef.current = window.setTimeout(() => {
+            zoneLiveSaveTimeoutRef.current = null;
+            if (zoneLiveSaveInFlightRef.current) return;
+            zoneLiveSaveInFlightRef.current = true;
+            void (async () => {
+                try {
+                    await handleSaveZone({ silent: true });
+                } finally {
+                    zoneLiveSaveInFlightRef.current = false;
+                }
+            })();
+        }, 450);
+
+        return () => {
+            if (zoneLiveSaveTimeoutRef.current !== null) {
+                window.clearTimeout(zoneLiveSaveTimeoutRef.current);
+                zoneLiveSaveTimeoutRef.current = null;
+            }
+        };
+    }, [
+        selectedZoneId,
+        selectedZone?.id,
+        zoneNameDraft,
+        zoneIconDraft,
+        zoneColorDraft,
+        zoneOpacityDraft,
+        zoneRadiusDraft,
+        isZoneDirty,
+        saving,
+    ]);
 
     useEffect(() => {
         if (!currentNodeId) return;
@@ -2156,14 +2269,50 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             );
     }, [campaignId, currentMap?.id]);
 
+    function currentEditorMaxWidth() {
+        if (typeof window === "undefined") {
+            return EDITOR_PANEL_DEFAULT_WIDTH;
+        }
+        return Math.max(
+            EDITOR_PANEL_MIN_WIDTH + 80,
+            Math.floor(window.innerWidth * EDITOR_PANEL_MAX_VIEWPORT_RATIO)
+        );
+    }
+
+    function beginEditorResize(startX: number, requestedWidth?: number) {
+        const startWidth = clamp(
+            requestedWidth ?? editorPanelWidth,
+            EDITOR_PANEL_MIN_WIDTH,
+            currentEditorMaxWidth()
+        );
+        setEditorPanelWidth(startWidth);
+        editorResizeRef.current = {
+            startX,
+            startWidth,
+        };
+        setIsResizingEditorPanel(true);
+    }
+
     function handleEditorResizerMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
         if (event.button !== 0) return;
         event.preventDefault();
-        editorResizeRef.current = {
-            startX: event.clientX,
-            startWidth: editorPanelWidth,
-        };
-        setIsResizingEditorPanel(true);
+        beginEditorResize(event.clientX);
+    }
+
+    function handleEditorRevealFromMapMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        setEditorPanelCollapsed(false);
+        setEditorPanelExpanded(false);
+        beginEditorResize(event.clientX);
+    }
+
+    function handleMapRevealFromEditorMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        setEditorPanelExpanded(false);
+        setEditorPanelCollapsed(false);
+        beginEditorResize(event.clientX);
     }
 
     function renderNodeLabel(node: NodeRow | null) {
@@ -2290,6 +2439,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                             setSelectedZoneId(null);
                             setReferences([]);
                             setSelectedDocument(null);
+                            setPlayerPreviewMode(false);
                             setNotice(null);
                         }}
                         className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/80 px-2.5 py-1.5 text-xs hover:bg-white"
@@ -2302,18 +2452,61 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     </h1>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <span className="hidden xl:inline text-[11px] text-ink-muted">
-                        {t(
-                            "Arrastra el separador para retraer o ampliar el editor.",
-                            "Drag the splitter to retract or expand the editor."
-                        )}
-                    </span>
                     <button
                         type="button"
-                        onClick={() => setEditorPanelWidth(EDITOR_PANEL_DEFAULT_WIDTH)}
+                        onClick={() => {
+                            setEditorPanelCollapsed((prev) => {
+                                const next = !prev;
+                                if (next) setEditorPanelExpanded(false);
+                                return next;
+                            });
+                        }}
                         className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/80 px-2.5 py-1.5 text-xs hover:bg-white"
                     >
-                        {t("Reiniciar ancho editor", "Reset editor width")}
+                        {editorPanelCollapsed
+                            ? t("Mostrar editor", "Show editor")
+                            : t("Ocultar editor", "Hide editor")}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setEditorPanelExpanded((prev) => {
+                                const next = !prev;
+                                if (next) setEditorPanelCollapsed(false);
+                                return next;
+                            });
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/80 px-2.5 py-1.5 text-xs hover:bg-white"
+                    >
+                        {editorPanelExpanded
+                            ? t("Mostrar mapa", "Show map")
+                            : t("Maximizar editor", "Maximize editor")}
+                    </button>
+                    {showMapPanel && showEditorPanel && (
+                        <>
+                            <span className="hidden xl:inline text-[11px] text-ink-muted">
+                                {t(
+                                    "Arrastra el separador para retraer o ampliar el editor.",
+                                    "Drag the splitter to retract or expand the editor."
+                                )}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setEditorPanelWidth(EDITOR_PANEL_DEFAULT_WIDTH)}
+                                className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/80 px-2.5 py-1.5 text-xs hover:bg-white"
+                            >
+                                {t("Reiniciar ancho editor", "Reset editor width")}
+                            </button>
+                        </>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setPlayerPreviewMode((prev) => !prev)}
+                        className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/80 px-2.5 py-1.5 text-xs hover:bg-white"
+                    >
+                        {playerPreviewMode
+                            ? t("Volver al editor", "Back to editor")
+                            : t("Vista jugador", "Player view")}
                     </button>
                     <button
                         type="button"
@@ -2352,10 +2545,28 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 </p>
             )}
 
+            {playerPreviewMode ? (
+                <section className="rounded-xl border border-ring bg-panel/80 p-3">
+                    <StoryPlayerView
+                        campaignId={campaignId}
+                        locale={locale}
+                        previewAsPlayer
+                    />
+                </section>
+            ) : (
             <div
-                className="grid grid-cols-1 gap-4 items-start xl:grid-cols-[minmax(0,1fr)_12px_minmax(320px,var(--story-editor-width))]"
-                style={{ ["--story-editor-width" as string]: `${editorPanelWidth}px` }}
+                className={`grid grid-cols-1 gap-4 items-start ${
+                    showMapPanel && showEditorPanel
+                        ? "xl:grid-cols-[minmax(0,1fr)_12px_minmax(320px,var(--story-editor-width))]"
+                        : ""
+                }`}
+                style={
+                    showMapPanel && showEditorPanel
+                        ? { ["--story-editor-width" as string]: `${editorPanelWidth}px` }
+                        : undefined
+                }
             >
+                {showMapPanel && (
                 <section className="space-y-2 min-w-0">
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_auto_auto_auto] gap-2 border border-ring rounded-xl bg-panel/80 p-3">
                         <input
@@ -2494,7 +2705,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                                 : "border-white/80"
                                         } ${isPendingConnect ? "shadow-[0_0_0_4px_rgba(245,158,11,0.9)]" : ""} ${
                                             isMoving ? "cursor-grabbing" : "cursor-pointer"
-                                        }`}
+                                        } ${zone.is_visible ? "" : "opacity-70 border-dashed"}`}
                                         style={{
                                             left: `${geometry.x - geometry.radius}px`,
                                             top: `${geometry.y - geometry.radius}px`,
@@ -2505,7 +2716,11 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                             fontSize: `${labelFontSize}px`,
                                             lineHeight: 1,
                                         }}
-                                        title={`${zone.name} (${t("Doble clic para entrar", "Double click to enter")})`}
+                                        title={`${zone.name} (${t("Doble clic para entrar", "Double click to enter")})${
+                                            zone.is_visible
+                                                ? ""
+                                                : ` · ${t("Oculta para jugadores", "Hidden from players")}`
+                                        }`}
                                     >
                                         <span>{label}</span>
                                     </button>
@@ -2519,9 +2734,26 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                 "Right-click + drag: pan | Left-drag zone: move zone | Right-click zone: connect zones | Wheel: zoom | Double click map: create zone | Double click zone: enter"
                             )}
                         </div>
+
+                        {!showEditorPanel && (
+                            <div
+                                role="separator"
+                                aria-orientation="vertical"
+                                onMouseDown={handleEditorRevealFromMapMouseDown}
+                                className="absolute right-2 top-1/2 z-20 hidden h-28 w-3 -translate-y-1/2 cursor-col-resize items-center justify-center rounded-md border border-ring/70 bg-panel/70 hover:bg-panel/90 xl:flex"
+                                title={t(
+                                    "Arrastra hacia la izquierda para mostrar el editor",
+                                    "Drag left to reveal editor"
+                                )}
+                            >
+                                <span className="h-12 w-1 rounded-full bg-ring/80" />
+                            </div>
+                        )}
                     </div>
                 </section>
+                )}
 
+                {showMapPanel && showEditorPanel && (
                 <div
                     role="separator"
                     aria-orientation="vertical"
@@ -2533,10 +2765,31 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 >
                     <span className="h-20 w-1 rounded-full bg-ring/80" />
                 </div>
+                )}
 
+                {showEditorPanel && (
                 <aside
-                    className="space-y-3 border border-ring rounded-xl bg-panel/80 p-3 overflow-y-auto styled-scrollbar max-h-[calc(100vh-10rem)] xl:h-[calc(100vh-15rem)] xl:min-h-[520px]"
+                    className={`relative space-y-3 border border-ring rounded-xl bg-panel/80 p-3 overflow-y-auto styled-scrollbar ${
+                        editorPanelExpanded
+                            ? "min-h-[calc(100vh-15rem)] max-h-[calc(100vh-12rem)]"
+                            : "max-h-[calc(100vh-10rem)] xl:h-[calc(100vh-15rem)] xl:min-h-[520px]"
+                    } ${!showMapPanel ? "xl:pl-8" : ""}`}
                 >
+                    {!showMapPanel && (
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            onMouseDown={handleMapRevealFromEditorMouseDown}
+                            className="absolute left-2 top-1/2 z-20 hidden h-28 w-3 -translate-y-1/2 cursor-col-resize items-center justify-center rounded-md border border-ring/70 bg-panel/70 hover:bg-panel/90 xl:flex"
+                            title={t(
+                                "Arrastra hacia la derecha para mostrar el mapa",
+                                "Drag right to reveal map"
+                            )}
+                        >
+                            <span className="h-12 w-1 rounded-full bg-ring/80" />
+                        </div>
+                    )}
+
                     {!selectedZone ? (
                         <div className="space-y-2">
                             <h2 className="text-sm font-semibold text-ink">{t("Zona", "Zone")}</h2>
@@ -2628,16 +2881,24 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                                 title={t("Opacidad en porcentaje", "Opacity in percent")}
                                             />
                                         </div>
+                                        <label className="inline-flex items-center gap-2 text-xs text-ink">
+                                            <input
+                                                type="checkbox"
+                                                checked={zoneVisibleDraft}
+                                                onChange={(event) => setZoneVisibleDraft(event.target.checked)}
+                                                className="h-4 w-4 rounded border border-ring accent-accent"
+                                            />
+                                            <span>
+                                                {t("Visible para jugadores", "Visible to players")}
+                                            </span>
+                                        </label>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => void handleSaveZone()}
-                                                disabled={saving}
-                                                className="inline-flex items-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-2.5 py-1.5 text-xs hover:bg-accent/20 disabled:opacity-60"
-                                            >
-                                                <Save className="h-3.5 w-3.5" />
-                                                {t("Guardar zona", "Save zone")}
-                                            </button>
+                                            <span className="text-[11px] text-ink-muted">
+                                                {t(
+                                                    "Guardado de zona en tiempo real.",
+                                                    "Zone changes are saved in real time."
+                                                )}
+                                            </span>
                                             <button
                                                 type="button"
                                                 onClick={() => void handleTrashZone()}
@@ -2797,6 +3058,52 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                                 )}
                                             </select>
                                         </div>
+                                        <div className="space-y-1 rounded-md border border-ring bg-white/70 p-2">
+                                            <label className="inline-flex items-center gap-2 text-xs text-ink">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={docDefaultTextColorDraft === "theme"}
+                                                    onChange={(event) => {
+                                                        if (event.target.checked) {
+                                                            setDocDefaultTextColorDraft("theme");
+                                                            return;
+                                                        }
+                                                        setDocDefaultTextColorDraft("#1f1a14");
+                                                    }}
+                                                    className="h-4 w-4 rounded border border-ring accent-accent"
+                                                />
+                                                <span>
+                                                    {t(
+                                                        "Color de texto por defecto segun tema",
+                                                        "Default text color follows theme"
+                                                    )}
+                                                </span>
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="color"
+                                                    value={
+                                                        docDefaultTextColorDraft === "theme"
+                                                            ? "#1f1a14"
+                                                            : (normalizeHexColor(docDefaultTextColorDraft) ??
+                                                                "#1f1a14")
+                                                    }
+                                                    onChange={(event) =>
+                                                        setDocDefaultTextColorDraft(
+                                                            normalizeHexColor(event.target.value) ?? "#1f1a14"
+                                                        )
+                                                    }
+                                                    disabled={docDefaultTextColorDraft === "theme"}
+                                                    className="h-8 w-10 rounded-md border border-ring bg-white px-1 disabled:opacity-50"
+                                                />
+                                                <p className="text-[11px] text-ink-muted">
+                                                    {t(
+                                                        "Este color se aplica al visor cuando el texto no tiene color manual o usa negro/blanco accidental.",
+                                                        "This color is applied in the viewer when text has no manual color or uses accidental black/white."
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </>
                                 )}
 
@@ -2810,7 +3117,9 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         </>
                     )}
                 </aside>
+                )}
             </div>
+            )}
         </div>
     );
 }
