@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
+import { getSessionUserSafely } from "@/lib/supabaseAuthClient";
 
 type Campaign = {
   id: string;
@@ -58,14 +59,9 @@ export default function CampaignsPage() {
       setError(null);
 
       try {
-        const {
-          data: { session },
-          error: sessionErr,
-        } = await client.auth.getSession();
+        const user = await getSessionUserSafely(client);
 
-        if (sessionErr) throw sessionErr;
-
-        if (!session?.user) {
+        if (!user) {
           router.push("/login");
           return;
         }
@@ -73,7 +69,7 @@ export default function CampaignsPage() {
         const { data, error: fetchErr } = await client
           .from("campaign_members")
           .select("role, campaign_id:campaigns(id, name, invite_code)")
-          .eq("user_id", session.user.id);
+          .eq("user_id", user.id);
 
         if (fetchErr) throw fetchErr;
 

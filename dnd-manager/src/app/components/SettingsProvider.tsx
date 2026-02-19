@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getSessionUserSafely } from "@/lib/supabaseAuthClient";
 
 export type ThemeMode = "normal" | "light" | "dark";
 export type DensityMode = "comfortable" | "compact";
@@ -61,8 +62,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
         async function loadSettings() {
             try {
-                const { data: sessionData } = await supabase.auth.getSession();
-                const userId = sessionData?.session?.user?.id;
+                const user = await getSessionUserSafely(supabase);
+                const userId = user?.id;
                 if (!userId) {
                     if (active) setLoading(false);
                     return;
@@ -159,8 +160,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setSettings(next);
 
         try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            const userId = sessionData?.session?.user?.id;
+            const user = await getSessionUserSafely(supabase);
+            const userId = user?.id;
             if (!userId) return;
 
             await supabase.from("user_settings").upsert(

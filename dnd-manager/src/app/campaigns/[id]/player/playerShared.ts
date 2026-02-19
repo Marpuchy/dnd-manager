@@ -61,6 +61,32 @@ export const CLASS_API_ALIASES: Record<string, string> = {
   artificer: "artificer",
 };
 
+const CLASS_SELECTION_RGB: Record<string, [number, number, number]> = {
+  barbarian: [220, 38, 38],
+  bard: [192, 38, 211],
+  cleric: [234, 179, 8],
+  druid: [22, 163, 74],
+  fighter: [249, 115, 22],
+  monk: [14, 165, 233],
+  paladin: [253, 224, 71],
+  ranger: [34, 197, 94],
+  rogue: [74, 222, 128],
+  sorcerer: [168, 85, 247],
+  warlock: [124, 58, 237],
+  wizard: [59, 130, 246],
+  artificer: [20, 184, 166],
+  custom: [244, 114, 182],
+  default: [47, 111, 106],
+};
+
+export type ClassSelectionPalette = {
+  rgb: string;
+  background: string;
+  border: string;
+  ring: string;
+  shadow: string;
+};
+
 export function normalizeClassForApi(raw: string | null): string {
   if (!raw) return "";
   const key = raw.toLowerCase().trim();
@@ -70,6 +96,20 @@ export function normalizeClassForApi(raw: string | null): string {
     return normalizedKey;
   }
   return CLASS_API_ALIASES[key] ?? CLASS_API_ALIASES[normalizedKey] ?? normalizedKey;
+}
+
+export function getClassSelectionPalette(
+  raw: string | null | undefined
+): ClassSelectionPalette {
+  const normalized = normalizeClassForApi(raw ?? "");
+  const [r, g, b] = CLASS_SELECTION_RGB[normalized] ?? CLASS_SELECTION_RGB.default;
+  return {
+    rgb: `${r}, ${g}, ${b}`,
+    background: `rgba(${r}, ${g}, ${b}, 0.05)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.4)`,
+    ring: `rgba(${r}, ${g}, ${b}, 0.2)`,
+    shadow: `0 8px 18px rgba(${r}, ${g}, ${b}, 0.07)`,
+  };
 }
 
 export function prettyClassLabel(raw: string | null, locale = "es"): string {

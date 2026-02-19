@@ -1171,11 +1171,17 @@ export default function StoryPlayerView({
                             }`}
                         >
                             <div
-                                className="absolute left-0 top-0 origin-top-left"
+                                className="story-map-canvas absolute left-0 top-0 origin-top-left"
                                 style={{
                                     width: `${STAGE_WIDTH}px`,
                                     height: `${STAGE_HEIGHT}px`,
                                     transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+                                    ["--story-map-overlay-opacity" as string]: isDarkTheme ? "0.66" : "0.54",
+                                    ["--story-map-edge-opacity" as string]: isDarkTheme ? "0.74" : "0.64",
+                                    ["--story-map-sepia" as string]: isDarkTheme ? "0.3" : "0.22",
+                                    ["--story-map-saturate" as string]: isDarkTheme ? "0.78" : "0.9",
+                                    ["--story-map-contrast" as string]: isDarkTheme ? "1.08" : "1.04",
+                                    ["--story-map-brightness" as string]: isDarkTheme ? "0.88" : "1",
                                 }}
                             >
                                 {currentMap.image_url && currentMap.image_url !== BLANK_MAP_URL ? (
@@ -1183,11 +1189,12 @@ export default function StoryPlayerView({
                                         src={currentMap.image_url}
                                         alt={currentMap.name}
                                         draggable={false}
-                                        className="absolute inset-0 h-full w-full select-none object-cover pointer-events-none"
+                                        className="story-map-base absolute inset-0 h-full w-full select-none object-cover pointer-events-none"
                                     />
                                 ) : (
-                                    <div className="absolute inset-0" style={blankMapStyle} />
+                                    <div className="story-map-base absolute inset-0" style={blankMapStyle} />
                                 )}
+                                <div className="story-map-aging-overlay" aria-hidden />
 
                                 {renderedConnectionLines.length > 0 && (
                                     <svg
@@ -1252,6 +1259,7 @@ export default function StoryPlayerView({
                                         </button>
                                     );
                                 })}
+                                <div className="story-map-edge-overlay" aria-hidden />
                             </div>
 
                             <div className="pointer-events-none absolute bottom-3 left-3 right-3 rounded-md border border-ring/70 bg-black/45 px-3 py-2 text-xs text-amber-100">
@@ -1373,6 +1381,90 @@ export default function StoryPlayerView({
             </div>
 
             <style jsx global>{`
+                .story-map-canvas {
+                    overflow: hidden;
+                    isolation: isolate;
+                    border-radius: 12px;
+                    clip-path: polygon(1.8% 2.4%, 5.9% 1.7%, 10.8% 2.3%, 15.9% 1.6%, 21.7% 2.5%, 28.4% 1.4%, 35.6% 2.2%, 43.1% 1.5%, 50.4% 2.6%, 58.3% 1.3%, 66.1% 2.4%, 73.8% 1.6%, 81.4% 2.5%, 88.4% 1.4%, 94.1% 2.3%, 97.7% 1.9%, 98.6% 6.8%, 97.9% 13.4%, 98.8% 21.7%, 97.8% 30.6%, 98.9% 40.5%, 97.7% 50.2%, 98.8% 60.8%, 97.9% 70.6%, 98.7% 80.7%, 97.6% 89.4%, 98.4% 95.2%, 97.1% 98.1%, 92.1% 98.8%, 86.2% 97.7%, 79.3% 98.9%, 72.5% 97.8%, 65.6% 99.1%, 58.7% 97.9%, 51.6% 99.2%, 44.8% 97.8%, 38.1% 99%, 31.2% 97.7%, 24.5% 98.8%, 18.6% 97.6%, 12.5% 98.7%, 7% 97.9%, 2.8% 98.5%, 1.4% 93.6%, 2.3% 85.8%, 1.2% 77.9%, 2.4% 68.6%, 1.1% 59.8%, 2.5% 50.6%, 1.3% 41.2%, 2.4% 31.7%, 1.2% 22.9%, 2.3% 14.1%, 1.4% 6.7%);
+                    background: color-mix(in oklab, var(--panel), #d9bb8b 16%);
+                    box-shadow: 0 18px 38px -30px rgba(35, 20, 8, 0.78);
+                }
+
+                .story-map-base {
+                    filter:
+                        sepia(var(--story-map-sepia, 0.24))
+                        saturate(var(--story-map-saturate, 0.88))
+                        contrast(var(--story-map-contrast, 1.05))
+                        brightness(var(--story-map-brightness, 1));
+                }
+
+                .story-map-aging-overlay {
+                    pointer-events: none;
+                    position: absolute;
+                    inset: 0;
+                    background-image:
+                        radial-gradient(circle at 11% 9%, rgba(255, 244, 219, 0.38), transparent 34%),
+                        radial-gradient(circle at 87% 82%, rgba(79, 49, 24, 0.24), transparent 40%),
+                        radial-gradient(circle at 48% 48%, rgba(111, 76, 42, 0.12), transparent 62%),
+                        repeating-linear-gradient(23deg, rgba(98, 66, 36, 0.055) 0 2px, rgba(252, 244, 224, 0.042) 2px 4px),
+                        radial-gradient(circle at 2px 2px, rgba(97, 64, 32, 0.11) 1px, transparent 1.9px);
+                    background-size: auto, auto, auto, auto, 24px 24px;
+                    mix-blend-mode: multiply;
+                    opacity: var(--story-map-overlay-opacity, 0.56);
+                }
+
+                .story-map-edge-overlay {
+                    pointer-events: none;
+                    position: absolute;
+                    inset: 0;
+                    box-shadow:
+                        inset 0 0 0 1px rgba(105, 71, 37, 0.42),
+                        inset 0 0 28px rgba(79, 51, 26, 0.26),
+                        inset 0 0 86px rgba(45, 28, 12, 0.2),
+                        0 16px 38px -28px rgba(37, 22, 10, 0.8);
+                }
+
+                .story-map-edge-overlay::before {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    background:
+                        radial-gradient(120% 18% at 50% -2%, rgba(255, 242, 213, 0.34), transparent 72%),
+                        radial-gradient(120% 18% at 50% 102%, rgba(79, 49, 24, 0.3), transparent 72%),
+                        radial-gradient(18% 120% at -2% 50%, rgba(255, 241, 214, 0.24), transparent 70%),
+                        radial-gradient(18% 120% at 102% 50%, rgba(73, 46, 23, 0.28), transparent 72%),
+                        radial-gradient(20px 14px at 9% 4%, rgba(255, 246, 227, 0.42) 12%, transparent 74%),
+                        radial-gradient(26px 16px at 27% 2%, rgba(255, 237, 206, 0.32) 10%, transparent 76%),
+                        radial-gradient(22px 15px at 47% 3%, rgba(255, 245, 220, 0.38) 12%, transparent 75%),
+                        radial-gradient(24px 16px at 69% 2%, rgba(255, 234, 201, 0.3) 10%, transparent 76%),
+                        radial-gradient(20px 14px at 88% 3%, rgba(255, 243, 215, 0.34) 12%, transparent 75%),
+                        radial-gradient(18px 14px at 6% 96%, rgba(81, 50, 24, 0.26) 10%, transparent 76%),
+                        radial-gradient(24px 16px at 24% 98%, rgba(77, 48, 23, 0.3) 10%, transparent 76%),
+                        radial-gradient(20px 14px at 44% 97%, rgba(72, 44, 21, 0.24) 10%, transparent 76%),
+                        radial-gradient(25px 17px at 63% 98%, rgba(78, 48, 24, 0.28) 10%, transparent 76%),
+                        radial-gradient(20px 14px at 82% 97%, rgba(74, 46, 22, 0.26) 10%, transparent 76%),
+                        radial-gradient(14px 11px at 2% 19%, rgba(255, 239, 209, 0.24) 10%, transparent 75%),
+                        radial-gradient(14px 11px at 98% 18%, rgba(255, 239, 209, 0.2) 10%, transparent 75%),
+                        radial-gradient(14px 11px at 2% 82%, rgba(71, 43, 20, 0.2) 10%, transparent 75%),
+                        radial-gradient(14px 11px at 98% 81%, rgba(71, 43, 20, 0.2) 10%, transparent 75%);
+                    opacity: var(--story-map-edge-opacity, 0.66);
+                    mix-blend-mode: multiply;
+                    filter: blur(0.2px);
+                }
+
+                .story-map-edge-overlay::after {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    background:
+                        repeating-linear-gradient(12deg, rgba(96, 66, 38, 0.065) 0 1px, transparent 1px 5px),
+                        repeating-linear-gradient(102deg, rgba(251, 241, 215, 0.05) 0 1px, transparent 1px 6px),
+                        radial-gradient(120% 14% at 50% 0%, rgba(75, 47, 23, 0.2), transparent 68%),
+                        radial-gradient(120% 14% at 50% 100%, rgba(75, 47, 23, 0.24), transparent 68%);
+                    mix-blend-mode: multiply;
+                    opacity: 0.36;
+                }
+
                 .story-doc-view [style*="color: rgb(0, 0, 0)"],
                 .story-doc-view [style*="color:rgb(0,0,0)"],
                 .story-doc-view [style*="color:#000"],

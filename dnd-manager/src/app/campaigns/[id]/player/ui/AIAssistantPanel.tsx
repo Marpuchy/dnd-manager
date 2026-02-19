@@ -1226,7 +1226,6 @@ export default function AIAssistantPanel({
     const trainingSplitResizeStartRef = useRef<{ x: number; width: number } | null>(null);
     const panelRef = useRef<HTMLElement | null>(null);
     const panelHeaderRef = useRef<HTMLElement | null>(null);
-    const panelHeaderChatIconRef = useRef<HTMLSpanElement | null>(null);
     const panelPositionRef = useRef<FloatingButtonPosition | null>(null);
     const panelDragRef = useRef<FloatingButtonDragState | null>(null);
     const floatingButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1469,19 +1468,24 @@ export default function AIAssistantPanel({
         position: FloatingButtonPosition
     ): FloatingButtonPosition => {
         if (typeof window === "undefined") return position;
-        const margin = 8;
+        const horizontalMargin = 0;
+        const verticalMargin = 8;
         const { width: buttonWidth, height: buttonHeight } = getFloatingButtonSize();
         const maxLeft = Math.max(
-            margin,
-            window.innerWidth - Math.max(buttonWidth, margin * 2) - margin
+            horizontalMargin,
+            window.innerWidth -
+                Math.max(buttonWidth, horizontalMargin * 2) -
+                horizontalMargin
         );
         const maxTop = Math.max(
-            margin,
-            window.innerHeight - Math.max(buttonHeight, margin * 2) - margin
+            verticalMargin,
+            window.innerHeight -
+                Math.max(buttonHeight, verticalMargin * 2) -
+                verticalMargin
         );
         return {
-            left: Math.min(Math.max(position.left, margin), maxLeft),
-            top: Math.min(Math.max(position.top, margin), maxTop),
+            left: Math.min(Math.max(position.left, horizontalMargin), maxLeft),
+            top: Math.min(Math.max(position.top, verticalMargin), maxTop),
         };
     };
 
@@ -1518,7 +1522,7 @@ export default function AIAssistantPanel({
         side: FloatingButtonDockSide
     ): FloatingButtonPosition => {
         if (typeof window === "undefined") return position;
-        const margin = 8;
+        const margin = 0;
         const { width: buttonWidth } = getFloatingButtonSize();
         const nextLeft =
             side === "left"
@@ -1536,37 +1540,8 @@ export default function AIAssistantPanel({
         }
         const { width: buttonWidth, height: buttonHeight } = getFloatingButtonSize();
         return clampFloatingButtonPosition({
-            left: window.innerWidth - buttonWidth - 8,
+            left: window.innerWidth - buttonWidth,
             top: window.innerHeight / 2 - buttonHeight / 2,
-        });
-    };
-
-    const getFloatingButtonCloseTargetFromHeader = (): FloatingButtonPosition | null => {
-        if (typeof window === "undefined") return null;
-        const headerIconRect = panelHeaderChatIconRef.current?.getBoundingClientRect();
-        if (!headerIconRect) return null;
-
-        const { width: buttonWidth, height: buttonHeight } = getFloatingButtonSize();
-        const buttonRect = floatingButtonRef.current?.getBoundingClientRect();
-        const buttonIconRect = floatingButtonRef.current
-            ?.querySelector("svg")
-            ?.getBoundingClientRect();
-        const iconOffsetX =
-            buttonRect && buttonIconRect
-                ? buttonIconRect.left + buttonIconRect.width / 2 - buttonRect.left
-                : buttonWidth / 2;
-        const iconOffsetY =
-            buttonRect && buttonIconRect
-                ? buttonIconRect.top + buttonIconRect.height / 2 - buttonRect.top
-                : buttonHeight / 2;
-        const headerIconCenterX = headerIconRect.left + headerIconRect.width / 2;
-        const headerIconCenterY = headerIconRect.top + headerIconRect.height / 2;
-        const edgeInset = FLOATING_DOCK_THRESHOLD + 6;
-        const maxLeft = Math.max(edgeInset, window.innerWidth - buttonWidth - edgeInset);
-
-        return clampFloatingButtonPosition({
-            left: Math.min(Math.max(headerIconCenterX - iconOffsetX, edgeInset), maxLeft),
-            top: Math.max(8, headerIconCenterY - iconOffsetY),
         });
     };
 
@@ -2294,18 +2269,60 @@ export default function AIAssistantPanel({
     }, [draggingPanel, isDesktopViewport, panelWidth, panelHeight, viewportWidth, viewportHeight]);
 
     function closeDrawer() {
-        const closeTarget = getFloatingButtonCloseTargetFromHeader();
-        onOpenChange(false);
-        if (!closeTarget || typeof window === "undefined") {
-            setFloatingButtonPinnedToHeader(false);
-            return;
+        setFloatingButtonPinnedToHeader(false);
+        setFloatingButtonNearDockSide(null);
+        if (isDesktopViewport) {
+            const panelRect = panelRef.current?.getBoundingClientRect();
+            const measuredPanelWidth = panelRect?.width
+                ? clampPanelWidth(Math.round(panelRect.width))
+                : clampPanelWidth(panelWidth);
+            const measuredPanelHeight = panelRect?.height
+                ? clampPanelHeight(Math.round(panelRect.height))
+                : clampPanelHeight(panelHeight);
+            const panelPositionAtClose = clampDesktopPanelPosition(
+                panelRect
+                    ? {
+                          left: panelRect.left,
+                          top: panelRect.top,
+                      }
+                    : panelPositionRef.current ??
+                          getDefaultDesktopPanelPosition(
+                              drawerSide,
+                              measuredPanelWidth,
+                              measuredPanelHeight
+                          ),
+                measuredPanelWidth,
+                measuredPanelHeight
+            );
+            const nearDockSide = getNearDesktopPanelDockSide(
+                panelPositionAtClose,
+                measuredPanelWidth,
+                DESKTOP_PANEL_DOCK_THRESHOLD * 0.6
+            );
+            const resolvedDockSide =
+                nearDockSide ??
+                getNearestDesktopPanelDockSide(
+                    panelPositionAtClose,
+                    measuredPanelWidth
+                );
+            const buttonTarget = nearDockSide
+                ? snapFloatingButtonToSide(
+                      {
+                          left: panelPositionAtClose.left,
+                          top: panelPositionAtClose.top,
+                      },
+                      resolvedDockSide
+                  )
+                : clampFloatingButtonPosition({
+                      left: panelPositionAtClose.left,
+                      top: panelPositionAtClose.top,
+                  });
+
+            setFloatingButtonDockSide(resolvedDockSide);
+            setFloatingButtonPosition(buttonTarget);
+            persistFloatingButtonPosition(buttonTarget, resolvedDockSide);
         }
-        window.requestAnimationFrame(() => {
-            setFloatingButtonNearDockSide(null);
-            setFloatingButtonPinnedToHeader(true);
-            setFloatingButtonPosition(closeTarget);
-            persistFloatingButtonPosition(closeTarget, floatingButtonDockSideRef.current);
-        });
+        onOpenChange(false);
     }
 
     function handleAcknowledgeAiNotice() {
@@ -3005,53 +3022,72 @@ export default function AIAssistantPanel({
                     }
                     setFloatingButtonPinnedToHeader(false);
                     const currentPosition =
-                        floatingButtonPositionRef.current ?? floatingButtonPosition;
-                    if (currentPosition) {
-                        const nearDockSide = getNearDockSide(currentPosition);
+                        floatingButtonPositionRef.current ??
+                        floatingButtonPosition ??
+                        getDefaultFloatingButtonPosition();
+                    if (currentPosition && isDesktopViewport) {
+                        const clampedButtonPosition =
+                            clampFloatingButtonPosition(currentPosition);
+                        const nearDockSide = getNearDockSide(clampedButtonPosition);
                         const resolvedDockSide =
-                            nearDockSide ?? getNearestDockSide(currentPosition);
+                            nearDockSide ?? getNearestDockSide(clampedButtonPosition);
+                        const stableButtonPosition = nearDockSide
+                            ? snapFloatingButtonToSide(
+                                  clampedButtonPosition,
+                                  resolvedDockSide
+                              )
+                            : clampedButtonPosition;
+
+                        const nextWidth = clampPanelWidth(panelWidth);
+                        const nextHeight = clampPanelHeight(panelHeight);
+                        const nextPanelPosition = nearDockSide
+                            ? snapDesktopPanelToSide(
+                                  {
+                                      left: stableButtonPosition.left,
+                                      top: stableButtonPosition.top,
+                                  },
+                                  nextWidth,
+                                  nextHeight,
+                                  resolvedDockSide
+                              )
+                            : clampDesktopPanelPosition(
+                                  {
+                                      left: stableButtonPosition.left,
+                                      top: stableButtonPosition.top,
+                                  },
+                                  nextWidth,
+                                  nextHeight
+                              );
+
+                        setPanelPosition(nextPanelPosition);
+                        setFloatingButtonPosition(stableButtonPosition);
+                        setFloatingButtonDockSide(resolvedDockSide);
+
                         if (nearDockSide) {
-                            const snapped = snapFloatingButtonToSide(
-                                currentPosition,
+                            persistFloatingButtonPosition(
+                                stableButtonPosition,
                                 resolvedDockSide
                             );
-                            setFloatingButtonPosition(snapped);
-                            persistFloatingButtonPosition(snapped, resolvedDockSide);
                         }
-                        setFloatingButtonDockSide(resolvedDockSide);
                     }
                     onOpenChange(true);
                 }}
-                className={`fixed z-40 border bg-panel/95 py-3 transition-[opacity,transform,left,top,border-radius,box-shadow] ${
-                    draggingFloatingButton && !floatingButtonIsDockPreviewActive
-                        ? "duration-100"
-                        : "duration-300"
-                } ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none hover:bg-white ${
+                className={`fixed z-40 border bg-panel/95 py-3 hover:bg-white ${
                     open
-                        ? "pointer-events-none opacity-0 scale-95"
+                        ? "pointer-events-none opacity-0"
                         : floatingButtonIsDockPreviewActive
-                          ? "pointer-events-auto opacity-100 scale-[1.03]"
-                          : "pointer-events-auto opacity-100 scale-100"
+                          ? "pointer-events-auto"
+                          : "pointer-events-auto"
                 } ${
                     floatingButtonPosition ? "" : "right-0 top-1/2 -translate-y-1/2"
                 } ${
-                    floatingButtonIsWallIntegrated
-                        ? floatingButtonWallSide === "left"
-                            ? "pl-6 pr-3"
-                            : "pl-3 pr-6"
-                        : "px-3"
+                    "px-3"
                 } ${
                     floatingButtonIsWallIntegrated
                         ? floatingButtonWallSide === "left"
-                            ? "rounded-2xl rounded-l-md"
-                            : "rounded-2xl rounded-r-md"
+                            ? "rounded-r-2xl rounded-l-none border-l-0"
+                            : "rounded-l-2xl rounded-r-none border-r-0"
                         : "rounded-2xl"
-                } ${
-                    floatingButtonIsWallIntegrated
-                        ? floatingButtonWallSide === "left"
-                            ? "-translate-x-[26%]"
-                            : "translate-x-[26%]"
-                        : ""
                 } ${
                     floatingButtonIsDockPreviewActive
                         ? "border-accent/75 shadow-[0_14px_34px_rgba(45,29,12,0.34)] ring-2 ring-accent/30 ring-offset-2 ring-offset-panel"
@@ -3071,33 +3107,29 @@ export default function AIAssistantPanel({
                     "Chat IA (arrastra para mover)",
                     "AI chat (drag to move)"
                 )}
-            >
-                <span
-                    className={`inline-flex items-center gap-2 text-xs font-medium text-ink ${
-                        floatingButtonIsWallIntegrated
-                            ? floatingButtonWallSide === "left"
-                                ? "ml-2"
-                                : "mr-2"
-                            : ""
-                    }`}
                 >
-                    <Sparkles className="h-4 w-4 text-accent" />
-                    <span className="hidden sm:inline">{t("Chat IA", "AI Chat")}</span>
-                </span>
+                    <span
+                        className="inline-flex items-center gap-2 text-xs font-medium text-ink"
+                    >
+                        <span className="inline-flex items-center justify-center">
+                            <Sparkles className="h-4 w-4 text-accent" />
+                        </span>
+                        <span className="hidden sm:inline">{t("Chat IA", "AI Chat")}</span>
+                    </span>
             </button>
 
             <button
                 type="button"
                 onClick={closeDrawer}
-                className={`fixed inset-0 z-40 bg-black/20 transition-opacity duration-300 ease-out motion-reduce:transition-none md:hidden ${
-                    open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+                className={`fixed inset-0 z-40 bg-black/20 md:hidden ${
+                    open ? "pointer-events-auto" : "pointer-events-none hidden"
                 }`}
                 aria-label={t("Cerrar chat de IA", "Close AI chat")}
             />
 
             <aside
                 ref={panelRef}
-                className={`fixed z-50 bg-panel/95 will-change-transform transition-[transform,opacity,filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                className={`fixed z-50 bg-panel/95 ${
                     isDesktopViewport
                         ? `${desktopPanelShellClass} ${
                               panelIsDockPreviewActive
@@ -3108,17 +3140,9 @@ export default function AIAssistantPanel({
                               drawerSide === "right"
                                   ? "right-0 origin-right border-l border-ring shadow-[-12px_0_28px_rgba(45,29,12,0.2)]"
                                   : "left-0 origin-left border-r border-ring shadow-[12px_0_28px_rgba(45,29,12,0.2)]"
-                          }`
+                           }`
                 } ${
-                    open
-                        ? "translate-x-0 scale-100 opacity-100 blur-0"
-                        : isDesktopViewport
-                          ? `pointer-events-none ${
-                                drawerSide === "right" ? "translate-x-8" : "-translate-x-8"
-                            } scale-[0.985] opacity-0 blur-[1.5px]`
-                          : drawerSide === "right"
-                            ? "pointer-events-none translate-x-full scale-[0.985] opacity-0 blur-[1.5px]"
-                            : "pointer-events-none -translate-x-full scale-[0.985] opacity-0 blur-[1.5px]"
+                    open ? "" : "pointer-events-none hidden"
                 }`}
                 style={
                     isDesktopViewport
@@ -3205,7 +3229,6 @@ export default function AIAssistantPanel({
                             <div>
                                 <h3 className="text-sm font-semibold text-ink inline-flex items-center gap-2">
                                     <span
-                                        ref={panelHeaderChatIconRef}
                                         className="inline-flex h-4 w-4 items-center justify-center"
                                     >
                                         <Sparkles className="h-4 w-4 text-accent" />

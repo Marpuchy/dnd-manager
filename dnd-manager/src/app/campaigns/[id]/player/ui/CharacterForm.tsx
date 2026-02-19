@@ -980,7 +980,6 @@ export function CharacterForm({
                 max_hp: previewMaxHp !== undefined && previewMaxHp !== null ? Number(previewMaxHp) : null,
                 current_hp: currentHp !== undefined && currentHp !== null ? Number(currentHp) : null,
                 stats: statsPayload,
-                details: {} // actualizaremos después
             };
             if (!isExistingCharacter) {
                 basePayload.user_id = userId ?? null;

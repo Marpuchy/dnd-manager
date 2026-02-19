@@ -1,7 +1,14 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, DragEvent } from "react";
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type DragEvent,
+    type CSSProperties,
+} from "react";
 import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
@@ -9,12 +16,16 @@ import { tr } from "@/lib/i18n/translate";
 import CharacterView from "../player/ui/CharacterView";
 import { CharacterForm } from "../player/ui/CharacterForm";
 import { SpellManagerPanel } from "../player/srd/SpellManagerPanel";
-import SettingsPanel from "../player/ui/SettingsPanel";
 import AIAssistantPanel, {
     type AIAssistantClientContext,
 } from "../player/ui/AIAssistantPanel";
 import { useCharacterForm } from "../player/hooks/useCharacterForm";
-import type { Character, Details, Tab } from "../player/playerShared";
+import {
+    getClassSelectionPalette,
+    type Character,
+    type Details,
+    type Tab,
+} from "../player/playerShared";
 import StoryManagerPanel from "./StoryManagerPanel";
 
 type MembershipRow = {
@@ -43,16 +54,19 @@ export default function CampaignDMPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [activeSection, setActiveSection] = useState<DMSection>("players");
+    const activeSectionRef = useRef<DMSection>("players");
+    const previousSectionRef = useRef<DMSection>("players");
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
     const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
     const [playerPanelMode, setPlayerPanelMode] = useState<PlayerPanelMode>("idle");
     const [playerViewTab, setPlayerViewTab] = useState<Tab>("stats");
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [assistantOpen, setAssistantOpen] = useState(false);
     const [isOverTrash, setIsOverTrash] = useState(false);
     const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
     const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
+    const [selectionPulse, setSelectionPulse] = useState(0);
+    const [showCompanions, setShowCompanions] = useState(false);
 
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [characters, setCharacters] = useState<Character[]>([]);
@@ -177,6 +191,40 @@ export default function CampaignDMPage() {
     }, [params.id, router]);
 
     useEffect(() => {
+        activeSectionRef.current = activeSection;
+    }, [activeSection]);
+
+    useEffect(() => {
+        const previousSection = previousSectionRef.current;
+        const enteringPlayers =
+            previousSection !== "players" && activeSection === "players";
+
+        if (!enteringPlayers) {
+            previousSectionRef.current = activeSection;
+            return;
+        }
+
+        if (characters.length === 0) {
+            setEditingCharacterId(null);
+            setPlayerEditorOpen(false);
+            setPlayerPanelMode("idle");
+            previousSectionRef.current = activeSection;
+            return;
+        }
+
+        const firstCharacter =
+            characters.find((character) => character.character_type !== "companion") ??
+            characters[0];
+        if (firstCharacter) {
+            setEditingCharacterId(firstCharacter.id);
+            setPlayerEditorOpen(true);
+            setPlayerPanelMode("view");
+        }
+
+        previousSectionRef.current = activeSection;
+    }, [activeSection, characters]);
+
+    useEffect(() => {
         if (characters.length === 0) {
             setEditingCharacterId(null);
             setPlayerEditorOpen(false);
@@ -190,6 +238,19 @@ export default function CampaignDMPage() {
                 setPlayerEditorOpen(false);
                 setPlayerPanelMode("idle");
             }
+            return;
+        }
+
+        // Auto-select first character when opening Player Manager with no active selection.
+        const firstCharacter =
+            characters.find((character) => character.character_type !== "companion") ??
+            characters[0];
+        if (!firstCharacter) return;
+
+        setEditingCharacterId(firstCharacter.id);
+        if (activeSectionRef.current === "players") {
+            setPlayerEditorOpen(true);
+            setPlayerPanelMode("view");
         }
     }, [characters, editingCharacterId]);
 
@@ -198,6 +259,20 @@ export default function CampaignDMPage() {
     const ownerOptions = characters
         .filter((character) => character.character_type !== "companion")
         .map((character) => ({ id: character.id, name: character.name }));
+    const playerCharacters = useMemo(
+        () =>
+            characters.filter(
+                (character) => character.character_type !== "companion"
+            ),
+        [characters]
+    );
+    const companionCharacters = useMemo(
+        () =>
+            characters.filter(
+                (character) => character.character_type === "companion"
+            ),
+        [characters]
+    );
     const assistantContext: AIAssistantClientContext = useMemo(
         () => ({
             surface: "dm",
@@ -243,6 +318,7 @@ export default function CampaignDMPage() {
     }
 
     function handleOpenCharacterView(id: string) {
+        setSelectionPulse((value) => value + 1);
         flushEditorSaveIfNeeded();
         setEditingCharacterId(id);
         setPlayerEditorOpen(true);
@@ -318,15 +394,39 @@ export default function CampaignDMPage() {
     }
 
     function reorderCharacters(list: Character[], sourceId: string, targetId: string) {
-        const sourceIndex = list.findIndex((character) => character.id === sourceId);
-        const targetIndex = list.findIndex((character) => character.id === targetId);
-        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return list;
+        const sourceCharacter = list.find((character) => character.id === sourceId);
+        const targetCharacter = list.find((character) => character.id === targetId);
+        if (!sourceCharacter || !targetCharacter || sourceId === targetId) return list;
 
-        const next = [...list];
-        const [moved] = next.splice(sourceIndex, 1);
-        next.splice(targetIndex, 0, moved);
+        const sourceIsCompanion = sourceCharacter.character_type === "companion";
+        const targetIsCompanion = targetCharacter.character_type === "companion";
+        if (sourceIsCompanion !== targetIsCompanion) return list;
 
-        return next.map((character, index) => ({
+        const sameGroup = list.filter(
+            (character) =>
+                (character.character_type === "companion") === sourceIsCompanion
+        );
+        const sourceIndex = sameGroup.findIndex((character) => character.id === sourceId);
+        const targetIndex = sameGroup.findIndex((character) => character.id === targetId);
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+            return list;
+        }
+
+        const reorderedGroup = [...sameGroup];
+        const [moved] = reorderedGroup.splice(sourceIndex, 1);
+        reorderedGroup.splice(targetIndex, 0, moved);
+
+        let groupCursor = 0;
+        const merged = list.map((character) => {
+            const belongsToGroup =
+                (character.character_type === "companion") === sourceIsCompanion;
+            if (!belongsToGroup) return character;
+            const replacement = reorderedGroup[groupCursor];
+            groupCursor += 1;
+            return replacement;
+        });
+
+        return merged.map((character, index) => ({
             ...character,
             details: {
                 ...(character.details ?? {}),
@@ -349,6 +449,17 @@ export default function CampaignDMPage() {
     function handleDragOverCharacter(event: DragEvent, characterId: string) {
         event.preventDefault();
         if (!draggedCharacterId || draggedCharacterId === characterId) return;
+        const sourceCharacter = characters.find(
+            (character) => character.id === draggedCharacterId
+        );
+        const targetCharacter = characters.find(
+            (character) => character.id === characterId
+        );
+        if (!sourceCharacter || !targetCharacter) return;
+        const sameGroup =
+            (sourceCharacter.character_type === "companion") ===
+            (targetCharacter.character_type === "companion");
+        if (!sameGroup) return;
         setDragOverCharacterId(characterId);
         event.dataTransfer.dropEffect = "move";
     }
@@ -366,6 +477,16 @@ export default function CampaignDMPage() {
             }
 
             setCharacters((prev) => {
+                const sourceCharacter = prev.find((character) => character.id === parsed.id);
+                const targetCharacter = prev.find(
+                    (character) => character.id === targetCharacterId
+                );
+                if (!sourceCharacter || !targetCharacter) return prev;
+                const sameGroup =
+                    (sourceCharacter.character_type === "companion") ===
+                    (targetCharacter.character_type === "companion");
+                if (!sameGroup) return prev;
+
                 const next = reorderCharacters(prev, parsed.id as string, targetCharacterId);
                 void persistCharactersOrder(next);
                 return next;
@@ -380,6 +501,97 @@ export default function CampaignDMPage() {
     function handleDragEndCharacter() {
         setDraggedCharacterId(null);
         setDragOverCharacterId(null);
+    }
+
+    function getSelectionBlobStyle(rawClass: string | null | undefined): CSSProperties {
+        const palette = getClassSelectionPalette(rawClass);
+        return {
+            ["--selection-rgb" as string]: palette.rgb,
+            backgroundColor: palette.background,
+            borderColor: palette.border,
+            boxShadow: `${palette.shadow}, 0 0 0 1px ${palette.ring}`,
+        };
+    }
+
+    function renderCharacterListItem(
+        character: Character,
+        showCompanionBadge = false
+    ) {
+        const isSelected = playerEditorOpen && editingCharacterId === character.id;
+        const selectedStyle = isSelected ? getSelectionBlobStyle(character.class) : undefined;
+
+        return (
+            <li
+                key={character.id}
+                onClick={() => handleOpenCharacterView(character.id)}
+                style={selectedStyle}
+                draggable
+                onDragStart={(event) =>
+                    handleDragStartCharacter(event, character.id)
+                }
+                onDragOver={(event) =>
+                    handleDragOverCharacter(event, character.id)
+                }
+                onDrop={(event) =>
+                    handleDropOnCharacter(event, character.id)
+                }
+                onDragEnd={handleDragEndCharacter}
+                className={`relative isolate overflow-hidden border rounded-md px-3 py-2 cursor-pointer transition-[border-color,box-shadow,background-color] ${
+                    dragOverCharacterId === character.id
+                        ? "ring-2 ring-accent/45"
+                        : ""
+                } ${
+                    isSelected
+                        ? "border-transparent"
+                        : "border-ring bg-white/70 hover:bg-white"
+                }`}
+            >
+                {isSelected && selectionPulse > 0 && (
+                    <span
+                        key={`selection-blob-${character.id}-${selectionPulse}`}
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 z-0 player-selection-blob"
+                    >
+                        <span className="player-selection-blob__inner">
+                            <span className="player-selection-blob__blobs">
+                                <span className="player-selection-blob__blob" />
+                                <span className="player-selection-blob__blob" />
+                                <span className="player-selection-blob__blob" />
+                                <span className="player-selection-blob__blob" />
+                            </span>
+                        </span>
+                    </span>
+                )}
+                <div className="relative z-10 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <p className="font-medium text-ink truncate">
+                                {character.name}
+                            </p>
+                            {showCompanionBadge && (
+                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
+                                    {t("Compañero", "Companion")}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-ink-muted truncate">
+                            {(character.class ?? t("Sin clase", "No class"))} -{" "}
+                            {t("Nivel", "Level")} {character.level ?? 1}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            handleEditCharacter(character);
+                        }}
+                        className="text-[11px] px-2 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
+                    >
+                        {t("Editar", "Edit")}
+                    </button>
+                </div>
+            </li>
+        );
     }
 
     function handleTrashDragOver(event: DragEvent) {
@@ -608,6 +820,24 @@ export default function CampaignDMPage() {
 
     return (
         <main className="relative h-screen bg-surface text-ink flex overflow-hidden">
+            <svg
+                aria-hidden
+                focusable="false"
+                className="pointer-events-none absolute h-0 w-0 overflow-hidden"
+            >
+                <defs>
+                    <filter id="player-selection-goo">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+                        <feColorMatrix
+                            in="blur"
+                            mode="matrix"
+                            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 17 -6"
+                            result="goo"
+                        />
+                        <feBlend in="SourceGraphic" in2="goo" />
+                    </filter>
+                </defs>
+            </svg>
             <aside
                 className={`relative z-10 h-full overflow-y-auto overflow-x-hidden styled-scrollbar border-r border-ring rounded-r-3xl bg-panel/90 p-4 space-y-3 transition-[width,box-shadow,background-color] duration-300 ease-in-out motion-reduce:transition-none ${
                     sidebarOpen ? "w-72 shadow-[0_18px_50px_rgba(45,29,12,0.18)]" : "w-16 shadow-none"
@@ -748,12 +978,14 @@ export default function CampaignDMPage() {
                 <div className="flex items-center justify-end">
                     <button
                         type="button"
-                        onClick={() => setSettingsOpen(true)}
-                        className="inline-flex items-center gap-2 rounded-md border border-ring bg-white/70 px-3 py-1.5 text-[11px] text-ink hover:bg-white"
+                        onClick={() =>
+                            router.push(`/campaigns/${String(params.id)}/settings?from=dm`)
+                        }
+                        className="settings-nav-button inline-flex items-center gap-2 rounded-md border border-ring bg-white/70 px-3 py-1.5 text-[11px] text-ink hover:bg-white"
                         aria-label={t("Abrir ajustes", "Open settings")}
                         title={t("Ajustes", "Settings")}
                     >
-                        <Settings className="h-3.5 w-3.5 text-ink" />
+                        <Settings className="settings-button-icon h-3.5 w-3.5 text-ink" />
                         <span className="hidden sm:inline">{t("Ajustes", "Settings")}</span>
                     </button>
                 </div>
@@ -778,8 +1010,9 @@ export default function CampaignDMPage() {
 
                         <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
                             <div className="space-y-3 max-h-[calc(100vh-12rem)] overflow-y-auto styled-scrollbar pr-1">
-                                <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-2">
-                                    {characters.length === 0 ? (
+                                <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-3">
+                                    {playerCharacters.length === 0 &&
+                                    companionCharacters.length === 0 ? (
                                         <p className="text-sm text-ink-muted">
                                             {t(
                                                 "No hay personajes en la campana.",
@@ -787,56 +1020,66 @@ export default function CampaignDMPage() {
                                             )}
                                         </p>
                                     ) : (
-                                        <ul className="space-y-2">
-                                            {characters.map((char) => (
-                                                <li
-                                                    key={char.id}
-                                                    onClick={() => handleOpenCharacterView(char.id)}
-                                                    draggable
-                                                    onDragStart={(event) =>
-                                                        handleDragStartCharacter(event, char.id)
+                                        <>
+                                            <div className="space-y-2">
+                                                <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                                                    {t("Personajes", "Characters")}
+                                                </p>
+                                                {playerCharacters.length === 0 ? (
+                                                    <p className="text-sm text-ink-muted">
+                                                        {t(
+                                                            "No hay personajes de jugador.",
+                                                            "No player characters."
+                                                        )}
+                                                    </p>
+                                                ) : (
+                                                    <ul className="space-y-2">
+                                                        {playerCharacters.map((character) =>
+                                                            renderCharacterListItem(character)
+                                                        )}
+                                                    </ul>
+                                                )}
+                                            </div>
+
+                                            <div className="border-t border-ring/60 pt-3 space-y-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setShowCompanions((prev) => !prev)
                                                     }
-                                                    onDragOver={(event) =>
-                                                        handleDragOverCharacter(event, char.id)
-                                                    }
-                                                    onDrop={(event) =>
-                                                        handleDropOnCharacter(event, char.id)
-                                                    }
-                                                    onDragEnd={handleDragEndCharacter}
-                                                    className={`border rounded-md px-3 py-2 ${
-                                                        dragOverCharacterId === char.id
-                                                            ? "border-accent bg-accent/15"
-                                                            : ""
-                                                    } ${
-                                                        playerEditorOpen && editingCharacterId === char.id
-                                                            ? "border-accent bg-accent/10"
-                                                            : "border-ring bg-white/70 hover:bg-white cursor-pointer"
-                                                    }`}
+                                                    className="w-full flex items-center justify-between rounded-md border border-ring bg-white/70 px-3 py-2 text-xs text-ink hover:bg-white"
                                                 >
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="font-medium text-ink truncate">
-                                                                {char.name}
-                                                            </p>
-                                                            <p className="text-xs text-ink-muted truncate">
-                                                                {(char.class ?? t("Sin clase", "No class"))} -{" "}
-                                                                {t("Nivel", "Level")} {char.level ?? 1}
-                                                            </p>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                handleEditCharacter(char);
-                                                            }}
-                                                            className="text-[11px] px-2 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
-                                                        >
-                                                            {t("Editar", "Edit")}
-                                                        </button>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
+                                                    <span className="font-semibold uppercase tracking-[0.2em] text-ink-muted">
+                                                        {t("Compañeros", "Companions")} (
+                                                        {companionCharacters.length})
+                                                    </span>
+                                                    <span>
+                                                        {showCompanions
+                                                            ? t("Ocultar", "Hide")
+                                                            : t("Mostrar", "Show")}
+                                                    </span>
+                                                </button>
+
+                                                {showCompanions &&
+                                                    (companionCharacters.length === 0 ? (
+                                                        <p className="text-sm text-ink-muted">
+                                                            {t(
+                                                                "No hay compañeros creados.",
+                                                                "No companions created."
+                                                            )}
+                                                        </p>
+                                                    ) : (
+                                                        <ul className="space-y-2">
+                                                            {companionCharacters.map((character) =>
+                                                                renderCharacterListItem(
+                                                                    character,
+                                                                    true
+                                                                )
+                                                            )}
+                                                        </ul>
+                                                    ))}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
 
@@ -1044,12 +1287,6 @@ export default function CampaignDMPage() {
                     if (!freshCharacter) return;
                     loadFromCharacter(freshCharacter);
                 }}
-            />
-            <SettingsPanel
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                campaignId={String(params.id)}
-                canManageZoneTrash
             />
         </main>
     );

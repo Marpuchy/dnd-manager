@@ -2,7 +2,15 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, FormEvent, DragEvent } from "react";
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type FormEvent,
+    type DragEvent,
+    type CSSProperties,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { computeMaxHp } from "@/lib/dndMath";
 import {
@@ -14,6 +22,7 @@ import {
     Mode,
     Tab,
     prettyClassLabel,
+    getClassSelectionPalette,
 } from "./playerShared";
 import ClickableRow from "../../../components/ClickableRow";
 import CharacterView from "./ui/CharacterView";
@@ -21,7 +30,6 @@ import { CharacterForm } from "./ui/CharacterForm";
 import { SpellManagerPanel } from "./srd/SpellManagerPanel";
 import { useCharacterForm } from "./hooks/useCharacterForm";
 import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide-react";
-import SettingsPanel from "./ui/SettingsPanel";
 import AIAssistantPanel, { type AIAssistantClientContext } from "./ui/AIAssistantPanel";
 import StoryPlayerView from "./ui/StoryPlayerView";
 import { getSubclassName } from "@/lib/dnd/classAbilities";
@@ -64,7 +72,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     const [isOverTrash, setIsOverTrash] = useState(false);
     const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
     const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
-    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [selectionPulse, setSelectionPulse] = useState(0);
     const [assistantOpen, setAssistantOpen] = useState(false);
 
     // Edición / creación
@@ -285,6 +293,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     }
 
     function selectCharacter(id: string) {
+        setSelectionPulse((value) => value + 1);
         setSelectedId(id);
         setActiveSection("characters");
         setMode("view");
@@ -691,6 +700,16 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         return `${char.race || tr(locale, "Sin raza", "No race")} · ${classLabelWithSubclass(char)} · ${tr(locale, "Nivel", "Level")} ${char.level ?? "?"}`;
     }
 
+    function getSelectionBlobStyle(rawClass: string | null | undefined): CSSProperties {
+        const palette = getClassSelectionPalette(rawClass);
+        return {
+            ["--selection-rgb" as string]: palette.rgb,
+            backgroundColor: palette.background,
+            borderColor: palette.border,
+            boxShadow: `${palette.shadow}, 0 0 0 1px ${palette.ring}`,
+        };
+    }
+
     const autoSaveSignature = useMemo(
         () =>
             JSON.stringify({
@@ -1014,6 +1033,24 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 
     return (
         <main className="relative flex min-h-[100dvh] bg-surface text-ink overflow-x-hidden">
+            <svg
+                aria-hidden
+                focusable="false"
+                className="pointer-events-none absolute h-0 w-0 overflow-hidden"
+            >
+                <defs>
+                    <filter id="player-selection-goo">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+                        <feColorMatrix
+                            in="blur"
+                            mode="matrix"
+                            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 17 -6"
+                            result="goo"
+                        />
+                        <feBlend in="SourceGraphic" in2="goo" />
+                    </filter>
+                </defs>
+            </svg>
             {!charsOpen && (
                 <button
                     type="button"
@@ -1139,69 +1176,103 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             </p>
                         ) : (
                             <ul className="w-full space-y-2 text-sm px-1">
-                                {characters.map((ch) => (
-                                    <li
-                                        key={ch.id}
-                                        className={`relative grid w-full grid-cols-[minmax(0,1fr)_36px] items-stretch gap-3 ${
-                                            dragOverCharacterId === ch.id
-                                                ? "ring-2 ring-accent/45 rounded-md"
-                                                : ""
-                                        }`}
-                                        draggable
-                                        onDragStart={(e) => handleDragStartCharacter(e, ch.id)}
-                                        onDragOver={(e) => handleDragOverCharacter(e, ch.id)}
-                                        onDrop={(e) => handleDropOnCharacter(e, ch.id)}
-                                        onDragEnd={handleDragEndCharacter}
-                                    >
-                                        <div className="min-w-0">
-                                            <ClickableRow
-                                                onClick={() => selectCharacter(ch.id)}
-                                                className={`w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 transition-all cursor-grab active:cursor-grabbing ${
-                                                    selectedId === ch.id
-                                                        ? "border-accent bg-accent/15 shadow-[0_8px_20px_rgba(179,90,44,0.15)] ring-1 ring-accent/35"
-                                                        : "border-ring/80 bg-white/80 hover:bg-white hover:border-accent/40 hover:shadow-[0_8px_20px_rgba(45,29,12,0.12)]"
-                                                }`}
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2 min-w-0">
-                                                            <p className="font-medium text-sm text-ink truncate">{ch.name}</p>
-                                                            {ch.character_type === "companion" && (
-                                                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
-                                                                    {tr(locale, "Compañero", "Companion")}
+                                {characters.map((ch) => {
+                                    const isSelected = selectedId === ch.id;
+                                    const selectedStyle = isSelected
+                                        ? getSelectionBlobStyle(ch.class)
+                                        : undefined;
+
+                                    return (
+                                        <li
+                                            key={ch.id}
+                                            className={`relative grid w-full grid-cols-[minmax(0,1fr)_36px] items-stretch gap-3 ${
+                                                dragOverCharacterId === ch.id
+                                                    ? "ring-2 ring-accent/45 rounded-md"
+                                                    : ""
+                                            }`}
+                                            draggable
+                                            onDragStart={(e) => handleDragStartCharacter(e, ch.id)}
+                                            onDragOver={(e) => handleDragOverCharacter(e, ch.id)}
+                                            onDrop={(e) => handleDropOnCharacter(e, ch.id)}
+                                            onDragEnd={handleDragEndCharacter}
+                                        >
+                                            <div className="min-w-0">
+                                                <ClickableRow
+                                                    onClick={() => selectCharacter(ch.id)}
+                                                    style={selectedStyle}
+                                                    className={`relative isolate overflow-hidden w-full text-left px-3 py-3 rounded-md border text-xs flex flex-col gap-0.5 transition-[border-color,box-shadow,background-color] cursor-grab active:cursor-grabbing ${
+                                                        isSelected
+                                                            ? "border-transparent"
+                                                            : "border-ring/80 bg-white/80 hover:bg-white hover:border-accent/40 hover:shadow-[0_8px_20px_rgba(45,29,12,0.12)]"
+                                                    }`}
+                                                >
+                                                    {isSelected && selectionPulse > 0 && (
+                                                        <span
+                                                            key={`selection-blob-${ch.id}-${selectionPulse}`}
+                                                            aria-hidden
+                                                            className="pointer-events-none absolute inset-0 z-0 player-selection-blob"
+                                                        >
+                                                            <span className="player-selection-blob__inner">
+                                                                <span className="player-selection-blob__blobs">
+                                                                    <span className="player-selection-blob__blob" />
+                                                                    <span className="player-selection-blob__blob" />
+                                                                    <span className="player-selection-blob__blob" />
+                                                                    <span className="player-selection-blob__blob" />
                                                                 </span>
-                                                            )}
+                                                            </span>
+                                                        </span>
+                                                    )}
+                                                    <div className="relative z-10 flex items-center justify-between">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <p className="font-medium text-sm text-ink truncate">
+                                                                    {ch.name}
+                                                                </p>
+                                                                {ch.character_type === "companion" && (
+                                                                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
+                                                                        {tr(
+                                                                            locale,
+                                                                            "Compañero",
+                                                                            "Companion"
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[11px] text-ink-muted truncate">
+                                                                {characterSummary(ch)}
+                                                            </p>
                                                         </div>
-                                                        <p className="text-[11px] text-ink-muted truncate">
-                                                            {characterSummary(ch)}
-                                                        </p>
-                                                    </div>
 
-                                                    <div className="flex-shrink-0 ml-2">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-accent/40 bg-white/70 text-ink">
-                              {ch.level ?? "?"}
-                            </span>
+                                                        <div className="flex-shrink-0 ml-2">
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-accent/40 bg-white/70 text-ink">
+                                                                {ch.level ?? "?"}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </ClickableRow>
-                                        </div>
+                                                </ClickableRow>
+                                            </div>
 
-                                        <div className="w-9 flex items-center justify-center">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    startEdit(ch);
-                                                }}
-                                                className="h-9 w-9 rounded border border-ring hover:bg-ink/5 bg-white/70 inline-flex items-center justify-center text-ink"
-                                                aria-label={`${tr(locale, "Editar", "Edit")} ${ch.name}`}
-                                                title={tr(locale, "Editar", "Edit")}
-                                            >
-                                                <Edit2 className="h-4 w-4 text-ember" />
-                                            </button>
-                                        </div>
-                                    </li>
-                                ))}
+                                            <div className="w-9 flex items-center justify-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        startEdit(ch);
+                                                    }}
+                                                    className="h-9 w-9 rounded border border-ring hover:bg-ink/5 bg-white/70 inline-flex items-center justify-center text-ink"
+                                                    aria-label={`${tr(
+                                                        locale,
+                                                        "Editar",
+                                                        "Edit"
+                                                    )} ${ch.name}`}
+                                                    title={tr(locale, "Editar", "Edit")}
+                                                >
+                                                    <Edit2 className="h-4 w-4 text-ember" />
+                                                </button>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>
@@ -1304,12 +1375,14 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => setSettingsOpen(true)}
-                                    className="inline-flex items-center gap-2 rounded-md border border-ring bg-white/70 px-3 py-1.5 text-[11px] text-ink hover:bg-white"
+                                    onClick={() =>
+                                        router.push(`/campaigns/${String(params.id)}/settings?from=player`)
+                                    }
+                                    className="settings-nav-button inline-flex items-center gap-2 rounded-md border border-ring bg-white/70 px-3 py-1.5 text-[11px] text-ink hover:bg-white"
                                     aria-label={tr(locale, "Abrir ajustes", "Open settings")}
                                     title={tr(locale, "Ajustes", "Settings")}
                                 >
-                                    <Settings className="h-3.5 w-3.5 text-ink" />
+                                    <Settings className="settings-button-icon h-3.5 w-3.5 text-ink" />
                                     <span className="hidden sm:inline">{tr(locale, "Ajustes", "Settings")}</span>
                                 </button>
                                 {activeSection === "characters" && (mode === "create" || mode === "edit") && (
@@ -1522,7 +1595,6 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                     loadFromCharacter(freshCharacter);
                 }}
             />
-            <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </main>
     );
 }

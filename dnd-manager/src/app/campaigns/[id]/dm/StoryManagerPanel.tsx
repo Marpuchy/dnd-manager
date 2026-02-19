@@ -164,6 +164,225 @@ const MAX_MAP_IMAGE_BYTES = 50 * 1024 * 1024;
 const EDITOR_PANEL_DEFAULT_WIDTH = 640;
 const EDITOR_PANEL_MIN_WIDTH = 320;
 const EDITOR_PANEL_MAX_VIEWPORT_RATIO = 0.75;
+const STORY_MANAGER_GLOBAL_STYLES = `
+    .story-manager-surface button:not(:disabled):not(.story-zone-node) {
+        transition:
+            transform 160ms ease,
+            box-shadow 220ms ease,
+            border-color 220ms ease,
+            background-color 220ms ease,
+            color 220ms ease,
+            opacity 220ms ease,
+            filter 220ms ease;
+    }
+
+    .story-manager-surface button:not(:disabled):not(.story-zone-node):hover {
+        transform: translateY(-1px);
+        border-color: color-mix(in oklab, var(--accent), var(--ring) 58%);
+        box-shadow: 0 10px 24px -18px color-mix(in oklab, var(--ink), transparent 42%);
+    }
+
+    .story-manager-surface .story-zone-node {
+        transition:
+            transform 150ms ease,
+            box-shadow 200ms ease,
+            filter 200ms ease,
+            opacity 200ms ease;
+    }
+
+    .story-manager-surface .story-zone-node:hover {
+        filter: brightness(1.06) saturate(1.08);
+    }
+
+    .story-manager-surface :is(input:not([type="checkbox"]):not([type="range"]):not([type="color"]), select, textarea) {
+        transition:
+            border-color 200ms ease,
+            background-color 200ms ease,
+            box-shadow 200ms ease;
+    }
+
+    .story-manager-surface :is(input:not([type="checkbox"]):not([type="range"]):not([type="color"]), select, textarea):hover {
+        border-color: color-mix(in oklab, var(--accent), var(--ring) 62%);
+        background-color: color-mix(in oklab, var(--panel), white 50%);
+    }
+
+    .story-manager-surface :is(input:not([type="checkbox"]):not([type="range"]):not([type="color"]), select, textarea):focus-visible {
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent), transparent 72%);
+    }
+
+    .story-manager-surface :is(div, section, aside, article).rounded-xl.border,
+    .story-manager-surface :is(div, section, aside, article).rounded-md.border {
+        transition:
+            border-color 220ms ease,
+            box-shadow 220ms ease,
+            background-color 220ms ease;
+    }
+
+    .story-manager-surface :is(div, section, aside, article).rounded-xl.border:hover,
+    .story-manager-surface :is(div, section, aside, article).rounded-md.border:hover {
+        border-color: color-mix(in oklab, var(--accent), var(--ring) 72%);
+        box-shadow: 0 14px 30px -24px color-mix(in oklab, var(--ink), transparent 38%);
+    }
+
+    .story-manager-surface .story-map-canvas {
+        overflow: hidden;
+        isolation: isolate;
+        border-radius: 12px;
+        clip-path: polygon(1.8% 2.4%, 5.9% 1.7%, 10.8% 2.3%, 15.9% 1.6%, 21.7% 2.5%, 28.4% 1.4%, 35.6% 2.2%, 43.1% 1.5%, 50.4% 2.6%, 58.3% 1.3%, 66.1% 2.4%, 73.8% 1.6%, 81.4% 2.5%, 88.4% 1.4%, 94.1% 2.3%, 97.7% 1.9%, 98.6% 6.8%, 97.9% 13.4%, 98.8% 21.7%, 97.8% 30.6%, 98.9% 40.5%, 97.7% 50.2%, 98.8% 60.8%, 97.9% 70.6%, 98.7% 80.7%, 97.6% 89.4%, 98.4% 95.2%, 97.1% 98.1%, 92.1% 98.8%, 86.2% 97.7%, 79.3% 98.9%, 72.5% 97.8%, 65.6% 99.1%, 58.7% 97.9%, 51.6% 99.2%, 44.8% 97.8%, 38.1% 99%, 31.2% 97.7%, 24.5% 98.8%, 18.6% 97.6%, 12.5% 98.7%, 7% 97.9%, 2.8% 98.5%, 1.4% 93.6%, 2.3% 85.8%, 1.2% 77.9%, 2.4% 68.6%, 1.1% 59.8%, 2.5% 50.6%, 1.3% 41.2%, 2.4% 31.7%, 1.2% 22.9%, 2.3% 14.1%, 1.4% 6.7%);
+        background: color-mix(in oklab, var(--panel), #d9bb8b 16%);
+        box-shadow: 0 18px 38px -30px rgba(35, 20, 8, 0.78);
+    }
+
+    .story-manager-surface .story-map-base {
+        filter:
+            sepia(var(--story-map-sepia, 0.24))
+            saturate(var(--story-map-saturate, 0.88))
+            contrast(var(--story-map-contrast, 1.05))
+            brightness(var(--story-map-brightness, 1));
+    }
+
+    .story-manager-surface .story-map-aging-overlay {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        background-image:
+            radial-gradient(circle at 11% 9%, rgba(255, 244, 219, 0.38), transparent 34%),
+            radial-gradient(circle at 87% 82%, rgba(79, 49, 24, 0.24), transparent 40%),
+            radial-gradient(circle at 48% 48%, rgba(111, 76, 42, 0.12), transparent 62%),
+            repeating-linear-gradient(23deg, rgba(98, 66, 36, 0.055) 0 2px, rgba(252, 244, 224, 0.042) 2px 4px),
+            radial-gradient(circle at 2px 2px, rgba(97, 64, 32, 0.11) 1px, transparent 1.9px);
+        background-size: auto, auto, auto, auto, 24px 24px;
+        mix-blend-mode: multiply;
+        opacity: var(--story-map-overlay-opacity, 0.56);
+    }
+
+    .story-manager-surface .story-map-edge-overlay {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        box-shadow:
+            inset 0 0 0 1px rgba(105, 71, 37, 0.42),
+            inset 0 0 28px rgba(79, 51, 26, 0.26),
+            inset 0 0 86px rgba(45, 28, 12, 0.2),
+            0 16px 38px -28px rgba(37, 22, 10, 0.8);
+    }
+
+    .story-manager-surface .story-map-edge-overlay::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(120% 18% at 50% -2%, rgba(255, 242, 213, 0.34), transparent 72%),
+            radial-gradient(120% 18% at 50% 102%, rgba(79, 49, 24, 0.3), transparent 72%),
+            radial-gradient(18% 120% at -2% 50%, rgba(255, 241, 214, 0.24), transparent 70%),
+            radial-gradient(18% 120% at 102% 50%, rgba(73, 46, 23, 0.28), transparent 72%),
+            radial-gradient(20px 14px at 9% 4%, rgba(255, 246, 227, 0.42) 12%, transparent 74%),
+            radial-gradient(26px 16px at 27% 2%, rgba(255, 237, 206, 0.32) 10%, transparent 76%),
+            radial-gradient(22px 15px at 47% 3%, rgba(255, 245, 220, 0.38) 12%, transparent 75%),
+            radial-gradient(24px 16px at 69% 2%, rgba(255, 234, 201, 0.3) 10%, transparent 76%),
+            radial-gradient(20px 14px at 88% 3%, rgba(255, 243, 215, 0.34) 12%, transparent 75%),
+            radial-gradient(18px 14px at 6% 96%, rgba(81, 50, 24, 0.26) 10%, transparent 76%),
+            radial-gradient(24px 16px at 24% 98%, rgba(77, 48, 23, 0.3) 10%, transparent 76%),
+            radial-gradient(20px 14px at 44% 97%, rgba(72, 44, 21, 0.24) 10%, transparent 76%),
+            radial-gradient(25px 17px at 63% 98%, rgba(78, 48, 24, 0.28) 10%, transparent 76%),
+            radial-gradient(20px 14px at 82% 97%, rgba(74, 46, 22, 0.26) 10%, transparent 76%),
+            radial-gradient(14px 11px at 2% 19%, rgba(255, 239, 209, 0.24) 10%, transparent 75%),
+            radial-gradient(14px 11px at 98% 18%, rgba(255, 239, 209, 0.2) 10%, transparent 75%),
+            radial-gradient(14px 11px at 2% 82%, rgba(71, 43, 20, 0.2) 10%, transparent 75%),
+            radial-gradient(14px 11px at 98% 81%, rgba(71, 43, 20, 0.2) 10%, transparent 75%);
+        opacity: var(--story-map-edge-opacity, 0.66);
+        mix-blend-mode: multiply;
+        filter: blur(0.2px);
+    }
+
+    .story-manager-surface .story-map-edge-overlay::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+            repeating-linear-gradient(12deg, rgba(96, 66, 38, 0.065) 0 1px, transparent 1px 5px),
+            repeating-linear-gradient(102deg, rgba(251, 241, 215, 0.05) 0 1px, transparent 1px 6px),
+            radial-gradient(120% 14% at 50% 0%, rgba(75, 47, 23, 0.2), transparent 68%),
+            radial-gradient(120% 14% at 50% 100%, rgba(75, 47, 23, 0.24), transparent 68%);
+        mix-blend-mode: multiply;
+        opacity: 0.36;
+    }
+
+    .story-editor-surface > :first-child {
+        margin-top: 0 !important;
+    }
+
+    .story-editor-surface > :last-child {
+        margin-bottom: 0 !important;
+    }
+
+    .story-editor-surface h1 {
+        font-size: 1.85rem;
+        line-height: 1.2;
+        font-weight: 700;
+        margin: 0.9rem 0 0.45rem;
+    }
+
+    .story-editor-surface h2 {
+        font-size: 1.5rem;
+        line-height: 1.25;
+        font-weight: 650;
+        margin: 0.85rem 0 0.4rem;
+    }
+
+    .story-editor-surface h3 {
+        font-size: 1.25rem;
+        line-height: 1.3;
+        font-weight: 600;
+        margin: 0.75rem 0 0.35rem;
+    }
+
+    .story-editor-surface blockquote {
+        margin: 0.75rem 0;
+        padding-left: 0.75rem;
+        border-left: 3px solid color-mix(in oklab, var(--ring), transparent 35%);
+        color: var(--ink-muted);
+        font-style: italic;
+    }
+
+    .story-editor-surface pre {
+        margin: 0.75rem 0;
+        padding: 0.6rem 0.7rem;
+        border-radius: 0.5rem;
+        border: 1px solid color-mix(in oklab, var(--ring), transparent 30%);
+        background: color-mix(in oklab, var(--panel), black 6%);
+        overflow-x: auto;
+    }
+
+    .story-editor-surface [data-story-theme-color="true"] {
+        color: var(--ink) !important;
+    }
+
+    .story-editor-surface [style*="color: rgb(0, 0, 0)"],
+    .story-editor-surface [style*="color:rgb(0,0,0)"],
+    .story-editor-surface [style*="color:#000"],
+    .story-editor-surface [style*="color: #000"],
+    .story-editor-surface [style*="color:#000000"],
+    .story-editor-surface [style*="color:#000000ff"],
+    .story-editor-surface [style*="color: rgb(255, 255, 255)"],
+    .story-editor-surface [style*="color:rgb(255,255,255)"],
+    .story-editor-surface [style*="color:#fff"],
+    .story-editor-surface [style*="color:#ffffff"],
+    .story-editor-surface [style*="color:#ffffffff"] {
+        color: var(--ink) !important;
+    }
+
+    .story-editor-surface font[color="black"],
+    .story-editor-surface font[color="#000"],
+    .story-editor-surface font[color="#000000"],
+    .story-editor-surface font[color="#000000ff"],
+    .story-editor-surface font[color="white"],
+    .story-editor-surface font[color="#fff"],
+    .story-editor-surface font[color="#ffffff"],
+    .story-editor-surface font[color="#ffffffff"] {
+        color: var(--ink) !important;
+    }
+`;
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -2748,7 +2967,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
     if (!currentActId) {
         return (
-            <div className="space-y-4">
+            <div className="story-manager-surface space-y-4">
                 <h1 className="text-xl font-semibold text-ink">
                     {t("Gestor de historia", "Story manager")}
                 </h1>
@@ -2791,23 +3010,30 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     {acts.map((act) => (
                         <div
                             key={act.id}
-                            className="rounded-xl border border-ring bg-panel/80 p-4 space-y-3"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => void enterAct(act.id)}
+                            onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                void enterAct(act.id);
+                            }}
+                            className="rounded-xl border border-ring bg-panel/80 p-4 space-y-3 cursor-pointer"
                         >
-                            <button
-                                type="button"
-                                onClick={() => void enterAct(act.id)}
-                                className="w-full text-left hover:opacity-90"
-                            >
+                            <div className="w-full text-left">
                                 <p className="text-xs text-ink-muted">{`ACTO ${act.act_number}`}</p>
                                 <p className="text-base font-semibold text-ink">{act.title}</p>
                                 <p className="text-xs text-ink-muted mt-1">
                                     {t("Entrar al mundo del acto", "Enter act world")}
                                 </p>
-                            </button>
+                            </div>
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => void handleRenameAct(act)}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        void handleRenameAct(act);
+                                    }}
                                     disabled={saving}
                                     className="inline-flex items-center rounded-md border border-ring bg-white/80 px-2 py-1 text-xs hover:bg-white disabled:opacity-60"
                                 >
@@ -2815,7 +3041,10 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => void handleDeleteAct(act)}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        void handleDeleteAct(act);
+                                    }}
                                     disabled={saving}
                                     className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-60"
                                 >
@@ -2831,12 +3060,13 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         </p>
                     )}
                 </div>
+                <style jsx global>{STORY_MANAGER_GLOBAL_STYLES}</style>
             </div>
         );
     }
 
     return (
-        <div className="h-full min-h-0 flex flex-col gap-4">
+        <div className="story-manager-surface h-full min-h-0 flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <button
@@ -3047,11 +3277,17 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         className={`relative flex-1 min-h-[320px] overflow-hidden rounded-xl border border-ring bg-panel/80 ${isPanning ? "cursor-grabbing" : "cursor-default"}`}
                     >
                         <div
-                            className="absolute left-0 top-0 origin-top-left"
+                            className="story-map-canvas absolute left-0 top-0 origin-top-left"
                             style={{
                                 width: `${STAGE_WIDTH}px`,
                                 height: `${STAGE_HEIGHT}px`,
                                 transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+                                ["--story-map-overlay-opacity" as string]: isDarkTheme ? "0.66" : "0.54",
+                                ["--story-map-edge-opacity" as string]: isDarkTheme ? "0.74" : "0.64",
+                                ["--story-map-sepia" as string]: isDarkTheme ? "0.3" : "0.22",
+                                ["--story-map-saturate" as string]: isDarkTheme ? "0.78" : "0.9",
+                                ["--story-map-contrast" as string]: isDarkTheme ? "1.08" : "1.04",
+                                ["--story-map-brightness" as string]: isDarkTheme ? "0.88" : "1",
                             }}
                         >
                             {currentMap?.image_url && currentMap.image_url !== BLANK_MAP_URL ? (
@@ -3059,14 +3295,15 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                     src={currentMap.image_url}
                                     alt={currentMap.name}
                                     draggable={false}
-                                    className="absolute inset-0 h-full w-full select-none object-cover pointer-events-none"
+                                    className="story-map-base absolute inset-0 h-full w-full select-none object-cover pointer-events-none"
                                 />
                             ) : (
                                 <div
-                                    className="absolute inset-0"
+                                    className="story-map-base absolute inset-0"
                                     style={blankMapStyle}
                                 />
                             )}
+                            <div className="story-map-aging-overlay" aria-hidden />
 
                             {renderedConnectionLines.length > 0 && (
                                 <svg
@@ -3117,7 +3354,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                             event.stopPropagation();
                                             handleOpenZone(zone);
                                         }}
-                                        className={`absolute flex items-center justify-center rounded-full border-2 transition-transform ${
+                                        className={`story-zone-node absolute flex items-center justify-center rounded-full border-2 transition-transform ${
                                             isSelected
                                                 ? "scale-105 border-white shadow-[0_0_0_3px_rgba(245,158,11,0.7)]"
                                                 : "border-white/80"
@@ -3144,6 +3381,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                     </button>
                                 );
                             })}
+                            <div className="story-map-edge-overlay" aria-hidden />
                         </div>
 
                         <div className="pointer-events-none absolute bottom-3 left-3 right-3 rounded-md border border-ring/70 bg-black/45 px-3 py-2 text-xs text-amber-100">
@@ -3512,82 +3750,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 )}
             </div>
             )}
-            <style jsx global>{`
-                .story-editor-surface > :first-child {
-                    margin-top: 0 !important;
-                }
-
-                .story-editor-surface > :last-child {
-                    margin-bottom: 0 !important;
-                }
-
-                .story-editor-surface h1 {
-                    font-size: 1.85rem;
-                    line-height: 1.2;
-                    font-weight: 700;
-                    margin: 0.9rem 0 0.45rem;
-                }
-
-                .story-editor-surface h2 {
-                    font-size: 1.5rem;
-                    line-height: 1.25;
-                    font-weight: 650;
-                    margin: 0.85rem 0 0.4rem;
-                }
-
-                .story-editor-surface h3 {
-                    font-size: 1.25rem;
-                    line-height: 1.3;
-                    font-weight: 600;
-                    margin: 0.75rem 0 0.35rem;
-                }
-
-                .story-editor-surface blockquote {
-                    margin: 0.75rem 0;
-                    padding-left: 0.75rem;
-                    border-left: 3px solid color-mix(in oklab, var(--ring), transparent 35%);
-                    color: var(--ink-muted);
-                    font-style: italic;
-                }
-
-                .story-editor-surface pre {
-                    margin: 0.75rem 0;
-                    padding: 0.6rem 0.7rem;
-                    border-radius: 0.5rem;
-                    border: 1px solid color-mix(in oklab, var(--ring), transparent 30%);
-                    background: color-mix(in oklab, var(--panel), black 6%);
-                    overflow-x: auto;
-                }
-
-                .story-editor-surface [data-story-theme-color="true"] {
-                    color: var(--ink) !important;
-                }
-
-                .story-editor-surface [style*="color: rgb(0, 0, 0)"],
-                .story-editor-surface [style*="color:rgb(0,0,0)"],
-                .story-editor-surface [style*="color:#000"],
-                .story-editor-surface [style*="color: #000"],
-                .story-editor-surface [style*="color:#000000"],
-                .story-editor-surface [style*="color:#000000ff"],
-                .story-editor-surface [style*="color: rgb(255, 255, 255)"],
-                .story-editor-surface [style*="color:rgb(255,255,255)"],
-                .story-editor-surface [style*="color:#fff"],
-                .story-editor-surface [style*="color:#ffffff"],
-                .story-editor-surface [style*="color:#ffffffff"] {
-                    color: var(--ink) !important;
-                }
-
-                .story-editor-surface font[color="black"],
-                .story-editor-surface font[color="#000"],
-                .story-editor-surface font[color="#000000"],
-                .story-editor-surface font[color="#000000ff"],
-                .story-editor-surface font[color="white"],
-                .story-editor-surface font[color="#fff"],
-                .story-editor-surface font[color="#ffffff"],
-                .story-editor-surface font[color="#ffffffff"] {
-                    color: var(--ink) !important;
-                }
-            `}</style>
+            <style jsx global>{STORY_MANAGER_GLOBAL_STYLES}</style>
         </div>
     );
 }

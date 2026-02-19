@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { getSessionUserSafely } from "@/lib/supabaseAuthClient";
 
 export default function JoinCampaignPage() {
     const router = useRouter();
@@ -16,11 +17,8 @@ export default function JoinCampaignPage() {
         setError(null);
 
         try {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-
-            if (!session?.user) {
+            const user = await getSessionUserSafely(supabase);
+            if (!user) {
                 throw new Error("Debes iniciar sesión.");
             }
 
@@ -51,7 +49,7 @@ export default function JoinCampaignPage() {
             const { error: memberError } = await supabase
                 .from("campaign_members")
                 .insert({
-                    user_id: session.user.id,
+                    user_id: user.id,
                     campaign_id: campaign.id,
                     role: "PLAYER",
                 });

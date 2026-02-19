@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { getSessionUserSafely } from "@/lib/supabaseAuthClient";
 
 function generateInviteCode() {
     return (
@@ -24,17 +25,8 @@ export default function CreateCampaignPage() {
         setError(null);
 
         try {
-            const {
-                data: { session },
-                error: sessionError,
-            } = await supabase.auth.getSession();
-
-            if (sessionError) {
-                console.error("Session error:", sessionError);
-                throw new Error("Error obteniendo la sesión");
-            }
-
-            if (!session?.user) {
+            const user = await getSessionUserSafely(supabase);
+            if (!user) {
                 throw new Error("No hay sesión activa. Inicia sesión de nuevo.");
             }
 
@@ -45,7 +37,7 @@ export default function CreateCampaignPage() {
                 .from("campaigns")
                 .insert({
                     name,
-                    owner_id: session.user.id,
+                    owner_id: user.id,
                     invite_code: code,
                 })
                 .select()
@@ -66,7 +58,7 @@ export default function CreateCampaignPage() {
             const { error: memberError } = await supabase
                 .from("campaign_members")
                 .insert({
-                    user_id: session.user.id,
+                    user_id: user.id,
                     campaign_id: campaign.id,
                     role: "DM",
                 });
