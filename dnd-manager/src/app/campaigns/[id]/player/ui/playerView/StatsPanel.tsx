@@ -56,7 +56,7 @@ function MetricCard({ label, value, sub, icon }: MetricCardProps) {
         </div>
       ) : null}
       <div>
-        <div className="text-[10px] uppercase tracking-[0.25em] text-ink-muted">
+        <div cdclassName="text-[10px] uppercase tracking-[0.25em] text-ink-muted">
           {label}
         </div>
         <div className="mt-1 text-lg font-semibold text-ink">{value}</div>

@@ -685,7 +685,13 @@ export default function CampaignDMPage() {
                 </nav>
             </aside>
 
-            <section className="flex-1 min-h-0 p-6 space-y-4 overflow-y-auto styled-scrollbar">
+            <section
+                className={`flex-1 min-h-0 p-6 ${
+                    activeSection === "story"
+                        ? "flex flex-col gap-4 overflow-hidden"
+                        : "space-y-4 overflow-y-auto styled-scrollbar"
+                }`}
+            >
                 <div className="flex items-center justify-end">
                     <button
                         type="button"
@@ -882,7 +888,9 @@ export default function CampaignDMPage() {
                 )}
 
                 {activeSection === "story" && (
-                    <StoryManagerPanel campaignId={String(params.id)} locale={locale} />
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                        <StoryManagerPanel campaignId={String(params.id)} locale={locale} />
+                    </div>
                 )}
 
                 {activeSection === "bestiary" && (

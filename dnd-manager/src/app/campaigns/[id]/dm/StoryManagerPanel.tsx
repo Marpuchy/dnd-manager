@@ -1,9 +1,11 @@
 ﻿"use client";
 
 import {
+    forwardRef,
     type ChangeEvent,
     type MouseEvent as ReactMouseEvent,
     useEffect,
+    useImperativeHandle,
     useMemo,
     useRef,
     useState,
@@ -359,12 +361,16 @@ type RichTextEditorProps = {
     forceHideToolbar?: boolean;
 };
 
-function RichTextEditor({
+type RichTextEditorHandle = {
+    applyThemeTextColorToSelection: () => void;
+};
+
+const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor({
     value,
     locale,
     onChange,
     forceHideToolbar = false,
-}: RichTextEditorProps) {
+}: RichTextEditorProps, ref) {
     const t = (es: string, en: string) => tr(locale, es, en);
     const editorRef = useRef<HTMLDivElement | null>(null);
     const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
@@ -387,6 +393,37 @@ function RichTextEditor({
         window.document.execCommand(command, false, arg);
         onChange(editorRef.current?.innerHTML ?? "");
     }
+
+    function applyThemeTextColorToSelection() {
+        const editor = editorRef.current;
+        if (!editor) return;
+
+        editor.focus();
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) return;
+        if (range.collapsed) return;
+
+        const fragment = range.extractContents();
+        const wrapper = window.document.createElement("span");
+        wrapper.setAttribute("data-story-theme-color", "true");
+        wrapper.style.color = "var(--ink)";
+        wrapper.appendChild(fragment);
+        range.insertNode(wrapper);
+
+        selection.removeAllRanges();
+        const nextRange = window.document.createRange();
+        nextRange.selectNodeContents(wrapper);
+        selection.addRange(nextRange);
+
+        onChange(editor.innerHTML ?? "");
+    }
+
+    useImperativeHandle(ref, () => ({
+        applyThemeTextColorToSelection,
+    }));
 
     const isToolbarHidden = forceHideToolbar || toolbarCollapsed;
 
@@ -457,6 +494,17 @@ function RichTextEditor({
                         />
                         <button
                             type="button"
+                            onClick={applyThemeTextColorToSelection}
+                            className={toolbarButtonClass}
+                            title={t(
+                                "Aplica color adaptado al tema al texto seleccionado",
+                                "Apply theme-adaptive color to selected text"
+                            )}
+                        >
+                            {t("Texto tema", "Theme text")}
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => {
                                 const url = window.prompt(t("URL del enlace", "Link URL"), "https://");
                                 if (!url) return;
@@ -485,12 +533,13 @@ function RichTextEditor({
             />
         </div>
     );
-}
+});
 
 export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPanelProps) {
     const t = (es: string, en: string) => tr(locale, es, en);
 
     const viewportRef = useRef<HTMLDivElement | null>(null);
+    const richTextEditorRef = useRef<RichTextEditorHandle | null>(null);
     const mapUploadInputRef = useRef<HTMLInputElement | null>(null);
     const autoSaveInFlightRef = useRef(false);
     const viewRef = useRef<ViewState>(DEFAULT_VIEW);
@@ -553,7 +602,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const [docTitleDraft, setDocTitleDraft] = useState("");
     const [docHtmlDraft, setDocHtmlDraft] = useState("");
     const [docTypeDraft, setDocTypeDraft] = useState<DocumentType>("LORE");
-    const [docVisibilityDraft, setDocVisibilityDraft] = useState<DocumentVisibility>("DM_ONLY");
+    const [docVisibilityDraft, setDocVisibilityDraft] = useState<DocumentVisibility>("CAMPAIGN");
     const [docDefaultTextColorDraft, setDocDefaultTextColorDraft] = useState("theme");
     const [editorPanelCollapsed, setEditorPanelCollapsed] = useState(false);
     const [editorPanelExpanded, setEditorPanelExpanded] = useState(false);
@@ -561,6 +610,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const [isResizingEditorPanel, setIsResizingEditorPanel] = useState(false);
     const [hideUpperTools, setHideUpperTools] = useState(false);
     const [playerPreviewMode, setPlayerPreviewMode] = useState(false);
+    const [playerPreviewReloadSignal, setPlayerPreviewReloadSignal] = useState(0);
     const [isDarkTheme, setIsDarkTheme] = useState(false);
 
     const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
@@ -1084,7 +1134,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             node_id: zoneNodeId,
             title: node ? `Ficha - ${node.title}` : t("Nueva ficha", "New sheet"),
             doc_type: "LORE" as DocumentType,
-            visibility: "DM_ONLY" as DocumentVisibility,
+            visibility: "CAMPAIGN" as DocumentVisibility,
             editor_format: "HTML",
             content: { html: "" },
             plain_text: "",
@@ -1172,7 +1222,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             setDocTitleDraft("");
             setDocHtmlDraft("");
             setDocTypeDraft("LORE");
-            setDocVisibilityDraft("DM_ONLY");
+            setDocVisibilityDraft("CAMPAIGN");
             setDocDefaultTextColorDraft("theme");
             return;
         }
@@ -1983,6 +2033,27 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 prev.map((zone) => (zone.id === updatedZone.id ? updatedZone : zone))
             );
 
+            if (zoneVisibleDraft && selectedDocument && selectedDocument.visibility === "DM_ONLY") {
+                const { data: updatedDocData, error: updateDocError } = await supabase
+                    .from("campaign_documents")
+                    .update({
+                        visibility: "CAMPAIGN",
+                        updated_by: userId,
+                    })
+                    .eq("id", selectedDocument.id)
+                    .eq("campaign_id", campaignId)
+                    .select(
+                        "id, campaign_id, node_id, title, doc_type, visibility, editor_format, content, plain_text, latest_revision, metadata"
+                    )
+                    .maybeSingle();
+
+                if (updateDocError) throw updateDocError;
+                if (updatedDocData) {
+                    setSelectedDocument(updatedDocData as DocumentRow);
+                    setDocVisibilityDraft("CAMPAIGN");
+                }
+            }
+
             if (selectedZoneNodeId) {
                 setNodes((prev) =>
                     prev.map((node) =>
@@ -2143,6 +2214,31 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 created_by: userId,
             });
         }, { es: "Ficha guardada.", en: "Sheet saved." }, options);
+    }
+
+    async function handleTogglePlayerPreview() {
+        if (playerPreviewMode) {
+            setPlayerPreviewMode(false);
+            return;
+        }
+
+        if (saving) return;
+        setError(null);
+
+        try {
+            if (isMapDirty) {
+                await handleSaveMap({ silent: true });
+            }
+            if (isZoneDirty) {
+                await handleSaveZone({ silent: true });
+            }
+            if (isDocumentDirty) {
+                await handleSaveDocument({ silent: true });
+            }
+        } finally {
+            setPlayerPreviewReloadSignal((prev) => prev + 1);
+            setPlayerPreviewMode(true);
+        }
     }
 
     useEffect(() => {
@@ -2423,7 +2519,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     }
 
     return (
-        <div className="space-y-4">
+        <div className="h-full min-h-0 flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <button
@@ -2451,7 +2547,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         {currentAct ? `ACTO ${currentAct.act_number}: ${currentAct.title}` : t("Acto", "Act")}
                     </h1>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2">
                     <button
                         type="button"
                         onClick={() => {
@@ -2484,7 +2580,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     </button>
                     {showMapPanel && showEditorPanel && (
                         <>
-                            <span className="hidden xl:inline text-[11px] text-ink-muted">
+                            <span className="hidden xl:inline text-[11px] text-ink-muted max-w-[26rem] truncate">
                                 {t(
                                     "Arrastra el separador para retraer o ampliar el editor.",
                                     "Drag the splitter to retract or expand the editor."
@@ -2501,7 +2597,9 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     )}
                     <button
                         type="button"
-                        onClick={() => setPlayerPreviewMode((prev) => !prev)}
+                        onClick={() => {
+                            void handleTogglePlayerPreview();
+                        }}
                         className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/80 px-2.5 py-1.5 text-xs hover:bg-white"
                     >
                         {playerPreviewMode
@@ -2546,16 +2644,19 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             )}
 
             {playerPreviewMode ? (
-                <section className="rounded-xl border border-ring bg-panel/80 p-3">
+                <section className="min-h-0 flex-1 rounded-xl border border-ring bg-panel/80 p-3 overflow-hidden">
                     <StoryPlayerView
                         campaignId={campaignId}
                         locale={locale}
                         previewAsPlayer
+                        initialNodeId={currentNodeId}
+                        initialActId={currentActId}
+                        reloadSignal={playerPreviewReloadSignal}
                     />
                 </section>
             ) : (
             <div
-                className={`grid grid-cols-1 gap-4 items-start ${
+                className={`min-h-0 flex-1 grid grid-cols-1 gap-4 items-stretch ${
                     showMapPanel && showEditorPanel
                         ? "xl:grid-cols-[minmax(0,1fr)_12px_minmax(320px,var(--story-editor-width))]"
                         : ""
@@ -2567,25 +2668,25 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 }
             >
                 {showMapPanel && (
-                <section className="space-y-2 min-w-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_auto_auto_auto] gap-2 border border-ring rounded-xl bg-panel/80 p-3">
+                <section className="space-y-2 min-w-0 min-h-0 flex flex-col">
+                    <div className="flex flex-wrap items-center gap-2 border border-ring rounded-xl bg-panel/80 p-3">
                         <input
                             value={mapNameDraft}
                             onChange={(event) => setMapNameDraft(event.target.value)}
                             placeholder={t("Nombre del mapa", "Map name")}
-                            className="rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
+                            className="min-w-[180px] flex-[1_1_220px] rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
                         />
                         <input
                             value={mapImageDraft === BLANK_MAP_URL ? "" : mapImageDraft}
                             onChange={(event) => setMapImageDraft(event.target.value)}
                             placeholder={t("URL de imagen (vacio = mapa en blanco)", "Image URL (empty = blank map)")}
-                            className="rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
+                            className="min-w-[220px] flex-[2_1_320px] rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
                         />
                         <button
                             type="button"
                             onClick={() => void handleSaveMap()}
                             disabled={!currentMap || saving}
-                            className="inline-flex items-center justify-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-3 py-1.5 text-xs hover:bg-accent/20 disabled:opacity-60"
+                            className="shrink-0 inline-flex items-center justify-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-3 py-1.5 text-xs hover:bg-accent/20 disabled:opacity-60"
                         >
                             <Save className="h-3.5 w-3.5" />
                             {t("Guardar mapa", "Save map")}
@@ -2594,7 +2695,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                             type="button"
                             onClick={() => mapUploadInputRef.current?.click()}
                             disabled={!currentMap || saving}
-                            className="inline-flex items-center justify-center gap-1 rounded-md border border-ring bg-white/80 px-3 py-1.5 text-xs hover:bg-white disabled:opacity-60"
+                            className="shrink-0 inline-flex items-center justify-center gap-1 rounded-md border border-ring bg-white/80 px-3 py-1.5 text-xs hover:bg-white disabled:opacity-60"
                         >
                             <Upload className="h-3.5 w-3.5" />
                             {t("Subir imagen", "Upload image")}
@@ -2605,7 +2706,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                 void handleClearMapImage();
                             }}
                             disabled={!currentMap || saving || currentMap.image_url === BLANK_MAP_URL}
-                            className="inline-flex items-center justify-center gap-1 rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs text-red-700 hover:bg-red-200 disabled:opacity-60"
+                            className="shrink-0 inline-flex items-center justify-center gap-1 rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs text-red-700 hover:bg-red-200 disabled:opacity-60"
                         >
                             <Trash2 className="h-3.5 w-3.5" />
                             {t("Quitar imagen", "Remove image")}
@@ -2626,7 +2727,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         onMouseMove={handleViewportMouseMove}
                         onWheel={handleViewportWheel}
                         onDoubleClick={handleViewportDoubleClick}
-                        className={`relative h-[calc(100vh-15rem)] min-h-[520px] overflow-hidden rounded-xl border border-ring bg-panel/80 ${isPanning ? "cursor-grabbing" : "cursor-default"}`}
+                        className={`relative flex-1 min-h-[320px] overflow-hidden rounded-xl border border-ring bg-panel/80 ${isPanning ? "cursor-grabbing" : "cursor-default"}`}
                     >
                         <div
                             className="absolute left-0 top-0 origin-top-left"
@@ -2758,7 +2859,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     role="separator"
                     aria-orientation="vertical"
                     onMouseDown={handleEditorResizerMouseDown}
-                    className={`hidden xl:flex h-[calc(100vh-15rem)] min-h-[520px] items-center justify-center rounded-md border border-ring/60 bg-panel/50 ${
+                    className={`hidden xl:flex h-full min-h-[320px] items-center justify-center rounded-md border border-ring/60 bg-panel/50 ${
                         isResizingEditorPanel ? "cursor-col-resize" : "cursor-col-resize hover:bg-panel/80"
                     }`}
                     title={t("Arrastra para ajustar el ancho del editor", "Drag to resize editor width")}
@@ -2769,11 +2870,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
                 {showEditorPanel && (
                 <aside
-                    className={`relative space-y-3 border border-ring rounded-xl bg-panel/80 p-3 overflow-y-auto styled-scrollbar ${
-                        editorPanelExpanded
-                            ? "min-h-[calc(100vh-15rem)] max-h-[calc(100vh-12rem)]"
-                            : "max-h-[calc(100vh-10rem)] xl:h-[calc(100vh-15rem)] xl:min-h-[520px]"
-                    } ${!showMapPanel ? "xl:pl-8" : ""}`}
+                    className={`relative space-y-3 border border-ring rounded-xl bg-panel/80 p-3 overflow-y-auto styled-scrollbar h-full min-h-0 ${!showMapPanel ? "xl:pl-8" : ""}`}
                 >
                     {!showMapPanel && (
                         <div
@@ -3059,55 +3156,33 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                             </select>
                                         </div>
                                         <div className="space-y-1 rounded-md border border-ring bg-white/70 p-2">
-                                            <label className="inline-flex items-center gap-2 text-xs text-ink">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={docDefaultTextColorDraft === "theme"}
-                                                    onChange={(event) => {
-                                                        if (event.target.checked) {
-                                                            setDocDefaultTextColorDraft("theme");
-                                                            return;
-                                                        }
-                                                        setDocDefaultTextColorDraft("#1f1a14");
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDocDefaultTextColorDraft("theme");
+                                                        richTextEditorRef.current?.applyThemeTextColorToSelection();
                                                     }}
-                                                    className="h-4 w-4 rounded border border-ring accent-accent"
-                                                />
-                                                <span>
+                                                    className="inline-flex items-center gap-1 rounded-md border border-ring bg-white px-2 py-1 text-xs hover:bg-panel/80"
+                                                >
                                                     {t(
-                                                        "Color de texto por defecto segun tema",
-                                                        "Default text color follows theme"
+                                                        "Aplicar color de tema al texto seleccionado",
+                                                        "Apply theme color to selected text"
                                                     )}
-                                                </span>
-                                            </label>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="color"
-                                                    value={
-                                                        docDefaultTextColorDraft === "theme"
-                                                            ? "#1f1a14"
-                                                            : (normalizeHexColor(docDefaultTextColorDraft) ??
-                                                                "#1f1a14")
-                                                    }
-                                                    onChange={(event) =>
-                                                        setDocDefaultTextColorDraft(
-                                                            normalizeHexColor(event.target.value) ?? "#1f1a14"
-                                                        )
-                                                    }
-                                                    disabled={docDefaultTextColorDraft === "theme"}
-                                                    className="h-8 w-10 rounded-md border border-ring bg-white px-1 disabled:opacity-50"
-                                                />
-                                                <p className="text-[11px] text-ink-muted">
-                                                    {t(
-                                                        "Este color se aplica al visor cuando el texto no tiene color manual o usa negro/blanco accidental.",
-                                                        "This color is applied in the viewer when text has no manual color or uses accidental black/white."
-                                                    )}
-                                                </p>
+                                                </button>
                                             </div>
+                                            <p className="text-[11px] text-ink-muted">
+                                                {t(
+                                                    "El texto marcado con este estilo cambia automaticamente entre modo claro y oscuro.",
+                                                    "Text marked with this style adapts automatically between light and dark mode."
+                                                )}
+                                            </p>
                                         </div>
                                     </>
                                 )}
 
                                 <RichTextEditor
+                                    ref={richTextEditorRef}
                                     value={docHtmlDraft}
                                     locale={locale}
                                     onChange={setDocHtmlDraft}
