@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, DragEvent } from "react";
-import { Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
@@ -607,45 +607,62 @@ export default function CampaignDMPage() {
     }
 
     return (
-        <main className="h-screen bg-surface text-ink flex overflow-hidden">
+        <main className="relative h-screen bg-surface text-ink flex overflow-hidden">
             <aside
-                className={`h-full overflow-y-auto styled-scrollbar border-r border-ring bg-panel/85 p-3 space-y-3 transition-all duration-200 ${
-                    sidebarOpen ? "w-72" : "w-16"
+                className={`relative z-10 h-full overflow-y-auto overflow-x-hidden styled-scrollbar border-r border-ring rounded-r-3xl bg-panel/90 p-4 space-y-3 transition-[width,box-shadow,background-color] duration-300 ease-in-out motion-reduce:transition-none ${
+                    sidebarOpen ? "w-72 shadow-[0_18px_50px_rgba(45,29,12,0.18)]" : "w-16 shadow-none"
                 }`}
             >
                 <div className="flex items-start justify-between gap-2">
-                    {sidebarOpen ? (
-                        <div className="space-y-1">
-                            <h2 className="text-lg font-semibold text-ink">
-                                {t("Panel de master", "Master panel")}
-                            </h2>
-                            <p className="text-xs text-ink-muted">
-                                {t("Campana", "Campaign")} #{String(params.id)}
-                            </p>
-                        </div>
-                    ) : (
-                        <div />
-                    )}
+                    <div
+                        className={`space-y-1 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${
+                            sidebarOpen
+                                ? "max-w-[14rem] translate-x-0 opacity-100"
+                                : "pointer-events-none max-w-0 -translate-x-2 opacity-0"
+                        }`}
+                    >
+                        <h2 className="text-lg font-semibold text-ink">
+                            {t("Panel de master", "Master panel")}
+                        </h2>
+                        <p className="text-xs text-ink-muted">
+                            {t("Campana", "Campaign")} #{String(params.id)}
+                        </p>
+                    </div>
 
                     <button
                         type="button"
                         onClick={() => setSidebarOpen((prev) => !prev)}
-                        className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-ring bg-white/70 hover:bg-white text-sm"
+                        className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-ring bg-white/70 text-sm transition-colors duration-200 hover:bg-white md:hidden"
                         title={t("Desplegar panel", "Toggle panel")}
                         aria-label={t("Desplegar panel", "Toggle panel")}
                     >
-                        {sidebarOpen ? "«" : "»"}
+                        <span className="inline-flex transition-transform duration-300 ease-out motion-reduce:transition-none">
+                            {sidebarOpen ? (
+                                <ChevronLeft className="h-4 w-4 text-ink" />
+                            ) : (
+                                <ChevronRight className="h-4 w-4 text-ink" />
+                            )}
+                        </span>
                     </button>
                 </div>
 
-                {inviteCode && sidebarOpen && (
-                    <button
-                        type="button"
-                        onClick={() => void navigator.clipboard.writeText(inviteCode)}
-                        className="w-full text-left rounded-md border border-ring bg-white/70 px-3 py-2 text-xs hover:bg-white"
+                {inviteCode && (
+                    <div
+                        className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${
+                            sidebarOpen
+                                ? "max-h-20 translate-y-0 opacity-100"
+                                : "pointer-events-none max-h-0 -translate-y-1 opacity-0"
+                        }`}
                     >
-                        {t("Copiar codigo", "Copy code")}: <span className="font-mono">{inviteCode}</span>
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => void navigator.clipboard.writeText(inviteCode)}
+                            className="w-full text-left rounded-md border border-ring bg-white/70 px-3 py-2 text-xs hover:bg-white"
+                        >
+                            {t("Copiar codigo", "Copy code")}:{" "}
+                            <span className="font-mono">{inviteCode}</span>
+                        </button>
+                    </div>
                 )}
 
                 <nav>
@@ -667,23 +684,59 @@ export default function CampaignDMPage() {
                                                 setPlayerEditorOpen(false);
                                             }
                                         }}
-                                        className={`flex items-center gap-2 rounded-md px-2 py-2 text-sm ${
+                                        className={`flex items-center rounded-md px-2 py-2 text-sm transition-[background-color,color,gap] duration-200 ${
+                                            sidebarOpen ? "gap-2" : "justify-center gap-0"
+                                        } ${
                                             selected
                                                 ? "bg-accent/10 text-ink"
-                                                : "text-ink-muted hover:text-ink hover:bg-white/60"
+                                                : "text-ink-muted hover:bg-white/60 hover:text-ink"
                                         }`}
                                         aria-current={selected ? "page" : undefined}
                                         title={t(entry.es, entry.en)}
                                     >
                                         <span className="w-5 text-center">{entry.icon}</span>
-                                        {sidebarOpen && <span>{t(entry.es, entry.en)}</span>}
+                                        <span
+                                            className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform,margin] duration-300 ease-out motion-reduce:transition-none ${
+                                                sidebarOpen
+                                                    ? "ml-0.5 max-w-[12rem] translate-x-0 opacity-100"
+                                                    : "max-w-0 -translate-x-2 opacity-0"
+                                            }`}
+                                        >
+                                            {t(entry.es, entry.en)}
+                                        </span>
                                     </a>
                                 </li>
                             );
                         })}
                     </ul>
                 </nav>
+
             </aside>
+
+            <button
+                type="button"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                className="hidden md:flex absolute top-4 z-30 rounded-full p-2 shadow-sm transition-[left,transform,background-color] duration-300 ease-in-out bg-panel border border-ring hover:bg-white"
+                style={{
+                    left: sidebarOpen ? "calc(18rem - 18px)" : "calc(4rem - 18px)",
+                }}
+                aria-label={
+                    sidebarOpen
+                        ? t("Cerrar panel lateral", "Close sidebar")
+                        : t("Abrir panel lateral", "Open sidebar")
+                }
+                title={
+                    sidebarOpen
+                        ? t("Cerrar panel", "Close sidebar")
+                        : t("Abrir panel", "Open sidebar")
+                }
+            >
+                {sidebarOpen ? (
+                    <ChevronLeft className="h-4 w-4 text-ink" />
+                ) : (
+                    <ChevronRight className="h-4 w-4 text-ink" />
+                )}
+            </button>
 
             <section
                 className={`flex-1 min-h-0 p-6 ${
@@ -1001,3 +1054,4 @@ export default function CampaignDMPage() {
         </main>
     );
 }
+

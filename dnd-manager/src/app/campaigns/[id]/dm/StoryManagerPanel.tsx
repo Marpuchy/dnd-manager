@@ -150,7 +150,14 @@ const BLANK_MAP_URL = "blank://default-map";
 const STAGE_WIDTH = 3200;
 const STAGE_HEIGHT = 2200;
 const DEFAULT_ZONE_RADIUS = 54;
-const DEFAULT_VIEW: ViewState = { x: 70, y: 60, scale: 1 };
+const INITIAL_MAP_SCALE = 0.5;
+const FALLBACK_VIEWPORT_WIDTH = 1400;
+const FALLBACK_VIEWPORT_HEIGHT = 900;
+const DEFAULT_VIEW: ViewState = {
+    x: (FALLBACK_VIEWPORT_WIDTH - STAGE_WIDTH * INITIAL_MAP_SCALE) / 2,
+    y: (FALLBACK_VIEWPORT_HEIGHT - STAGE_HEIGHT * INITIAL_MAP_SCALE) / 2,
+    scale: INITIAL_MAP_SCALE,
+};
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
 const MAX_MAP_IMAGE_BYTES = 50 * 1024 * 1024;
@@ -160,6 +167,25 @@ const EDITOR_PANEL_MAX_VIEWPORT_RATIO = 0.75;
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
+}
+
+function createInitialMapView(viewportEl: HTMLDivElement | null): ViewState {
+    const scale = INITIAL_MAP_SCALE;
+    const rect = viewportEl?.getBoundingClientRect();
+    const viewportWidth =
+        rect && Number.isFinite(rect.width) && rect.width > 0
+            ? rect.width
+            : FALLBACK_VIEWPORT_WIDTH;
+    const viewportHeight =
+        rect && Number.isFinite(rect.height) && rect.height > 0
+            ? rect.height
+            : FALLBACK_VIEWPORT_HEIGHT;
+
+    return {
+        scale,
+        x: (viewportWidth - STAGE_WIDTH * scale) / 2,
+        y: (viewportHeight - STAGE_HEIGHT * scale) / 2,
+    };
 }
 
 function toErrorMessage(error: unknown, fallback: string) {
@@ -190,6 +216,121 @@ function stripHtml(html: string) {
     const div = window.document.createElement("div");
     div.innerHTML = html;
     return (div.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function hasMeaningfulText(text: string) {
+    return text.replace(/[\s\u00a0]+/g, "").length > 0;
+}
+
+function nodeHasVisualContent(node: Node): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+        return hasMeaningfulText(node.textContent ?? "");
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+    }
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (
+        [
+            "img",
+            "video",
+            "audio",
+            "iframe",
+            "object",
+            "embed",
+            "svg",
+            "canvas",
+            "hr",
+            "table",
+            "input",
+            "textarea",
+            "select",
+        ].includes(tag)
+    ) {
+        return true;
+    }
+
+    for (const child of Array.from(element.childNodes)) {
+        if (nodeHasVisualContent(child)) return true;
+    }
+
+    return false;
+}
+
+function trimEmptyNodesAtEdges(container: HTMLElement) {
+    while (container.firstChild && !nodeHasVisualContent(container.firstChild)) {
+        container.removeChild(container.firstChild);
+    }
+    while (container.lastChild && !nodeHasVisualContent(container.lastChild)) {
+        container.removeChild(container.lastChild);
+    }
+}
+
+function normalizeLineHeightValue(input: string): string | null {
+    const raw = input.trim().toLowerCase();
+    if (!raw) return null;
+    if (["normal", "initial", "inherit", "unset"].includes(raw)) return null;
+
+    const unitless = Number(raw);
+    if (Number.isFinite(unitless)) {
+        return String(clamp(unitless, 1, 1.75));
+    }
+
+    const emMatch = raw.match(/^([0-9]*\.?[0-9]+)em$/);
+    if (emMatch) {
+        const em = Number(emMatch[1]);
+        if (!Number.isFinite(em)) return null;
+        return `${clamp(em, 1, 1.75)}em`;
+    }
+
+    const percentageMatch = raw.match(/^([0-9]*\.?[0-9]+)%$/);
+    if (percentageMatch) {
+        const percentage = Number(percentageMatch[1]);
+        if (!Number.isFinite(percentage)) return null;
+        return `${Math.round(clamp(percentage, 100, 175))}%`;
+    }
+
+    const pxMatch = raw.match(/^([0-9]*\.?[0-9]+)px$/);
+    if (pxMatch) {
+        const px = Number(pxMatch[1]);
+        if (!Number.isFinite(px)) return null;
+        return `${Math.round(clamp(px, 14, 28))}px`;
+    }
+
+    return null;
+}
+
+function sanitizeLineHeightStyles(container: HTMLElement) {
+    const elements = Array.from(
+        container.querySelectorAll<HTMLElement>("[style*=\"line-height\"]")
+    );
+
+    for (const element of elements) {
+        const normalized = normalizeLineHeightValue(element.style.lineHeight);
+        if (!normalized) {
+            element.style.removeProperty("line-height");
+        } else {
+            element.style.lineHeight = normalized;
+        }
+
+        const styleAttr = element.getAttribute("style");
+        if (!styleAttr || !styleAttr.trim()) {
+            element.removeAttribute("style");
+        }
+    }
+}
+
+function normalizeEditorHtml(html: string): string {
+    const raw = String(html ?? "");
+    if (typeof window === "undefined") return raw.trim();
+
+    const container = window.document.createElement("div");
+    container.innerHTML = raw;
+    trimEmptyNodesAtEdges(container);
+    sanitizeLineHeightStyles(container);
+    return container.innerHTML.trim();
 }
 
 function getDocumentHtml(doc: DocumentRow) {
@@ -379,19 +520,50 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
     const toolbarSelectClass =
         "rounded-md border border-ring bg-panel/85 px-2 py-1 text-[12px] leading-none text-ink outline-none focus:border-accent";
     const colorInputClass = "h-7 w-9 rounded border border-ring bg-panel/85 p-0.5";
+    const blockTags = useMemo(
+        () =>
+            new Set([
+                "p",
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6",
+                "blockquote",
+                "pre",
+                "li",
+                "div",
+            ]),
+        []
+    );
 
     useEffect(() => {
         const editor = editorRef.current;
         if (!editor) return;
-        if (editor.innerHTML !== value) {
-            editor.innerHTML = value;
+        const normalized = normalizeEditorHtml(value);
+        if (editor.innerHTML !== normalized) {
+            editor.innerHTML = normalized;
         }
     }, [value]);
 
     function exec(command: string, arg?: string) {
         editorRef.current?.focus();
-        window.document.execCommand(command, false, arg);
-        onChange(editorRef.current?.innerHTML ?? "");
+        if (command === "formatBlock" && arg) {
+            const normalizedTag = arg.trim().toUpperCase();
+            // Browsers differ: some need "<H1>" and others accept "H1".
+            window.document.execCommand(command, false, `<${normalizedTag}>`);
+            window.document.execCommand(command, false, normalizedTag);
+        } else {
+            window.document.execCommand(command, false, arg);
+        }
+
+        const editor = editorRef.current;
+        const normalized = normalizeEditorHtml(editor?.innerHTML ?? "");
+        if (editor && editor.innerHTML !== normalized) {
+            editor.innerHTML = normalized;
+        }
+        onChange(normalized);
     }
 
     function applyThemeTextColorToSelection() {
@@ -418,7 +590,92 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
         nextRange.selectNodeContents(wrapper);
         selection.addRange(nextRange);
 
-        onChange(editor.innerHTML ?? "");
+        onChange(normalizeEditorHtml(editor.innerHTML ?? ""));
+    }
+
+    function findClosestBlock(node: Node | null, editor: HTMLElement): HTMLElement | null {
+        let cursor = node;
+        while (cursor && cursor !== editor) {
+            if (cursor.nodeType === Node.ELEMENT_NODE) {
+                const element = cursor as HTMLElement;
+                if (blockTags.has(element.tagName.toLowerCase())) {
+                    return element;
+                }
+            }
+            cursor = cursor.parentNode;
+        }
+        return null;
+    }
+
+    function collectBlocksFromRange(range: Range, editor: HTMLElement): HTMLElement[] {
+        const blocks: HTMLElement[] = [];
+        const walker = window.document.createTreeWalker(
+            editor,
+            NodeFilter.SHOW_ELEMENT,
+            {
+                acceptNode: (node) => {
+                    if (!(node instanceof HTMLElement)) return NodeFilter.FILTER_SKIP;
+                    if (!blockTags.has(node.tagName.toLowerCase())) return NodeFilter.FILTER_SKIP;
+                    try {
+                        return range.intersectsNode(node)
+                            ? NodeFilter.FILTER_ACCEPT
+                            : NodeFilter.FILTER_SKIP;
+                    } catch {
+                        return NodeFilter.FILTER_SKIP;
+                    }
+                },
+            }
+        );
+
+        let current = walker.nextNode();
+        while (current) {
+            blocks.push(current as HTMLElement);
+            current = walker.nextNode();
+        }
+
+        if (blocks.length > 0) {
+            // Apply to leaf-like blocks to avoid stacking line-heights on parent wrappers.
+            return blocks.filter(
+                (candidate) =>
+                    !blocks.some((other) => other !== candidate && candidate.contains(other))
+            );
+        }
+
+        const fallback =
+            findClosestBlock(range.startContainer, editor)
+            ?? findClosestBlock(range.endContainer, editor);
+        return fallback ? [fallback] : [];
+    }
+
+    function applyLineHeightToSelection(nextLineHeight: string) {
+        const editor = editorRef.current;
+        if (!editor) return;
+
+        editor.focus();
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) return;
+
+        const blocks = collectBlocksFromRange(range, editor);
+        if (blocks.length === 0) return;
+
+        const safeLineHeight =
+            nextLineHeight === "default"
+                ? null
+                : normalizeLineHeightValue(nextLineHeight);
+        if (nextLineHeight !== "default" && !safeLineHeight) return;
+
+        for (const block of blocks) {
+            if (!safeLineHeight) {
+                block.style.removeProperty("line-height");
+            } else {
+                block.style.lineHeight = safeLineHeight;
+            }
+        }
+
+        onChange(normalizeEditorHtml(editor.innerHTML ?? ""));
     }
 
     useImperativeHandle(ref, () => ({
@@ -457,6 +714,24 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
                         <button type="button" onClick={() => exec("insertOrderedList")} className={toolbarButtonClass}>1.</button>
                         <span className="mx-1 h-4 w-px bg-ring" />
                         <select
+                            onChange={(e) => {
+                                const next = e.target.value;
+                                if (!next) return;
+                                exec("formatBlock", next);
+                                e.currentTarget.value = "";
+                            }}
+                            className={toolbarSelectClass}
+                            defaultValue=""
+                        >
+                            <option value="">{t("Bloque", "Block")}</option>
+                            <option value="P">{t("Parrafo", "Paragraph")}</option>
+                            <option value="H1">{t("Encabezado 1", "Heading 1")}</option>
+                            <option value="H2">{t("Encabezado 2", "Heading 2")}</option>
+                            <option value="H3">{t("Encabezado 3", "Heading 3")}</option>
+                            <option value="BLOCKQUOTE">{t("Cita", "Quote")}</option>
+                            <option value="PRE">{t("Codigo", "Code")}</option>
+                        </select>
+                        <select
                             onChange={(e) => exec("fontName", e.target.value)}
                             className={toolbarSelectClass}
                             defaultValue="inherit"
@@ -479,6 +754,24 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
                             <option value="5">24</option>
                             <option value="6">32</option>
                             <option value="7">48</option>
+                        </select>
+                        <select
+                            onChange={(e) => {
+                                const next = e.target.value;
+                                if (!next) return;
+                                applyLineHeightToSelection(next);
+                                e.currentTarget.value = "";
+                            }}
+                            className={toolbarSelectClass}
+                            defaultValue=""
+                        >
+                            <option value="">{t("Interlineado", "Line spacing")}</option>
+                            <option value="default">{t("Por defecto", "Default")}</option>
+                            <option value="1">1.0</option>
+                            <option value="1.15">1.15</option>
+                            <option value="1.3">1.3</option>
+                            <option value="1.5">1.5</option>
+                            <option value="1.65">1.65</option>
                         </select>
                         <input
                             type="color"
@@ -528,8 +821,23 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
                 ref={editorRef}
                 contentEditable
                 suppressContentEditableWarning
-                onInput={() => onChange(editorRef.current?.innerHTML ?? "")}
-                className="min-h-[220px] rounded-md border border-ring bg-panel/85 px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-accent"
+                onInput={() => {
+                    const editor = editorRef.current;
+                    const normalized = normalizeEditorHtml(editor?.innerHTML ?? "");
+                    if (editor && editor.innerHTML !== normalized) {
+                        editor.innerHTML = normalized;
+                    }
+                    onChange(normalized);
+                }}
+                onBlur={() => {
+                    const editor = editorRef.current;
+                    const normalized = normalizeEditorHtml(editor?.innerHTML ?? "");
+                    if (editor && editor.innerHTML !== normalized) {
+                        editor.innerHTML = normalized;
+                    }
+                    onChange(normalized);
+                }}
+                className="story-editor-surface markdown min-h-[220px] rounded-md border border-ring bg-panel/85 px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-accent"
             />
         </div>
     );
@@ -737,8 +1045,12 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     ]);
 
     const selectedDocumentHtml = useMemo(
-        () => (selectedDocument ? getDocumentHtml(selectedDocument) : ""),
+        () => normalizeEditorHtml(selectedDocument ? getDocumentHtml(selectedDocument) : ""),
         [selectedDocument]
+    );
+    const normalizedDocHtmlDraft = useMemo(
+        () => normalizeEditorHtml(docHtmlDraft),
+        [docHtmlDraft]
     );
 
     const isDocumentDirty = useMemo(() => {
@@ -756,7 +1068,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             nextTitle !== selectedDocument.title
             || docTypeDraft !== selectedDocument.doc_type
             || docVisibilityDraft !== selectedDocument.visibility
-            || docHtmlDraft !== selectedDocumentHtml
+            || normalizedDocHtmlDraft !== selectedDocumentHtml
             || nextDefaultTextColor !== baseDefaultTextColor
         );
     }, [
@@ -765,7 +1077,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         docTitleDraft,
         docTypeDraft,
         docVisibilityDraft,
-        docHtmlDraft,
+        normalizedDocHtmlDraft,
         docDefaultTextColorDraft,
     ]);
 
@@ -1076,7 +1388,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         setSelectedZoneId(null);
         setReferences([]);
         setSelectedDocument(null);
-        setView(DEFAULT_VIEW);
+        setView(createInitialMapView(viewportRef.current));
         setMapNameDraft(map.name);
         setMapImageDraft(map.image_url);
     }
@@ -1231,7 +1543,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 ? (selectedDocument.metadata as Record<string, unknown>)
                 : {};
         setDocTitleDraft(selectedDocument.title);
-        setDocHtmlDraft(getDocumentHtml(selectedDocument));
+        setDocHtmlDraft(normalizeEditorHtml(getDocumentHtml(selectedDocument)));
         setDocTypeDraft(selectedDocument.doc_type);
         setDocVisibilityDraft(selectedDocument.visibility);
         setDocDefaultTextColorDraft(
@@ -1247,6 +1559,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         }
         setMapNameDraft(currentMap.name);
         setMapImageDraft(currentMap.image_url);
+        setView(createInitialMapView(viewportRef.current));
     }, [currentMap?.id]);
 
     useEffect(() => {
@@ -1710,7 +2023,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 setSelectedZoneId(null);
                 setReferences([]);
                 setSelectedDocument(null);
-                setView(DEFAULT_VIEW);
+                setView(createInitialMapView(viewportRef.current));
             }
         }, { es: "Acto eliminado.", en: "Act deleted." });
     }
@@ -2162,6 +2475,10 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
     async function handleSaveDocument(options?: SaveHandlerOptions) {
         if (!selectedDocument) return;
+        const normalizedDocHtml = normalizeEditorHtml(docHtmlDraft);
+        if (normalizedDocHtml !== docHtmlDraft) {
+            setDocHtmlDraft(normalizedDocHtml);
+        }
 
         await runMutation(async () => {
             const nextRevision = Math.max(1, selectedDocument.latest_revision ?? 1) + 1;
@@ -2178,8 +2495,8 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 doc_type: docTypeDraft,
                 visibility: docVisibilityDraft,
                 editor_format: "HTML",
-                content: { html: docHtmlDraft },
-                plain_text: stripHtml(docHtmlDraft),
+                content: { html: normalizedDocHtml },
+                plain_text: stripHtml(normalizedDocHtml),
                 latest_revision: nextRevision,
                 metadata: {
                     ...currentMetadata,
@@ -2209,8 +2526,8 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 document_id: updatedDoc.id,
                 revision: nextRevision,
                 editor_format: "HTML",
-                content: { html: docHtmlDraft },
-                plain_text: stripHtml(docHtmlDraft),
+                content: { html: normalizedDocHtml },
+                plain_text: stripHtml(normalizedDocHtml),
                 created_by: userId,
             });
         }, { es: "Ficha guardada.", en: "Sheet saved." }, options);
@@ -3195,6 +3512,82 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 )}
             </div>
             )}
+            <style jsx global>{`
+                .story-editor-surface > :first-child {
+                    margin-top: 0 !important;
+                }
+
+                .story-editor-surface > :last-child {
+                    margin-bottom: 0 !important;
+                }
+
+                .story-editor-surface h1 {
+                    font-size: 1.85rem;
+                    line-height: 1.2;
+                    font-weight: 700;
+                    margin: 0.9rem 0 0.45rem;
+                }
+
+                .story-editor-surface h2 {
+                    font-size: 1.5rem;
+                    line-height: 1.25;
+                    font-weight: 650;
+                    margin: 0.85rem 0 0.4rem;
+                }
+
+                .story-editor-surface h3 {
+                    font-size: 1.25rem;
+                    line-height: 1.3;
+                    font-weight: 600;
+                    margin: 0.75rem 0 0.35rem;
+                }
+
+                .story-editor-surface blockquote {
+                    margin: 0.75rem 0;
+                    padding-left: 0.75rem;
+                    border-left: 3px solid color-mix(in oklab, var(--ring), transparent 35%);
+                    color: var(--ink-muted);
+                    font-style: italic;
+                }
+
+                .story-editor-surface pre {
+                    margin: 0.75rem 0;
+                    padding: 0.6rem 0.7rem;
+                    border-radius: 0.5rem;
+                    border: 1px solid color-mix(in oklab, var(--ring), transparent 30%);
+                    background: color-mix(in oklab, var(--panel), black 6%);
+                    overflow-x: auto;
+                }
+
+                .story-editor-surface [data-story-theme-color="true"] {
+                    color: var(--ink) !important;
+                }
+
+                .story-editor-surface [style*="color: rgb(0, 0, 0)"],
+                .story-editor-surface [style*="color:rgb(0,0,0)"],
+                .story-editor-surface [style*="color:#000"],
+                .story-editor-surface [style*="color: #000"],
+                .story-editor-surface [style*="color:#000000"],
+                .story-editor-surface [style*="color:#000000ff"],
+                .story-editor-surface [style*="color: rgb(255, 255, 255)"],
+                .story-editor-surface [style*="color:rgb(255,255,255)"],
+                .story-editor-surface [style*="color:#fff"],
+                .story-editor-surface [style*="color:#ffffff"],
+                .story-editor-surface [style*="color:#ffffffff"] {
+                    color: var(--ink) !important;
+                }
+
+                .story-editor-surface font[color="black"],
+                .story-editor-surface font[color="#000"],
+                .story-editor-surface font[color="#000000"],
+                .story-editor-surface font[color="#000000ff"],
+                .story-editor-surface font[color="white"],
+                .story-editor-surface font[color="#fff"],
+                .story-editor-surface font[color="#ffffff"],
+                .story-editor-surface font[color="#ffffffff"] {
+                    color: var(--ink) !important;
+                }
+            `}</style>
         </div>
     );
 }

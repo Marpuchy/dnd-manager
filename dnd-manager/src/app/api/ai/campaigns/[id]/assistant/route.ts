@@ -321,6 +321,7 @@ const DEFAULT_AI_PROVIDER: AIProviderPreference = "auto";
 const DEFAULT_AI_FREE_ONLY = true;
 const DEFAULT_AI_GLOBAL_LEARNING_ENABLED = true;
 const DEFAULT_AI_GLOBAL_LEARNING_RAG_ENABLED = true;
+const DEFAULT_AI_DIRECT_HEURISTIC_FIRST = false;
 
 type CampaignRow = {
     id: string;
@@ -4034,6 +4035,24 @@ function buildAssistantUserPayload(
             "mapear mecanicas a estructuras del esquema",
             "devolver cambios minimos pero completos",
         ],
+        character_creation_contract: {
+            parse_dense_parameter_lists: true,
+            include_all_detected_fields: true,
+            avoid_partial_stat_updates_when_more_are_provided: true,
+            prioritize_complete_create_payloads: true,
+        },
+        dnd_rules_aid: {
+            ability_scores: ["STR", "DEX", "CON", "INT", "WIS", "CHA"],
+            ability_modifier_formula: "floor((score - 10) / 2)",
+            proficiency_bonus_by_level: {
+                "1-4": 2,
+                "5-8": 3,
+                "9-12": 4,
+                "13-16": 5,
+                "17-20": 6,
+            },
+            feature_action_types: ["action", "bonus", "reaction", "passive"],
+        },
         ui_render_contract: {
             item_description_is_base_only: true,
             mechanics_should_live_in_attachments: true,
@@ -4096,6 +4115,18 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
         "Para hechizos personalizados usa custom_spell_patch.",
         "Para rasgos/habilidades personalizadas usa custom_feature_patch.",
         "Para aprender/olvidar hechizos por nivel usa learned_spell_patch.",
+        "Si la petición es crear personaje/companion, rellena TODOS los campos detectables (nombre, clase, raza, nivel, xp, hp, ca, velocidad, stats y detalles).",
+        "Cuando el usuario pase una lista de parámetros (líneas, comas, bullets o clave:valor), parsea cada campo válido y no dejes cambios fuera.",
+        "No limites la respuesta a 1-2 estadísticas si hay más datos explícitos en la instrucción.",
+        "Para crear objeto desde cero, evita propuestas mínimas: incluye categoría, descripción base y mecánicas tipadas cuando existan.",
+        "",
+        "CONOCIMIENTO DND (OBLIGATORIO)",
+        "Asume reglas de D&D 5e/2024 para modelar cambios coherentes.",
+        "Atributos: STR, DEX, CON, INT, WIS, CHA.",
+        "Modificador de atributo: floor((score - 10)/2).",
+        "Bono de competencia orientativo por nivel: 1-4:+2, 5-8:+3, 9-12:+4, 13-16:+5, 17-20:+6.",
+        "Diferencia bien action/bonus/reaction/passive al mapear habilidades.",
+        "Si faltan datos clave para un personaje nuevo, no inventes silenciosamente: explícitalo en reply y aun así devuelve acciones con lo que sí sea válido.",
         "",
         "PROTOCOLO OPERATIVO (OBLIGATORIO)",
         "1) Detecta personaje objetivo por: orden explícita > clientContext.selectedCharacter > coincidencia por nombre.",
@@ -7338,16 +7369,110 @@ function parseHpFromInstruction(instruction: string) {
     return { currentHp: undefined, maxHp: undefined };
 }
 
+const CLASS_KEYWORD_MAP: ReadonlyArray<{ pattern: RegExp; value: string }> = [
+    { pattern: /\bbarbaro\b/, value: "Bárbaro" },
+    { pattern: /\bbard(?:o)?\b/, value: "Bardo" },
+    { pattern: /\bcler(?:igo|ic)\b/, value: "Clérigo" },
+    { pattern: /\bdruida?\b|\bdruid\b/, value: "Druida" },
+    { pattern: /\bguerrero\b|\bfighter\b/, value: "Guerrero" },
+    { pattern: /\bmonje\b|\bmonk\b/, value: "Monje" },
+    { pattern: /\bpaladin\b|\bpaladin[oa]?\b/, value: "Paladín" },
+    { pattern: /\bpicaro\b|\brogue\b/, value: "Pícaro" },
+    { pattern: /\bguardabosques\b|\branger\b/, value: "Guardabosques" },
+    { pattern: /\bhechicero\b|\bsorcerer\b/, value: "Hechicero" },
+    { pattern: /\bbrujo\b|\bwarlock\b/, value: "Brujo" },
+    { pattern: /\bmago\b|\bwizard\b/, value: "Mago" },
+    { pattern: /\bartificiero\b|\bartificer\b/, value: "Artificiero" },
+];
+
+const RACE_KEYWORD_MAP: ReadonlyArray<{ pattern: RegExp; value: string }> = [
+    { pattern: /\bhumano\b|\bhuman\b/, value: "Humano" },
+    { pattern: /\belf[oa]?\b|\belf\b/, value: "Elfo" },
+    { pattern: /\benan[oa]?\b|\bdwarf\b/, value: "Enano" },
+    { pattern: /\bmedian[oa]?\b|\bhalfling\b/, value: "Mediano" },
+    { pattern: /\borc[oa]?\b|\bhalf[\s-]?orc\b/, value: "Orco / Semi-orco" },
+    { pattern: /\bgoliath\b/, value: "Goliath" },
+    { pattern: /\bdraconid[oa]?\b|\bdragonborn\b/, value: "Dracónido" },
+    { pattern: /\btiflin[gn]?\b|\btiefling\b/, value: "Tiefling" },
+    { pattern: /\bgnom[oa]?\b|\bgnome\b/, value: "Gnomo" },
+    { pattern: /\bsemi[\s-]?elf[oa]?\b|\bhalf[\s-]?elf\b/, value: "Semielfo" },
+    { pattern: /\baasimar\b/, value: "Aasimar" },
+    { pattern: /\bgenasi\b/, value: "Genasi" },
+    { pattern: /\btabaxi\b/, value: "Tabaxi" },
+];
+
+function inferClassFromInstruction(instruction: string) {
+    const normalized = normalizeForMatch(instruction);
+    const createLikeIntent =
+        normalized.includes("crea") || normalized.includes("crear") || normalized.includes("create");
+    const hasCharacterSignal =
+        normalized.includes("personaje") ||
+        normalized.includes("character") ||
+        normalized.includes("companion") ||
+        normalized.includes("familiar") ||
+        normalized.includes("clase") ||
+        normalized.includes("class") ||
+        (createLikeIntent &&
+            (normalized.includes("nivel") ||
+                normalized.includes("level") ||
+                normalized.includes("hp") ||
+                normalized.includes("fuerza") ||
+                normalized.includes("strength") ||
+                normalized.includes("str")));
+    if (!hasCharacterSignal) return undefined;
+
+    for (const entry of CLASS_KEYWORD_MAP) {
+        if (entry.pattern.test(normalized)) return entry.value;
+    }
+    return undefined;
+}
+
+function inferRaceFromInstruction(instruction: string) {
+    const normalized = normalizeForMatch(instruction);
+    const createLikeIntent =
+        normalized.includes("crea") || normalized.includes("crear") || normalized.includes("create");
+    const hasCharacterSignal =
+        normalized.includes("personaje") ||
+        normalized.includes("character") ||
+        normalized.includes("companion") ||
+        normalized.includes("familiar") ||
+        normalized.includes("raza") ||
+        normalized.includes("race") ||
+        (createLikeIntent &&
+            (normalized.includes("nivel") ||
+                normalized.includes("level") ||
+                normalized.includes("hp") ||
+                normalized.includes("fuerza") ||
+                normalized.includes("strength") ||
+                normalized.includes("str")));
+    if (!hasCharacterSignal) return undefined;
+
+    for (const entry of RACE_KEYWORD_MAP) {
+        if (entry.pattern.test(normalized)) return entry.value;
+    }
+    return undefined;
+}
+
 function parseClassFromInstruction(instruction: string) {
-    const match = instruction.match(/\b(?:clase|class)\b\s*[:=-]?\s*([^\n,.;]{2,120})/i);
-    if (!match) return undefined;
-    return cleanupEntityName(match[1], 120);
+    const match = instruction.match(
+        /\b(?:clase|class)(?:\s+de\s+personaje)?\b\s*[:=-]?\s*([^\n,.;]{2,120})/i
+    );
+    if (match) {
+        const parsed = cleanupEntityName(match[1], 120);
+        if (parsed) return parsed;
+    }
+    return inferClassFromInstruction(instruction);
 }
 
 function parseRaceFromInstruction(instruction: string) {
-    const match = instruction.match(/\b(?:raza|race)\b\s*[:=-]?\s*([^\n,.;]{2,120})/i);
-    if (!match) return undefined;
-    return cleanupEntityName(match[1], 120);
+    const match = instruction.match(
+        /\b(?:raza|race)(?:\s+de\s+personaje)?\b\s*[:=-]?\s*([^\n,.;]{2,120})/i
+    );
+    if (match) {
+        const parsed = cleanupEntityName(match[1], 120);
+        if (parsed) return parsed;
+    }
+    return inferRaceFromInstruction(instruction);
 }
 
 function parseCoreDataPatchFromInstruction(instruction: string) {
@@ -7821,6 +7946,7 @@ function buildHeuristicCreateCharacterActions({
     if (!name) return [];
 
     const core = parseCoreDataPatchFromInstruction(instruction);
+    const detailsPatch = parseDetailsPatchFromInstruction(instruction);
     const ownerCharacterId = resolveHeuristicTargetCharacterId({
         targetCharacterId,
         clientContext,
@@ -7845,6 +7971,7 @@ function buildHeuristicCreateCharacterActions({
     if (typeof core.armor_class === "number") actionData.armor_class = core.armor_class;
     if (typeof core.speed === "number") actionData.speed = core.speed;
     if (core.stats) actionData.stats = core.stats;
+    if (detailsPatch) actionData.details_patch = detailsPatch;
     if (ownerCharacter?.user_id) actionData.user_id = ownerCharacter.user_id;
 
     return [
@@ -8083,7 +8210,7 @@ function buildCapabilitiesReply(
         ownerScope,
         "Para decidir mejor, puedo usar el contexto de la pantalla que tienes abierta (sección, pestaña y personaje seleccionado).",
         "Acciones que puedo aplicar ahora:",
-        "- Crear personaje o companion con nombre, clase, raza, nivel, hp, CA y velocidad.",
+        "- Crear personaje o companion con nombre, clase, raza, nivel, xp, hp actual/max, CA, velocidad y stats completas.",
         "- Actualizar stats (str/dex/con/int/wis/cha).",
         "- Actualizar detalles como notas, trasfondo, alineamiento, idiomas, inventario y equipo.",
         "- Editar objetos del inventario por nombre y añadir rasgos/habilidades como adjuntos del objeto (trait/ability).",
@@ -8093,6 +8220,7 @@ function buildCapabilitiesReply(
         "- Aprender u olvidar hechizos por nivel en la lista de hechizos del personaje.",
         "Ejemplos:",
         "- \"Crea un companion lobo nivel 2 para mi personaje.\"",
+        "- \"Crea personaje: nombre Lyra, clase Bardo, raza Elfa, nivel 3, str 8 dex 16 con 12 int 13 wis 10 cha 17, hp 21/21, ca 14, velocidad 30.\"",
         "- \"Sube mi personaje a nivel 5 y pon 16 en DEX.\"",
         "- \"Añade en notas: desconfía de los magos rojos.\"",
         "- \"Modifica el yelmo del primer forjador y añade sus rasgos como habilidades del objeto.\"",
@@ -9587,6 +9715,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
             process.env.AI_ENABLE_LOCAL_FALLBACK,
             true
         );
+        const directHeuristicFirst = parseEnvBool(
+            process.env.AI_DIRECT_HEURISTIC_FIRST,
+            DEFAULT_AI_DIRECT_HEURISTIC_FIRST
+        );
         const openaiApiKey = process.env.OPENAI_API_KEY;
         const openaiModel = process.env.OPENAI_ASSISTANT_MODEL ?? DEFAULT_OPENAI_MODEL;
         const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -9945,7 +10077,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         }
 
         const directHeuristicPlan =
-            intent === "mutation"
+            directHeuristicFirst && intent === "mutation"
                 ? buildHeuristicMutationPlan({
                       prompt,
                       visibleCharacters,
@@ -10153,29 +10285,115 @@ export async function POST(req: NextRequest, context: RouteContext) {
             }),
         };
 
-        const { plan, provider } = await requestAssistantPlan({
-            providerPreference: effectiveProviderPreference,
-            enableLocalFallback: effectiveEnableLocalFallback,
-            prompt,
-            context: modelContext,
-            openai: {
-                apiKey: effectiveOpenAIApiKey,
-                model: openaiModel,
-                timeoutMs: openaiTimeoutMs,
-            },
-            gemini: {
-                apiKey: effectiveGeminiApiKey,
-                model: geminiModel,
-                timeoutMs: geminiTimeoutMs,
-            },
-            ollama: {
-                baseUrl: ollamaBaseUrl,
-                model: ollamaModel,
-                timeoutMs: ollamaTimeoutMs,
-                numPredict: ollamaNumPredict,
-                numCtx: ollamaNumCtx,
-            },
-        });
+        let plan: AssistantPlan;
+        let provider: AIProvider;
+        try {
+            const result = await requestAssistantPlan({
+                providerPreference: effectiveProviderPreference,
+                enableLocalFallback: effectiveEnableLocalFallback,
+                prompt,
+                context: modelContext,
+                openai: {
+                    apiKey: effectiveOpenAIApiKey,
+                    model: openaiModel,
+                    timeoutMs: openaiTimeoutMs,
+                },
+                gemini: {
+                    apiKey: effectiveGeminiApiKey,
+                    model: geminiModel,
+                    timeoutMs: geminiTimeoutMs,
+                },
+                ollama: {
+                    baseUrl: ollamaBaseUrl,
+                    model: ollamaModel,
+                    timeoutMs: ollamaTimeoutMs,
+                    numPredict: ollamaNumPredict,
+                    numCtx: ollamaNumCtx,
+                },
+            });
+            plan = result.plan;
+            provider = result.provider;
+        } catch (modelError) {
+            const localFallbackPlan =
+                intent === "mutation" && effectiveEnableLocalFallback
+                    ? buildHeuristicMutationPlan({
+                          prompt,
+                          visibleCharacters,
+                          targetCharacterId,
+                          clientContext,
+                          visibleCharacterIds,
+                      })
+                    : null;
+            if (localFallbackPlan && localFallbackPlan.actions.length > 0) {
+                const fallbackReply =
+                    `${localFallbackPlan.reply} (Fallback local por indisponibilidad del modelo).`;
+                const fallbackPreviewReply =
+                    assistantMode === "training"
+                        ? `${buildTrainingModeReply({
+                              prompt,
+                              role,
+                              clientContext,
+                              trainingSubmode,
+                              actionCount: localFallbackPlan.actions.length,
+                          })}\n\n${fallbackReply}`
+                        : fallbackReply;
+                if (!apply) {
+                    return NextResponse.json({
+                        reply: fallbackPreviewReply,
+                        proposedActions: localFallbackPlan.actions,
+                        applied: false,
+                        provider: "heuristic-local",
+                        intent,
+                        rag: ragSnippets,
+                        results: [],
+                        permissions: {
+                            role,
+                            canManageAllCharacters: role === "DM",
+                        },
+                    });
+                }
+                if (assistantMode === "training") {
+                    return NextResponse.json({
+                        reply: fallbackPreviewReply,
+                        proposedActions: localFallbackPlan.actions,
+                        applied: false,
+                        provider: "training-simulated",
+                        intent,
+                        rag: ragSnippets,
+                        results: buildTrainingSimulationResults(
+                            sanitizeActions(localFallbackPlan.actions, targetCharacterId)
+                        ),
+                        permissions: {
+                            role,
+                            canManageAllCharacters: role === "DM",
+                        },
+                    });
+                }
+                const fallbackResults = await applyActions({
+                    adminClient,
+                    campaignId,
+                    userId: user.id,
+                    role,
+                    members,
+                    visibleCharacterIds,
+                    actions: localFallbackPlan.actions,
+                });
+                return NextResponse.json({
+                    reply: fallbackReply,
+                    proposedActions: localFallbackPlan.actions,
+                    applied: true,
+                    provider: "heuristic-local",
+                    intent,
+                    rag: ragSnippets,
+                    results: fallbackResults,
+                    permissions: {
+                        role,
+                        canManageAllCharacters: role === "DM",
+                    },
+                });
+            }
+            throw modelError;
+        }
 
         const sanitizedActions = sanitizeActions(plan.actions, targetCharacterId);
         const heuristicPlan =
