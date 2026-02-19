@@ -1392,8 +1392,8 @@ export function CharacterForm({
                                             <p className="text-[11px] text-ink-muted">
                                                 {canChooseSubclass
                                                     ? t(
-                                                          "Se aplican sus rasgos por nivel automaticamente.",
-                                                          "Its features are applied automatically by level."
+                                                          "Selecciona una subclase para aplicar rasgos automaticamente.",
+                                                          "Select a subclass to apply features automatically."
                                                       )
                                                     : t(
                                                           `Disponible a partir del nivel ${subclassUnlockLevel}.`,

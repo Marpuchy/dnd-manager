@@ -190,6 +190,31 @@ export type ItemAttachmentEntry = {
     name: string;
     level?: number;
     description?: LocalizedText;
+    school?: string;
+    castingTime?: SpellCastingTime;
+    range?: string;
+    components?: SpellComponentSet;
+    materials?: string;
+    duration?: string;
+    concentration?: boolean;
+    ritual?: boolean;
+    save?: SpellSaveConfig;
+    damage?: SpellDamageConfig;
+    actionType?: "action" | "bonus" | "reaction" | "passive";
+    resourceCost?: AbilityResourceCost;
+    requirements?: string;
+    effect?: string;
+};
+
+export type ItemConfiguration = {
+    id: string;
+    name: string;
+    description?: LocalizedText;
+    usage?: string;
+    damage?: string;
+    range?: string;
+    magicBonus?: number;
+    attachments?: ItemAttachmentEntry[];
 };
 
 export type CharacterItem = {
@@ -213,6 +238,8 @@ export type CharacterItem = {
     source?: string;
     sortOrder?: number;
     attachments?: ItemAttachmentEntry[];
+    configurations?: ItemConfiguration[];
+    activeConfigurationId?: string;
 };
 
 export type CustomSpellEntry = {

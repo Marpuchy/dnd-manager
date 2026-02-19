@@ -143,7 +143,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     // Clase personalizada
     // Hechizos en formulario
     // --- Helper: carga personajes desde DB (reutilizable)
-    async function loadCharacters() {
+    async function loadCharacters(): Promise<Character[]> {
         setLoading(true);
         setError(null);
         try {
@@ -153,7 +153,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 
             if (!session?.user) {
                 router.push("/login");
-                return;
+                return [];
             }
 
             const baseQuery = supabase
@@ -176,6 +176,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             : "No se han podido cargar tus personajes.")
                 );
                 setCharacters([]);
+                return [];
             } else if (chars) {
                 const list: Character[] = (chars as any[]).map((c) => ({
                     ...(c as any),
@@ -191,13 +192,16 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 });
                 setCharacters(sorted);
                 if (!selectedId && sorted.length > 0) setSelectedId(sorted[0].id);
+                return sorted;
             } else {
                 setCharacters([]);
+                return [];
             }
         } catch (err: any) {
             console.error("loadCharacters:", err);
             setError(err?.message ?? "Error cargando personajes.");
             setCharacters([]);
+            return [];
         } finally {
             setLoading(false);
         }
@@ -1448,7 +1452,20 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 selectedCharacterId={selectedChar?.id ?? null}
                 selectedCharacterName={selectedChar?.name ?? null}
                 assistantContext={assistantContext}
-                onApplied={loadCharacters}
+                onApplied={async () => {
+                    const refreshed = await loadCharacters();
+                    if (mode !== "edit") return;
+
+                    const activeEditorId = editingId ?? selectedChar?.id ?? null;
+                    if (!activeEditorId) return;
+                    const freshCharacter = refreshed.find(
+                        (entry) => entry.id === activeEditorId
+                    );
+                    if (!freshCharacter) return;
+
+                    autoSaveGuardRef.current = true;
+                    loadFromCharacter(freshCharacter);
+                }}
             />
             <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </main>

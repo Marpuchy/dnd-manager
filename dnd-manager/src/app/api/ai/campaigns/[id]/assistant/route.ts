@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { ITEM_ATTACHMENT_STRUCTURED_AI_KEYS } from "../../../../../../lib/ai/assistantSync";
 
 export const runtime = "nodejs";
 
@@ -92,11 +93,45 @@ type ItemAttachmentType =
     | "classFeature"
     | "other";
 
+type ItemAttachmentResourceCostPatch = {
+    uses_spell_slot?: boolean;
+    slot_level?: number;
+    charges?: number;
+    recharge?: "short" | "long";
+    points_label?: string | null;
+    points?: number;
+};
+
 type ItemAttachmentPatch = {
     type?: ItemAttachmentType;
     name: string;
     level?: number;
     description?: string | null;
+    school?: string | null;
+    casting_time?: string | null;
+    casting_time_note?: string | null;
+    range?: string | null;
+    components?: SpellComponentPatch;
+    materials?: string | null;
+    duration?: string | null;
+    concentration?: boolean;
+    ritual?: boolean;
+    resource_cost?: ItemAttachmentResourceCostPatch;
+    save?: SpellSavePatch;
+    damage?: SpellDamagePatch;
+    action_type?: FeatureActionType;
+    requirements?: string | null;
+    effect?: string | null;
+};
+
+type ItemConfigurationPatch = {
+    name: string;
+    description?: string | null;
+    usage?: string | null;
+    damage?: string | null;
+    range?: string | null;
+    magic_bonus?: number;
+    attachments_replace?: ItemAttachmentPatch[];
 };
 
 type ItemPatch = {
@@ -112,6 +147,9 @@ type ItemPatch = {
     attunement?: boolean | string | null;
     tags_add?: string[];
     tags_remove?: string[];
+    clear_configurations?: boolean;
+    configurations_replace?: ItemConfigurationPatch[];
+    active_configuration?: string | null;
     clear_attachments?: boolean;
     attachments_add?: ItemAttachmentPatch[];
     attachments_replace?: ItemAttachmentPatch[];
@@ -239,6 +277,8 @@ type AssistantPlan = {
 type AIProvider = "ollama" | "openai" | "gemini";
 type AIProviderPreference = AIProvider | "auto";
 type AssistantIntent = "mutation" | "capabilities" | "chat";
+type AssistantMode = "normal" | "training";
+type TrainingSubmode = "ai_prompt" | "sandbox_object";
 
 type OpenAIResponse = {
     choices?: Array<{
@@ -279,6 +319,8 @@ const DEFAULT_OLLAMA_BASE_URL =
     process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434";
 const DEFAULT_AI_PROVIDER: AIProviderPreference = "auto";
 const DEFAULT_AI_FREE_ONLY = true;
+const DEFAULT_AI_GLOBAL_LEARNING_ENABLED = true;
+const DEFAULT_AI_GLOBAL_LEARNING_RAG_ENABLED = true;
 
 type CampaignRow = {
     id: string;
@@ -297,7 +339,7 @@ type NoteRow = {
 
 type RagDocument = {
     id: string;
-    sourceType: "campaign" | "character" | "note";
+    sourceType: "campaign" | "character" | "note" | "community";
     title: string;
     text: string;
     priority: number;
@@ -432,6 +474,146 @@ const ASSISTANT_PLAN_SCHEMA: Record<string, unknown> = {
                                         maxItems: 16,
                                         items: { type: "string" },
                                     },
+                                    clear_configurations: { type: "boolean" },
+                                    active_configuration: { type: ["string", "null"] },
+                                    configurations_replace: {
+                                        type: "array",
+                                        maxItems: 8,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                description: { type: ["string", "null"] },
+                                                usage: { type: ["string", "null"] },
+                                                damage: { type: ["string", "null"] },
+                                                range: { type: ["string", "null"] },
+                                                magic_bonus: { type: "integer" },
+                                                attachments_replace: {
+                                                    type: "array",
+                                                    maxItems: 10,
+                                                    items: {
+                                                        type: "object",
+                                                        additionalProperties: false,
+                                                        properties: {
+                                                            type: {
+                                                                type: "string",
+                                                                enum: [
+                                                                    "action",
+                                                                    "ability",
+                                                                    "trait",
+                                                                    "spell",
+                                                                    "cantrip",
+                                                                    "classFeature",
+                                                                    "other",
+                                                                ],
+                                                            },
+                                                            name: { type: "string" },
+                                                            level: { type: "integer" },
+                                                            description: { type: ["string", "null"] },
+                                                            school: { type: ["string", "null"] },
+                                                            casting_time: { type: ["string", "null"] },
+                                                            casting_time_note: { type: ["string", "null"] },
+                                                            range: { type: ["string", "null"] },
+                                                            components: {
+                                                                type: "object",
+                                                                additionalProperties: false,
+                                                                properties: {
+                                                                    verbal: { type: "boolean" },
+                                                                    somatic: { type: "boolean" },
+                                                                    material: { type: "boolean" },
+                                                                },
+                                                            },
+                                                            materials: { type: ["string", "null"] },
+                                                            duration: { type: ["string", "null"] },
+                                                            concentration: { type: "boolean" },
+                                                            ritual: { type: "boolean" },
+                                                            resource_cost: {
+                                                                type: "object",
+                                                                additionalProperties: false,
+                                                                properties: {
+                                                                    uses_spell_slot: { type: "boolean" },
+                                                                    slot_level: { type: "integer" },
+                                                                    charges: { type: "integer" },
+                                                                    recharge: {
+                                                                        type: "string",
+                                                                        enum: ["short", "long"],
+                                                                    },
+                                                                    points_label: {
+                                                                        type: ["string", "null"],
+                                                                    },
+                                                                    points: { type: "integer" },
+                                                                },
+                                                            },
+                                                            save: {
+                                                                type: "object",
+                                                                additionalProperties: false,
+                                                                properties: {
+                                                                    type: {
+                                                                        type: "string",
+                                                                        enum: ["attack", "save", "none"],
+                                                                    },
+                                                                    save_ability: {
+                                                                        type: "string",
+                                                                        enum: [
+                                                                            "STR",
+                                                                            "DEX",
+                                                                            "CON",
+                                                                            "INT",
+                                                                            "WIS",
+                                                                            "CHA",
+                                                                        ],
+                                                                    },
+                                                                    dc_type: {
+                                                                        type: "string",
+                                                                        enum: ["fixed", "stat"],
+                                                                    },
+                                                                    dc_value: { type: "integer" },
+                                                                    dc_stat: {
+                                                                        type: "string",
+                                                                        enum: [
+                                                                            "STR",
+                                                                            "DEX",
+                                                                            "CON",
+                                                                            "INT",
+                                                                            "WIS",
+                                                                            "CHA",
+                                                                        ],
+                                                                    },
+                                                                },
+                                                            },
+                                                            damage: {
+                                                                type: "object",
+                                                                additionalProperties: false,
+                                                                properties: {
+                                                                    damage_type: { type: "string" },
+                                                                    dice: { type: "string" },
+                                                                    scaling: { type: "string" },
+                                                                },
+                                                            },
+                                                            action_type: {
+                                                                type: "string",
+                                                                enum: [
+                                                                    "action",
+                                                                    "bonus",
+                                                                    "reaction",
+                                                                    "passive",
+                                                                ],
+                                                            },
+                                                            requirements: {
+                                                                type: ["string", "null"],
+                                                            },
+                                                            effect: {
+                                                                type: ["string", "null"],
+                                                            },
+                                                        },
+                                                        required: ["name"],
+                                                    },
+                                                },
+                                            },
+                                            required: ["name"],
+                                        },
+                                    },
                                     clear_attachments: { type: "boolean" },
                                     attachments_add: {
                                         type: "array",
@@ -455,6 +637,103 @@ const ASSISTANT_PLAN_SCHEMA: Record<string, unknown> = {
                                                 name: { type: "string" },
                                                 level: { type: "integer" },
                                                 description: {
+                                                    type: ["string", "null"],
+                                                },
+                                                school: { type: ["string", "null"] },
+                                                casting_time: { type: ["string", "null"] },
+                                                casting_time_note: {
+                                                    type: ["string", "null"],
+                                                },
+                                                range: { type: ["string", "null"] },
+                                                components: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        verbal: { type: "boolean" },
+                                                        somatic: { type: "boolean" },
+                                                        material: { type: "boolean" },
+                                                    },
+                                                },
+                                                materials: { type: ["string", "null"] },
+                                                duration: { type: ["string", "null"] },
+                                                concentration: { type: "boolean" },
+                                                ritual: { type: "boolean" },
+                                                resource_cost: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        uses_spell_slot: { type: "boolean" },
+                                                        slot_level: { type: "integer" },
+                                                        charges: { type: "integer" },
+                                                        recharge: {
+                                                            type: "string",
+                                                            enum: ["short", "long"],
+                                                        },
+                                                        points_label: {
+                                                            type: ["string", "null"],
+                                                        },
+                                                        points: { type: "integer" },
+                                                    },
+                                                },
+                                                save: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        type: {
+                                                            type: "string",
+                                                            enum: ["attack", "save", "none"],
+                                                        },
+                                                        save_ability: {
+                                                            type: "string",
+                                                            enum: [
+                                                                "STR",
+                                                                "DEX",
+                                                                "CON",
+                                                                "INT",
+                                                                "WIS",
+                                                                "CHA",
+                                                            ],
+                                                        },
+                                                        dc_type: {
+                                                            type: "string",
+                                                            enum: ["fixed", "stat"],
+                                                        },
+                                                        dc_value: { type: "integer" },
+                                                        dc_stat: {
+                                                            type: "string",
+                                                            enum: [
+                                                                "STR",
+                                                                "DEX",
+                                                                "CON",
+                                                                "INT",
+                                                                "WIS",
+                                                                "CHA",
+                                                            ],
+                                                        },
+                                                    },
+                                                },
+                                                damage: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        damage_type: { type: "string" },
+                                                        dice: { type: "string" },
+                                                        scaling: { type: "string" },
+                                                    },
+                                                },
+                                                action_type: {
+                                                    type: "string",
+                                                    enum: [
+                                                        "action",
+                                                        "bonus",
+                                                        "reaction",
+                                                        "passive",
+                                                    ],
+                                                },
+                                                requirements: {
+                                                    type: ["string", "null"],
+                                                },
+                                                effect: {
                                                     type: ["string", "null"],
                                                 },
                                             },
@@ -483,6 +762,103 @@ const ASSISTANT_PLAN_SCHEMA: Record<string, unknown> = {
                                                 name: { type: "string" },
                                                 level: { type: "integer" },
                                                 description: {
+                                                    type: ["string", "null"],
+                                                },
+                                                school: { type: ["string", "null"] },
+                                                casting_time: { type: ["string", "null"] },
+                                                casting_time_note: {
+                                                    type: ["string", "null"],
+                                                },
+                                                range: { type: ["string", "null"] },
+                                                components: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        verbal: { type: "boolean" },
+                                                        somatic: { type: "boolean" },
+                                                        material: { type: "boolean" },
+                                                    },
+                                                },
+                                                materials: { type: ["string", "null"] },
+                                                duration: { type: ["string", "null"] },
+                                                concentration: { type: "boolean" },
+                                                ritual: { type: "boolean" },
+                                                resource_cost: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        uses_spell_slot: { type: "boolean" },
+                                                        slot_level: { type: "integer" },
+                                                        charges: { type: "integer" },
+                                                        recharge: {
+                                                            type: "string",
+                                                            enum: ["short", "long"],
+                                                        },
+                                                        points_label: {
+                                                            type: ["string", "null"],
+                                                        },
+                                                        points: { type: "integer" },
+                                                    },
+                                                },
+                                                save: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        type: {
+                                                            type: "string",
+                                                            enum: ["attack", "save", "none"],
+                                                        },
+                                                        save_ability: {
+                                                            type: "string",
+                                                            enum: [
+                                                                "STR",
+                                                                "DEX",
+                                                                "CON",
+                                                                "INT",
+                                                                "WIS",
+                                                                "CHA",
+                                                            ],
+                                                        },
+                                                        dc_type: {
+                                                            type: "string",
+                                                            enum: ["fixed", "stat"],
+                                                        },
+                                                        dc_value: { type: "integer" },
+                                                        dc_stat: {
+                                                            type: "string",
+                                                            enum: [
+                                                                "STR",
+                                                                "DEX",
+                                                                "CON",
+                                                                "INT",
+                                                                "WIS",
+                                                                "CHA",
+                                                            ],
+                                                        },
+                                                    },
+                                                },
+                                                damage: {
+                                                    type: "object",
+                                                    additionalProperties: false,
+                                                    properties: {
+                                                        damage_type: { type: "string" },
+                                                        dice: { type: "string" },
+                                                        scaling: { type: "string" },
+                                                    },
+                                                },
+                                                action_type: {
+                                                    type: "string",
+                                                    enum: [
+                                                        "action",
+                                                        "bonus",
+                                                        "reaction",
+                                                        "passive",
+                                                    ],
+                                                },
+                                                requirements: {
+                                                    type: ["string", "null"],
+                                                },
+                                                effect: {
                                                     type: ["string", "null"],
                                                 },
                                             },
@@ -709,6 +1085,10 @@ function asInteger(value: unknown, min: number, max: number): number | undefined
     return Math.round(clampNumber(parsed, min, max));
 }
 
+function asBooleanFlag(value: unknown): boolean | undefined {
+    return typeof value === "boolean" ? value : undefined;
+}
+
 function asContextString(value: unknown, maxLen = 100): string | undefined {
     const parsed = asTrimmedString(value, maxLen);
     if (!parsed) return undefined;
@@ -765,11 +1145,52 @@ const FEATURE_ACTION_VALUES: readonly FeatureActionType[] = [
 const ABILITY_KEY_VALUES = ["STR", "DEX", "CON", "INT", "WIS", "CHA"] as const;
 
 function normalizeAbilityKey(value: unknown) {
-    const raw = asTrimmedString(value, 8);
+    const raw = asTrimmedString(value, 120);
     if (!raw) return undefined;
-    const normalized = raw.toUpperCase();
-    if ((ABILITY_KEY_VALUES as readonly string[]).includes(normalized)) {
-        return normalized as "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+    const compactUpper = raw.toUpperCase().replace(/[^A-Z]/g, "");
+    if (compactUpper.includes("STR")) return "STR";
+    if (compactUpper.includes("DEX")) return "DEX";
+    if (compactUpper.includes("CON")) return "CON";
+    if (compactUpper.includes("INT")) return "INT";
+    if (compactUpper.includes("WIS")) return "WIS";
+    if (compactUpper.includes("CHA")) return "CHA";
+
+    const normalized = normalizeForMatch(raw);
+    if (
+        /\b(strength|fuerza|forzudo)\b/.test(normalized) ||
+        /\b(str)\b/.test(normalized)
+    ) {
+        return "STR";
+    }
+    if (
+        /\b(dexterity|destreza)\b/.test(normalized) ||
+        /\b(dex)\b/.test(normalized)
+    ) {
+        return "DEX";
+    }
+    if (
+        /\b(constitution|constitucion)\b/.test(normalized) ||
+        /\b(con)\b/.test(normalized)
+    ) {
+        return "CON";
+    }
+    if (
+        /\b(intelligence|inteligencia)\b/.test(normalized) ||
+        /\b(int)\b/.test(normalized)
+    ) {
+        return "INT";
+    }
+    if (
+        /\b(wisdom|sabiduria)\b/.test(normalized) ||
+        /\b(wis)\b/.test(normalized)
+    ) {
+        return "WIS";
+    }
+    if (
+        /\b(charisma|carisma)\b/.test(normalized) ||
+        /\b(cha)\b/.test(normalized)
+    ) {
+        return "CHA";
     }
     return undefined;
 }
@@ -860,11 +1281,49 @@ function sanitizeSpellResourceCostPatch(
     const output: SpellResourceCostPatch = {};
     if (typeof value.uses_spell_slot === "boolean") {
         output.uses_spell_slot = value.uses_spell_slot;
+    } else if (typeof value.usesSpellSlot === "boolean") {
+        output.uses_spell_slot = value.usesSpellSlot;
     }
-    const slotLevel = asInteger(value.slot_level, 0, 9);
+    const slotLevel =
+        asInteger(value.slot_level, 0, 9) ??
+        asInteger(value.slotLevel, 0, 9);
     if (typeof slotLevel === "number") output.slot_level = slotLevel;
     const charges = asInteger(value.charges, 0, 999);
     if (typeof charges === "number") output.charges = charges;
+    const points = asInteger(value.points, 0, 999);
+    if (typeof points === "number") output.points = points;
+    return Object.keys(output).length > 0 ? output : undefined;
+}
+
+function sanitizeItemAttachmentResourceCostPatch(
+    value: unknown
+): ItemAttachmentResourceCostPatch | undefined {
+    if (!isRecord(value)) return undefined;
+    const output: ItemAttachmentResourceCostPatch = {};
+    if (typeof value.uses_spell_slot === "boolean") {
+        output.uses_spell_slot = value.uses_spell_slot;
+    } else if (typeof value.usesSpellSlot === "boolean") {
+        output.uses_spell_slot = value.usesSpellSlot;
+    }
+    const slotLevel =
+        asInteger(value.slot_level, 0, 9) ??
+        asInteger(value.slotLevel, 0, 9);
+    if (typeof slotLevel === "number") output.slot_level = slotLevel;
+
+    const charges = asInteger(value.charges, 0, 999);
+    if (typeof charges === "number") output.charges = charges;
+
+    const recharge =
+        asTrimmedString(value.recharge, 10)?.toLowerCase() ?? undefined;
+    if (recharge === "short" || recharge === "long") {
+        output.recharge = recharge;
+    }
+
+    const pointsLabel =
+        asNullableString(value.points_label, 80) ??
+        asNullableString(value.pointsLabel, 80);
+    if (pointsLabel !== undefined) output.points_label = pointsLabel;
+
     const points = asInteger(value.points, 0, 999);
     if (typeof points === "number") output.points = points;
     return Object.keys(output).length > 0 ? output : undefined;
@@ -877,15 +1336,22 @@ function sanitizeSpellSavePatch(value: unknown): SpellSavePatch | undefined {
     if (saveType === "attack" || saveType === "save" || saveType === "none") {
         output.type = saveType;
     }
-    const saveAbility = normalizeAbilityKey(value.save_ability);
+    const saveAbility = normalizeAbilityKey(
+        value.save_ability ?? value.saveAbility
+    );
     if (saveAbility) output.save_ability = saveAbility;
-    const dcType = asTrimmedString(value.dc_type, 16)?.toLowerCase();
+    const dcType = asTrimmedString(
+        value.dc_type ?? value.dcType,
+        16
+    )?.toLowerCase();
     if (dcType === "fixed" || dcType === "stat") {
         output.dc_type = dcType;
     }
-    const dcValue = asInteger(value.dc_value, 0, 40);
+    const dcValue =
+        asInteger(value.dc_value, 0, 40) ??
+        asInteger(value.dcValue, 0, 40);
     if (typeof dcValue === "number") output.dc_value = dcValue;
-    const dcStat = normalizeAbilityKey(value.dc_stat);
+    const dcStat = normalizeAbilityKey(value.dc_stat ?? value.dcStat);
     if (dcStat) output.dc_stat = dcStat;
     return Object.keys(output).length > 0 ? output : undefined;
 }
@@ -893,7 +1359,10 @@ function sanitizeSpellSavePatch(value: unknown): SpellSavePatch | undefined {
 function sanitizeSpellDamagePatch(value: unknown): SpellDamagePatch | undefined {
     if (!isRecord(value)) return undefined;
     const output: SpellDamagePatch = {};
-    const damageType = asTrimmedString(value.damage_type, 80);
+    const damageType = asTrimmedString(
+        value.damage_type ?? value.damageType,
+        80
+    );
     if (damageType) output.damage_type = damageType;
     const dice = asTrimmedString(value.dice, 80);
     if (dice) output.dice = dice;
@@ -1063,11 +1532,133 @@ function normalizeItemCategory(value: unknown): ItemCategory | undefined {
     return undefined;
 }
 
+function countRegexHits(value: string, patterns: RegExp[]) {
+    let hits = 0;
+    for (const pattern of patterns) {
+        if (pattern.test(value)) hits += 1;
+    }
+    return hits;
+}
+
+function hasFocusHeadingSignals(value: string) {
+    const normalized = normalizeForItemMatch(value);
+    return (
+        normalized.includes("foco") ||
+        normalized.includes("focus") ||
+        normalized.includes("druidico") ||
+        normalized.includes("druidic")
+    );
+}
+
+function hasPassiveHeadingSignals(value: string) {
+    const normalized = normalizeForItemMatch(value);
+    return (
+        normalized.includes("pasiva") ||
+        normalized.includes("passive") ||
+        normalized.includes("detector") ||
+        normalized.includes("aura")
+    );
+}
+
+function hasActionTriggerSignals(value: string) {
+    const normalized = normalizeForItemMatch(value);
+    return (
+        normalized.includes("poder especial") ||
+        normalized.includes("special power") ||
+        /\bcomo\s+(?:una\s+)?(?:accion|acción|action|reaccion|reacción|reaction|bonus action)\b/i.test(
+            value
+        ) ||
+        /\b\d+\s*vez(?:es)?\s+por\s+descanso(?:\s+(?:largo|corto|long|short))?/i.test(
+            value
+        )
+    );
+}
+
+function hasStrongSpellStructureSignals(value: string) {
+    const corePatterns = [
+        /\balcance\b/i,
+        /\b(?:área|area)\b/i,
+        /\bduracion\b/i,
+        /\bduración\b/i,
+        /\bcomponentes?\b/i,
+        /\bcasting\b/i,
+        /\bconcentracion\b/i,
+        /\bconcentración\b/i,
+        /\britual\b/i,
+        /\bobjetivo\b/i,
+        /\brange\b/i,
+        /\bduration\b/i,
+    ];
+    const auxPatterns = [
+        /\bsalvacion\b/i,
+        /\bsalvación\b/i,
+        /\bdc\b/i,
+        /\branura\b/i,
+        /\bslot\b/i,
+        /\bconjuro\b/i,
+        /\bhechizo\b/i,
+        /\bspell\b/i,
+    ];
+    const coreHits = countRegexHits(value, corePatterns);
+    const auxHits = countRegexHits(value, auxPatterns);
+    return coreHits >= 2 || (coreHits >= 1 && auxHits >= 2);
+}
+
+function hasStateEffectSignals(value: string) {
+    const normalized = normalizeForItemMatch(value);
+    return (
+        normalized.includes("al final de cada turno") ||
+        normalized.includes("the end of each turn") ||
+        normalized.includes("efecto termina") ||
+        normalized.includes("queda infectad") ||
+        normalized.includes("estado latente") ||
+        normalized.includes("estado")
+    );
+}
+
 function inferAttachmentType(
     name: string,
     description?: string | null
 ): ItemAttachmentType {
-    const haystack = normalizeForItemMatch(`${name} ${description ?? ""}`);
+    const normalizedName = normalizeForItemMatch(name);
+    const joined = `${name}\n${description ?? ""}`;
+    const normalizedJoined = normalizeForItemMatch(joined);
+
+    if (
+        normalizedName.includes("cantrip") ||
+        normalizedName.includes("truco") ||
+        normalizedJoined.includes("cantrip")
+    ) {
+        return "cantrip";
+    }
+
+    if (
+        normalizedName.includes("poder especial") ||
+        normalizedName.includes("special power") ||
+        normalizedName.includes("accion") ||
+        normalizedName.includes("acción") ||
+        normalizedName.includes("reaction") ||
+        hasActionTriggerSignals(joined)
+    ) {
+        return "action";
+    }
+
+    if (hasPassiveHeadingSignals(name)) return "trait";
+    if (hasFocusHeadingSignals(name)) return "ability";
+
+    const explicitSpellSignal =
+        normalizedName.includes("conjuro") ||
+        normalizedName.includes("hechizo") ||
+        normalizedName.includes("spell") ||
+        normalizedJoined.includes("conjuro unico") ||
+        normalizedJoined.includes("conjuro único") ||
+        normalizedJoined.includes("no ocupa ranura");
+    if (explicitSpellSignal || hasStrongSpellStructureSignals(joined)) {
+        return "spell";
+    }
+
+    if (hasStateEffectSignals(joined)) return "ability";
+
     const abilitySignals = [
         "ventaja",
         "advantage",
@@ -1081,24 +1672,69 @@ function inferAttachmentType(
         "you gain",
         "cd ",
         "dc ",
-        "accion",
-        "action",
+        "mientras",
+        "while attuned",
     ];
+    if (abilitySignals.some((signal) => normalizedJoined.includes(signal))) {
+        return "ability";
+    }
+
     const traitSignals = [
         "rasgo",
         "trait",
-        "lectura ancestral",
         "innato",
+        "innate",
         "pasivo",
         "passive",
     ];
-    if (abilitySignals.some((signal) => haystack.includes(signal))) {
-        return "ability";
-    }
-    if (traitSignals.some((signal) => haystack.includes(signal))) {
+    if (traitSignals.some((signal) => normalizedJoined.includes(signal))) {
         return "trait";
     }
     return "trait";
+}
+
+function normalizeAttachmentTypeWithSemantics(
+    name: string,
+    description: string | null | undefined,
+    explicitType?: ItemAttachmentType
+) {
+    const inferred = inferAttachmentType(name, description);
+    if (!explicitType) return inferred;
+    if (explicitType === inferred) return explicitType;
+
+    const normalizedName = normalizeForItemMatch(name);
+    if (
+        hasFocusHeadingSignals(name) ||
+        hasPassiveHeadingSignals(name) ||
+        normalizedName.includes("poder especial")
+    ) {
+        return inferred;
+    }
+
+    if (
+        explicitType === "spell" &&
+        inferred !== "spell" &&
+        inferred !== "cantrip"
+    ) {
+        const combined = `${name}\n${description ?? ""}`;
+        const normalizedCombined = normalizeForMatch(combined);
+        const hasBasicSpellSignal =
+            normalizedCombined.includes("salvacion") ||
+            normalizedCombined.includes("alcance") ||
+            normalizedCombined.includes("duracion") ||
+            normalizedCombined.includes("componentes") ||
+            normalizedCombined.includes("cd ") ||
+            normalizedCombined.includes("dano") ||
+            /\b\d+d\d+(?:\s*[+\-]\s*\d+)?\b/.test(normalizedCombined);
+        if (
+            !hasStrongSpellStructureSignals(combined) &&
+            !hasBasicSpellSignal
+        ) {
+            return inferred;
+        }
+    }
+
+    return explicitType;
 }
 
 function normalizeAttachmentType(value: unknown): ItemAttachmentType | undefined {
@@ -1126,12 +1762,623 @@ function sanitizeItemAttachmentPatch(value: unknown): ItemAttachmentPatch | unde
     const description = asNullableString(value.description, 4000);
     const level = asInteger(value.level, 0, 20);
     const explicitType = normalizeAttachmentType(value.type);
-    const type = explicitType ?? inferAttachmentType(name, description ?? undefined);
+    const type = normalizeAttachmentTypeWithSemantics(
+        name,
+        description ?? undefined,
+        explicitType
+    );
 
     const output: ItemAttachmentPatch = { name, type };
     if (typeof level === "number") output.level = level;
     if (description !== undefined) output.description = description;
+
+    const school = asNullableString(value.school, 120);
+    if (school !== undefined) output.school = school;
+    const castingTime =
+        asNullableString(value.casting_time, 120) ??
+        asNullableString(value.castingTime, 120);
+    if (castingTime !== undefined) output.casting_time = castingTime;
+    const castingTimeNote =
+        asNullableString(value.casting_time_note, 220) ??
+        asNullableString(value.castingTimeNote, 220);
+    if (castingTimeNote !== undefined) {
+        output.casting_time_note = castingTimeNote;
+    }
+    const range =
+        asNullableString(value.range, 220) ??
+        asNullableString(value.range_text, 220);
+    if (range !== undefined) output.range = range;
+    const components = sanitizeSpellComponentPatch(value.components);
+    if (components) output.components = components;
+    const materials = asNullableString(value.materials, 220);
+    if (materials !== undefined) output.materials = materials;
+    const duration = asNullableString(value.duration, 220);
+    if (duration !== undefined) output.duration = duration;
+    if (typeof value.concentration === "boolean") {
+        output.concentration = value.concentration;
+    }
+    if (typeof value.ritual === "boolean") output.ritual = value.ritual;
+
+    const resourceCost = sanitizeItemAttachmentResourceCostPatch(
+        value.resource_cost ?? value.resourceCost
+    );
+    if (resourceCost) output.resource_cost = resourceCost;
+    const save = sanitizeSpellSavePatch(value.save);
+    if (save) output.save = save;
+    const damage = sanitizeSpellDamagePatch(value.damage);
+    if (damage) output.damage = damage;
+
+    const actionType = normalizeFeatureActionType(
+        value.action_type ?? value.actionType
+    );
+    if (actionType) output.action_type = actionType;
+    const requirements = asNullableString(value.requirements, 220);
+    if (requirements !== undefined) output.requirements = requirements;
+    const effect = asNullableString(value.effect, 4000);
+    if (effect !== undefined) output.effect = effect;
     return output;
+}
+
+function shouldMergeIntoPreviousSpellAttachment(name: string) {
+    const normalized = normalizeForItemMatch(name);
+    return (
+        normalized === "efecto inicial" ||
+        normalized === "efecto secundario" ||
+        normalized === "efecto continuo" ||
+        normalized === "efecto"
+    );
+}
+
+function mergeAttachmentDescriptions(
+    base: string | null | undefined,
+    extra: string | null | undefined
+) {
+    const left = asTrimmedString(base, 4000);
+    const right = asTrimmedString(extra, 4000);
+    if (!left && !right) return undefined;
+    if (!left) return right;
+    if (!right) return left;
+    const leftNorm = normalizeAttachmentTextForCompare(left);
+    const rightNorm = normalizeAttachmentTextForCompare(right);
+    if (leftNorm === rightNorm) return left;
+    return asTrimmedString(`${left}\n${right}`, 4000) ?? left;
+}
+
+function inferDamageTypeFromText(value: string) {
+    const normalized = normalizeForMatch(value);
+    if (normalized.includes("fuego") || normalized.includes("fire")) return "fuego";
+    if (normalized.includes("frio") || normalized.includes("cold")) return "frio";
+    if (normalized.includes("necrot")) return "necrotico";
+    if (normalized.includes("radian")) return "radiante";
+    if (normalized.includes("veneno") || normalized.includes("poison")) return "veneno";
+    if (normalized.includes("acido") || normalized.includes("acid")) return "acido";
+    if (normalized.includes("electr") || normalized.includes("lightning")) return "electrico";
+    if (normalized.includes("trueno") || normalized.includes("thunder")) return "trueno";
+    if (normalized.includes("psiqu") || normalized.includes("psychic")) return "psiquico";
+    if (normalized.includes("fuerza") || normalized.includes("force")) return "fuerza";
+    return undefined;
+}
+
+function inferAttachmentFieldsFromDescription(
+    type: ItemAttachmentType,
+    description?: string | null
+) {
+    const text = asTrimmedString(description, 4000);
+    if (!text) return {} as Partial<ItemAttachmentPatch>;
+
+    const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const inferred: Partial<ItemAttachmentPatch> = {};
+    const isSpellLike = type === "spell" || type === "cantrip";
+    const isAbilityLike =
+        type === "action" || type === "ability" || type === "classFeature";
+
+    const resourceCost: ItemAttachmentResourceCostPatch = {};
+    const savePatch: SpellSavePatch = {};
+    const damagePatch: SpellDamagePatch = {};
+
+    for (const line of lines) {
+        const keyValue = line.match(/^([^:]{2,40})\s*:\s*(.+)$/);
+        if (keyValue) {
+            const key = normalizeForMatch(keyValue[1]);
+            const value = asTrimmedString(keyValue[2], 900) ?? "";
+
+            if (isSpellLike) {
+                if (key === "escuela" && !inferred.school) {
+                    inferred.school = value;
+                    continue;
+                }
+                if ((key === "alcance" || key === "range") && !inferred.range) {
+                    inferred.range = value;
+                    continue;
+                }
+                if ((key === "area" || key === "área") && !inferred.range) {
+                    inferred.range = `Area: ${value}`;
+                    continue;
+                }
+                if (
+                    (key === "duracion" || key === "duración" || key === "duration") &&
+                    !inferred.duration
+                ) {
+                    inferred.duration = value;
+                    continue;
+                }
+                if (key === "componentes" && !inferred.components) {
+                    const normalized = normalizeForMatch(value);
+                    inferred.components = {
+                        ...(normalized.includes("v") || normalized.includes("verbal")
+                            ? { verbal: true }
+                            : {}),
+                        ...(normalized.includes("s") || normalized.includes("somatic")
+                            ? { somatic: true }
+                            : {}),
+                        ...(normalized.includes("m") || normalized.includes("material")
+                            ? { material: true }
+                            : {}),
+                    };
+                    continue;
+                }
+                if (
+                    (key === "materiales" || key === "material") &&
+                    !inferred.materials
+                ) {
+                    inferred.materials = value;
+                    continue;
+                }
+                if ((key === "salvacion" || key === "salvación") && !savePatch.type) {
+                    savePatch.type = "save";
+                    const ability = normalizeAbilityKey(value);
+                    if (ability) savePatch.save_ability = ability;
+                    const dcMatch = value.match(/\bcd\b[^0-9]*(\d{1,2})/i);
+                    if (dcMatch) {
+                        const parsed = asInteger(dcMatch[1], 0, 40);
+                        if (typeof parsed === "number") {
+                            savePatch.dc_type = "fixed";
+                            savePatch.dc_value = parsed;
+                        }
+                    }
+                    continue;
+                }
+                if (
+                    (key === "dano" || key === "daño" || key === "damage") &&
+                    !damagePatch.dice
+                ) {
+                    const dice = value.match(/\b\d+d\d+(?:\s*[+\-]\s*\d+)?\b/i);
+                    if (dice) damagePatch.dice = dice[0];
+                    const damageType = inferDamageTypeFromText(value);
+                    if (damageType) damagePatch.damage_type = damageType;
+                    continue;
+                }
+            }
+
+            if (isAbilityLike) {
+                if (
+                    (key === "requisitos" || key === "requirement" || key === "requirements") &&
+                    !inferred.requirements
+                ) {
+                    inferred.requirements = value;
+                    continue;
+                }
+                if ((key === "efecto" || key === "effect") && !inferred.effect) {
+                    inferred.effect = value;
+                    continue;
+                }
+            }
+        }
+
+        const normalized = normalizeForMatch(line);
+        if (isSpellLike) {
+            if (!savePatch.type) {
+                const saveLineMatch = line.match(
+                    /\bsalvaci[oó]n(?:\s+de)?\s*:?\s*([a-záéíóúüñ]+)/i
+                );
+                if (saveLineMatch) {
+                    savePatch.type = "save";
+                    const ability = normalizeAbilityKey(saveLineMatch[1]);
+                    if (ability) savePatch.save_ability = ability;
+                }
+                const dcLineMatch = line.match(/\bcd\b[^0-9]*(\d{1,2})/i);
+                if (dcLineMatch) {
+                    const parsedDc = asInteger(dcLineMatch[1], 0, 40);
+                    if (typeof parsedDc === "number") {
+                        savePatch.dc_type = "fixed";
+                        savePatch.dc_value = parsedDc;
+                    }
+                }
+            }
+
+            if (
+                inferred.concentration === undefined &&
+                normalized.includes("concentracion")
+            ) {
+                inferred.concentration = !(
+                    normalized.includes("no requiere") ||
+                    normalized.includes("sin concentracion")
+                );
+            }
+            if (inferred.ritual === undefined && normalized.includes("ritual")) {
+                inferred.ritual = !normalized.includes("no es ritual");
+            }
+        }
+
+        if (isAbilityLike) {
+            if (!inferred.action_type) {
+                if (/\bcomo\s+(?:una\s+)?(?:accion|acción|action)\b/i.test(line)) {
+                    inferred.action_type = "action";
+                } else if (/\bbonus action\b/i.test(line)) {
+                    inferred.action_type = "bonus";
+                } else if (/\breaccion|reacción|reaction\b/i.test(line)) {
+                    inferred.action_type = "reaction";
+                }
+            }
+            if (resourceCost.charges === undefined) {
+                const chargesMatch = line.match(/(\d{1,3})\s*cargas?/i);
+                const charges = asInteger(chargesMatch?.[1], 0, 999);
+                if (typeof charges === "number") {
+                    resourceCost.charges = charges;
+                }
+            }
+            if (!resourceCost.recharge) {
+                if (/\bdescanso\s+largo|long rest\b/i.test(line)) {
+                    resourceCost.recharge = "long";
+                } else if (/\bdescanso\s+corto|short rest\b/i.test(line)) {
+                    resourceCost.recharge = "short";
+                }
+            }
+            if (resourceCost.uses_spell_slot === undefined) {
+                if (/\bespacio de conjuro|spell slot\b/i.test(line)) {
+                    resourceCost.uses_spell_slot = true;
+                }
+            }
+            if (resourceCost.slot_level === undefined) {
+                const slotLevelMatch = line.match(/\bnivel\s*(\d)\b/i);
+                const slotLevel = asInteger(slotLevelMatch?.[1], 0, 9);
+                if (typeof slotLevel === "number") {
+                    resourceCost.slot_level = slotLevel;
+                }
+            }
+        }
+
+        if (isSpellLike && !damagePatch.dice) {
+            const dice = line.match(/\b\d+d\d+(?:\s*[+\-]\s*\d+)?\b/i);
+            if (dice) {
+                damagePatch.dice = dice[0];
+                const damageType = inferDamageTypeFromText(line);
+                if (damageType) damagePatch.damage_type = damageType;
+            }
+        }
+    }
+
+    if (Object.keys(resourceCost).length > 0) {
+        inferred.resource_cost = resourceCost;
+    }
+    if (Object.keys(savePatch).length > 0) inferred.save = savePatch;
+    if (Object.keys(damagePatch).length > 0) inferred.damage = damagePatch;
+    return inferred;
+}
+
+function normalizeAttachmentPatchList(attachments: ItemAttachmentPatch[]) {
+    const ordered: ItemAttachmentPatch[] = [];
+    const byKey = new Map<string, ItemAttachmentPatch>();
+    const pickDefined = <T,>(
+        primary: T | undefined,
+        fallback: T | undefined
+    ) => (primary !== undefined ? primary : fallback);
+
+    for (const raw of attachments) {
+        const name = asTrimmedString(raw.name, 140);
+        if (!name) continue;
+        const description =
+            raw.description === null
+                ? null
+                : asTrimmedString(raw.description, 4000);
+        const level = typeof raw.level === "number" ? raw.level : undefined;
+        const type = normalizeAttachmentTypeWithSemantics(
+            name,
+            description,
+            raw.type
+        );
+        const inferred = inferAttachmentFieldsFromDescription(type, description);
+
+        const school = pickDefined(
+            raw.school === null ? null : asTrimmedString(raw.school, 120),
+            inferred.school === null
+                ? null
+                : asTrimmedString(inferred.school, 120)
+        );
+        const castingTime = pickDefined(
+            raw.casting_time === null
+                ? null
+                : asTrimmedString(raw.casting_time, 120),
+            inferred.casting_time === null
+                ? null
+                : asTrimmedString(inferred.casting_time, 120)
+        );
+        const castingTimeNote = pickDefined(
+            raw.casting_time_note === null
+                ? null
+                : asTrimmedString(raw.casting_time_note, 220),
+            inferred.casting_time_note === null
+                ? null
+                : asTrimmedString(inferred.casting_time_note, 220)
+        );
+        const range = pickDefined(
+            raw.range === null ? null : asTrimmedString(raw.range, 220),
+            inferred.range === null ? null : asTrimmedString(inferred.range, 220)
+        );
+        const components = pickDefined(
+            sanitizeSpellComponentPatch(raw.components),
+            sanitizeSpellComponentPatch(inferred.components)
+        );
+        const materials = pickDefined(
+            raw.materials === null ? null : asTrimmedString(raw.materials, 220),
+            inferred.materials === null
+                ? null
+                : asTrimmedString(inferred.materials, 220)
+        );
+        const duration = pickDefined(
+            raw.duration === null ? null : asTrimmedString(raw.duration, 220),
+            inferred.duration === null
+                ? null
+                : asTrimmedString(inferred.duration, 220)
+        );
+        const concentration = pickDefined(
+            typeof raw.concentration === "boolean"
+                ? raw.concentration
+                : undefined,
+            typeof inferred.concentration === "boolean"
+                ? inferred.concentration
+                : undefined
+        );
+        const ritual = pickDefined(
+            typeof raw.ritual === "boolean" ? raw.ritual : undefined,
+            typeof inferred.ritual === "boolean" ? inferred.ritual : undefined
+        );
+        const resourceCost = pickDefined(
+            sanitizeItemAttachmentResourceCostPatch(raw.resource_cost),
+            sanitizeItemAttachmentResourceCostPatch(inferred.resource_cost)
+        );
+        const save = pickDefined(
+            sanitizeSpellSavePatch(raw.save),
+            sanitizeSpellSavePatch(inferred.save)
+        );
+        const damage = pickDefined(
+            sanitizeSpellDamagePatch(raw.damage),
+            sanitizeSpellDamagePatch(inferred.damage)
+        );
+        const actionType = pickDefined(
+            normalizeFeatureActionType(raw.action_type),
+            normalizeFeatureActionType(inferred.action_type)
+        );
+        const requirements = pickDefined(
+            raw.requirements === null
+                ? null
+                : asTrimmedString(raw.requirements, 220),
+            inferred.requirements === null
+                ? null
+                : asTrimmedString(inferred.requirements, 220)
+        );
+        const effect = pickDefined(
+            raw.effect === null ? null : asTrimmedString(raw.effect, 4000),
+            inferred.effect === null
+                ? null
+                : asTrimmedString(inferred.effect, 4000)
+        );
+
+        if (
+            shouldMergeIntoPreviousSpellAttachment(name) &&
+            ordered.length > 0
+        ) {
+            const previous = ordered[ordered.length - 1];
+            if (previous.type === "spell" || previous.type === "cantrip") {
+                previous.description = mergeAttachmentDescriptions(
+                    previous.description ?? undefined,
+                    description ?? name
+                );
+                continue;
+            }
+        }
+
+        const normalized: ItemAttachmentPatch = { name, type };
+        if (typeof level === "number") normalized.level = level;
+        if (description !== undefined) normalized.description = description;
+        if (school !== undefined) normalized.school = school;
+        if (castingTime !== undefined) normalized.casting_time = castingTime;
+        if (castingTimeNote !== undefined) {
+            normalized.casting_time_note = castingTimeNote;
+        }
+        if (range !== undefined) normalized.range = range;
+        if (components) normalized.components = components;
+        if (materials !== undefined) normalized.materials = materials;
+        if (duration !== undefined) normalized.duration = duration;
+        if (concentration !== undefined) normalized.concentration = concentration;
+        if (ritual !== undefined) normalized.ritual = ritual;
+        if (resourceCost) normalized.resource_cost = resourceCost;
+        if (save) normalized.save = save;
+        if (damage) normalized.damage = damage;
+        if (actionType) normalized.action_type = actionType;
+        if (requirements !== undefined) normalized.requirements = requirements;
+        if (effect !== undefined) normalized.effect = effect;
+
+        const key = `${normalizeForItemMatch(normalized.type ?? "trait")}::${normalizeForItemMatch(
+            normalized.name
+        )}`;
+        const existing = byKey.get(key);
+        if (!existing) {
+            ordered.push(normalized);
+            byKey.set(key, normalized);
+            continue;
+        }
+
+        if (typeof normalized.level === "number") {
+            existing.level = normalized.level;
+        }
+        existing.description = mergeAttachmentDescriptions(
+            existing.description ?? undefined,
+            normalized.description ?? undefined
+        );
+        if (normalized.school !== undefined) existing.school = normalized.school;
+        if (normalized.casting_time !== undefined) {
+            existing.casting_time = normalized.casting_time;
+        }
+        if (normalized.casting_time_note !== undefined) {
+            existing.casting_time_note = normalized.casting_time_note;
+        }
+        if (normalized.range !== undefined) existing.range = normalized.range;
+        if (normalized.components !== undefined) {
+            existing.components = normalized.components;
+        }
+        if (normalized.materials !== undefined) {
+            existing.materials = normalized.materials;
+        }
+        if (normalized.duration !== undefined) {
+            existing.duration = normalized.duration;
+        }
+        if (normalized.concentration !== undefined) {
+            existing.concentration = normalized.concentration;
+        }
+        if (normalized.ritual !== undefined) existing.ritual = normalized.ritual;
+        if (normalized.resource_cost !== undefined) {
+            existing.resource_cost = normalized.resource_cost;
+        }
+        if (normalized.save !== undefined) existing.save = normalized.save;
+        if (normalized.damage !== undefined) existing.damage = normalized.damage;
+        if (normalized.action_type !== undefined) {
+            existing.action_type = normalized.action_type;
+        }
+        if (normalized.requirements !== undefined) {
+            existing.requirements = normalized.requirements;
+        }
+        if (normalized.effect !== undefined) existing.effect = normalized.effect;
+    }
+
+    return ordered;
+}
+
+function isLikelyAttachmentMechanicalLine(line: string) {
+    const normalized = normalizeForItemMatch(line);
+    return (
+        normalized.includes("como accion") ||
+        normalized.includes("uso:") ||
+        normalized.includes("efecto inicial") ||
+        normalized.includes("1 vez por descanso") ||
+        normalized.includes("alcance") ||
+        normalized.includes("area") ||
+        normalized.includes("salvacion") ||
+        normalized.includes("dano") ||
+        normalized.includes("damage") ||
+        normalized.includes("duracion") ||
+        normalized.includes("componentes") ||
+        normalized.includes("puede usarse como foco") ||
+        normalized.includes("al final de cada turno") ||
+        normalized.includes("cd de conjuros")
+    );
+}
+
+function stripDescriptionAttachmentOverlap(
+    description: string,
+    attachments: ItemAttachmentPatch[]
+) {
+    const segmentedDescription = description
+        .replace(
+            /\s+(?=(?:alcance|range|area|área|salvación|salvacion|saving throw|duración|duracion|duration|componentes|components|materiales|materials|tiempo de lanzamiento|casting time|daño|dano|damage|efecto inicial|uso)\s*:)/giu,
+            "\n"
+        )
+        .replace(
+            /\s+(?=\d+d\d+(?:\s*[+\-]\s*\d+)?\s+(?:de\s+)?(?:daño|dano|damage)\b)/giu,
+            "\n"
+        );
+
+    const lines = segmentedDescription
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (lines.length === 0 || attachments.length === 0) return description;
+
+    const attachmentTexts = attachments
+        .flatMap((attachment) => {
+            const resource = attachment.resource_cost;
+            const save = attachment.save;
+            const damage = attachment.damage;
+            return [
+                asTrimmedString(attachment.name, 400) ?? "",
+                asTrimmedString(attachment.description, 1200) ?? "",
+                asTrimmedString(attachment.school, 120) ?? "",
+                asTrimmedString(attachment.casting_time, 120) ?? "",
+                asTrimmedString(attachment.casting_time_note, 220) ?? "",
+                asTrimmedString(attachment.range, 220) ?? "",
+                asTrimmedString(attachment.duration, 220) ?? "",
+                asTrimmedString(attachment.materials, 220) ?? "",
+                asTrimmedString(attachment.requirements, 220) ?? "",
+                asTrimmedString(attachment.effect, 1200) ?? "",
+                asTrimmedString(save?.type, 30) ?? "",
+                asTrimmedString(save?.save_ability, 12) ?? "",
+                asTrimmedString(damage?.damage_type, 80) ?? "",
+                asTrimmedString(damage?.dice, 80) ?? "",
+                asTrimmedString(damage?.scaling, 180) ?? "",
+                asTrimmedString(attachment.action_type, 30) ?? "",
+                resource?.uses_spell_slot ? "espacio de conjuro" : "",
+                typeof resource?.slot_level === "number"
+                    ? `nivel ${resource.slot_level}`
+                    : "",
+                typeof resource?.charges === "number"
+                    ? `${resource.charges} cargas`
+                    : "",
+                resource?.recharge === "long"
+                    ? "descanso largo"
+                    : resource?.recharge === "short"
+                      ? "descanso corto"
+                      : "",
+            ];
+        })
+        .map((entry) => normalizeAttachmentTextForCompare(entry))
+        .filter(Boolean);
+
+    const hasStructuredAttachments = attachments.some(
+        (attachment) =>
+            attachment.school !== undefined ||
+            attachment.casting_time !== undefined ||
+            attachment.casting_time_note !== undefined ||
+            attachment.range !== undefined ||
+            attachment.components !== undefined ||
+            attachment.materials !== undefined ||
+            attachment.duration !== undefined ||
+            attachment.concentration !== undefined ||
+            attachment.ritual !== undefined ||
+            attachment.resource_cost !== undefined ||
+            attachment.save !== undefined ||
+            attachment.damage !== undefined ||
+            attachment.action_type !== undefined ||
+            attachment.requirements !== undefined ||
+            attachment.effect !== undefined
+    );
+
+    const filtered = lines.filter((line) => {
+        const normalizedLine = normalizeAttachmentTextForCompare(line);
+        if (!normalizedLine) return false;
+
+        const duplicated = attachmentTexts.some(
+            (entry) =>
+                entry === normalizedLine ||
+                entry.includes(normalizedLine) ||
+                normalizedLine.includes(entry)
+        );
+        if (duplicated) return false;
+
+        if (hasStructuredAttachments && isLikelyAttachmentMechanicalLine(line)) {
+            return false;
+        }
+        return true;
+    });
+
+    const paragraphized = filtered
+        .join("\n\n")
+        .replace(/([.!?])\s+(?=[A-ZÁÉÍÓÚÜÑ0-9(])/g, "$1\n\n")
+        .replace(/\n{3,}/g, "\n\n");
+
+    return asTrimmedString(paragraphized, 4000) ?? "";
 }
 
 function sanitizeItemAttachmentsPatchList(value: unknown) {
@@ -1143,18 +2390,88 @@ function sanitizeItemAttachmentsPatchList(value: unknown) {
         output.push(parsed);
         if (output.length >= 12) break;
     }
+    return normalizeAttachmentPatchList(output).slice(0, 12);
+}
+
+function sanitizeItemConfigurationPatch(
+    value: unknown
+): ItemConfigurationPatch | undefined {
+    if (!isRecord(value)) return undefined;
+    const name = asTrimmedString(value.name, 140);
+    if (!name) return undefined;
+
+    const patch: ItemConfigurationPatch = { name };
+    const description = asNullableString(value.description, 4000);
+    if (description !== undefined) patch.description = description;
+    const usage = asNullableString(value.usage, 240);
+    if (usage !== undefined) patch.usage = usage;
+    const damage = asNullableString(value.damage, 240);
+    if (damage !== undefined) patch.damage = damage;
+    const range = asNullableString(value.range, 240);
+    if (range !== undefined) patch.range = range;
+    const magicBonus = asInteger(value.magic_bonus, -30, 30);
+    if (typeof magicBonus === "number") patch.magic_bonus = magicBonus;
+
+    const attachments = sanitizeItemAttachmentsPatchList(value.attachments_replace)
+        .slice(0, 10);
+    if (attachments.length > 0) patch.attachments_replace = attachments;
+
+    return patch;
+}
+
+function sanitizeItemConfigurationPatchList(value: unknown) {
+    if (!Array.isArray(value)) return [] as ItemConfigurationPatch[];
+    const output: ItemConfigurationPatch[] = [];
+    for (const entry of value) {
+        const parsed = sanitizeItemConfigurationPatch(entry);
+        if (!parsed) continue;
+        output.push(parsed);
+        if (output.length >= 8) break;
+    }
     return output;
+}
+
+function parseItemLabelAndPrice(value: string, maxLen = 140) {
+    const cleaned = stripLeadingDecorators(value)
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!cleaned) return undefined;
+
+    const match = cleaned.match(
+        /^(.*?)(?:\s*[–—−-]\s*(\d{1,6})\s*(po|gp|pp|sp|cp)\b.*)$/iu
+    );
+    if (!match) {
+        const name = asTrimmedString(cleaned, maxLen);
+        return name ? { name } : undefined;
+    }
+
+    const name = asTrimmedString(
+        (match[1] ?? "").replace(/[–—−-]\s*$/g, "").trim(),
+        maxLen
+    );
+    if (!name) return undefined;
+
+    const amount = match[2];
+    const unit = match[3];
+    const price =
+        amount && unit ? `${amount} ${unit.toLowerCase()}` : undefined;
+
+    return { name, price };
 }
 
 function sanitizeItemPatch(value: unknown): ItemPatch | undefined {
     if (!isRecord(value)) return undefined;
-    const targetName = asTrimmedString(value.target_item_name, 120);
+    const targetRaw = asTrimmedString(value.target_item_name, 120);
+    const targetParsed = targetRaw ? parseItemLabelAndPrice(targetRaw, 120) : undefined;
+    const targetName = targetParsed?.name ?? targetRaw;
     if (!targetName) return undefined;
 
     const patch: ItemPatch = {
         target_item_name: targetName,
     };
-    const name = asTrimmedString(value.name, 120);
+    const nameRaw = asTrimmedString(value.name, 120);
+    const nameParsed = nameRaw ? parseItemLabelAndPrice(nameRaw, 120) : undefined;
+    const name = nameParsed?.name ?? nameRaw;
     if (name) patch.name = name;
 
     if (typeof value.create_if_missing === "boolean") {
@@ -1174,7 +2491,14 @@ function sanitizeItemPatch(value: unknown): ItemPatch | undefined {
     if (rarity !== undefined) patch.rarity = rarity;
 
     const description = asNullableString(value.description, 4000);
-    if (description !== undefined) patch.description = description;
+    if (description !== undefined) {
+        patch.description = description;
+    } else {
+        const inferredPrice = targetParsed?.price ?? nameParsed?.price;
+        if (inferredPrice && patch.create_if_missing === true) {
+            patch.description = `Precio: ${inferredPrice}`;
+        }
+    }
 
     if (
         typeof value.attunement === "boolean" ||
@@ -1192,6 +2516,22 @@ function sanitizeItemPatch(value: unknown): ItemPatch | undefined {
     const tagsRemove = asTrimmedStringArray(value.tags_remove, 16, 50);
     if (tagsRemove.length > 0) patch.tags_remove = tagsRemove;
 
+    if (typeof value.clear_configurations === "boolean") {
+        patch.clear_configurations = value.clear_configurations;
+    }
+
+    const activeConfiguration = asNullableString(value.active_configuration, 140);
+    if (activeConfiguration !== undefined) {
+        patch.active_configuration = activeConfiguration;
+    }
+
+    const configurationsReplace = sanitizeItemConfigurationPatchList(
+        value.configurations_replace
+    );
+    if (configurationsReplace.length > 0) {
+        patch.configurations_replace = configurationsReplace;
+    }
+
     if (typeof value.clear_attachments === "boolean") {
         patch.clear_attachments = value.clear_attachments;
     }
@@ -1204,6 +2544,22 @@ function sanitizeItemPatch(value: unknown): ItemPatch | undefined {
     );
     if (attachmentsReplace.length > 0) {
         patch.attachments_replace = attachmentsReplace;
+    }
+
+    if (typeof patch.description === "string") {
+        const baseAttachments =
+            patch.attachments_replace?.length
+                ? patch.attachments_replace
+                : patch.attachments_add?.length
+                  ? patch.attachments_add
+                  : [];
+        if (baseAttachments.length > 0) {
+            const trimmed = stripDescriptionAttachmentOverlap(
+                patch.description,
+                baseAttachments
+            );
+            patch.description = trimmed || undefined;
+        }
     }
 
     return patch;
@@ -1464,19 +2820,109 @@ function normalizeExistingItemAttachment(value: unknown): Record<string, unknown
     if (!name) return null;
     const id = asTrimmedString(value.id, 80) ?? buildGeneratedId("att");
     const description = extractLocalizedTextValue(value.description, 4000);
-    const type =
-        normalizeAttachmentType(value.type) ??
-        inferAttachmentType(name, description ?? undefined);
+    const type = normalizeAttachmentTypeWithSemantics(
+        name,
+        description ?? undefined,
+        normalizeAttachmentType(value.type)
+    );
     const level = asInteger(value.level, 0, 20);
+    const school = asTrimmedString(value.school, 120);
+    const castingTimeRaw = isRecord(value.castingTime)
+        ? value.castingTime
+        : isRecord(value.casting_time)
+          ? value.casting_time
+          : null;
+    const castingTimeValue =
+        asTrimmedString(castingTimeRaw?.value, 120) ??
+        asTrimmedString(value.casting_time, 120) ??
+        asTrimmedString(value.castingTime, 120);
+    const castingTimeNote = asTrimmedString(castingTimeRaw?.note, 220);
+    const range = asTrimmedString(value.range, 220);
+    const components = sanitizeSpellComponentPatch(value.components);
+    const materials = asTrimmedString(value.materials, 220);
+    const duration = asTrimmedString(value.duration, 220);
+    const concentration =
+        typeof value.concentration === "boolean"
+            ? value.concentration
+            : undefined;
+    const ritual = typeof value.ritual === "boolean" ? value.ritual : undefined;
+    const resourceCost = sanitizeItemAttachmentResourceCostPatch(
+        value.resourceCost ?? value.resource_cost
+    );
+    const save = sanitizeSpellSavePatch(value.save);
+    const damage = sanitizeSpellDamagePatch(value.damage);
+    const actionType = normalizeFeatureActionType(
+        value.actionType ?? value.action_type
+    );
+    const requirements = asTrimmedString(value.requirements, 220);
+    const effect = asTrimmedString(value.effect, 4000);
 
     const normalized: Record<string, unknown> = { id, type, name };
     if (typeof level === "number") normalized.level = level;
     if (description) normalized.description = toLocalizedTextObject(description);
+    if (school) normalized.school = school;
+    if (castingTimeValue) {
+        normalized.castingTime = {
+            value: castingTimeValue,
+            ...(castingTimeNote ? { note: castingTimeNote } : {}),
+        };
+    }
+    if (range) normalized.range = range;
+    if (components) normalized.components = components;
+    if (materials) normalized.materials = materials;
+    if (duration) normalized.duration = duration;
+    if (concentration !== undefined) normalized.concentration = concentration;
+    if (ritual !== undefined) normalized.ritual = ritual;
+    if (resourceCost) {
+        normalized.resourceCost = {
+            ...(typeof resourceCost.uses_spell_slot === "boolean"
+                ? { usesSpellSlot: resourceCost.uses_spell_slot }
+                : {}),
+            ...(typeof resourceCost.slot_level === "number"
+                ? { slotLevel: resourceCost.slot_level }
+                : {}),
+            ...(typeof resourceCost.charges === "number"
+                ? { charges: resourceCost.charges }
+                : {}),
+            ...(resourceCost.recharge ? { recharge: resourceCost.recharge } : {}),
+            ...(resourceCost.points_label !== undefined
+                ? { pointsLabel: resourceCost.points_label }
+                : {}),
+            ...(typeof resourceCost.points === "number"
+                ? { points: resourceCost.points }
+                : {}),
+        };
+    }
+    if (save) {
+        normalized.save = {
+            ...(save.type ? { type: save.type } : {}),
+            ...(save.save_ability ? { saveAbility: save.save_ability } : {}),
+            ...(save.dc_type ? { dcType: save.dc_type } : {}),
+            ...(typeof save.dc_value === "number"
+                ? { dcValue: save.dc_value }
+                : {}),
+            ...(save.dc_stat ? { dcStat: save.dc_stat } : {}),
+        };
+    }
+    if (damage) {
+        normalized.damage = {
+            ...(damage.damage_type ? { damageType: damage.damage_type } : {}),
+            ...(damage.dice ? { dice: damage.dice } : {}),
+            ...(damage.scaling ? { scaling: damage.scaling } : {}),
+        };
+    }
+    if (actionType) normalized.actionType = actionType;
+    if (requirements) normalized.requirements = requirements;
+    if (effect) normalized.effect = effect;
     return normalized;
 }
 
 function buildAttachmentFromPatch(patch: ItemAttachmentPatch): Record<string, unknown> {
-    const type = patch.type ?? inferAttachmentType(patch.name, patch.description);
+    const type = normalizeAttachmentTypeWithSemantics(
+        patch.name,
+        patch.description,
+        patch.type
+    );
     const normalized: Record<string, unknown> = {
         id: buildGeneratedId("att"),
         type,
@@ -1488,6 +2934,91 @@ function buildAttachmentFromPatch(patch: ItemAttachmentPatch): Record<string, un
     if (typeof patch.description === "string" && patch.description.trim()) {
         normalized.description = toLocalizedTextObject(patch.description.trim());
     }
+    if (typeof patch.school === "string" && patch.school.trim()) {
+        normalized.school = patch.school.trim();
+    }
+    if (typeof patch.casting_time === "string" && patch.casting_time.trim()) {
+        normalized.castingTime = {
+            value: patch.casting_time.trim(),
+            ...(typeof patch.casting_time_note === "string" &&
+            patch.casting_time_note.trim()
+                ? { note: patch.casting_time_note.trim() }
+                : {}),
+        };
+    }
+    if (typeof patch.range === "string" && patch.range.trim()) {
+        normalized.range = patch.range.trim();
+    }
+    if (patch.components) {
+        const components = sanitizeSpellComponentPatch(patch.components);
+        if (components) normalized.components = components;
+    }
+    if (typeof patch.materials === "string" && patch.materials.trim()) {
+        normalized.materials = patch.materials.trim();
+    }
+    if (typeof patch.duration === "string" && patch.duration.trim()) {
+        normalized.duration = patch.duration.trim();
+    }
+    if (typeof patch.concentration === "boolean") {
+        normalized.concentration = patch.concentration;
+    }
+    if (typeof patch.ritual === "boolean") normalized.ritual = patch.ritual;
+    if (patch.resource_cost) {
+        const resourceCost = sanitizeItemAttachmentResourceCostPatch(
+            patch.resource_cost
+        );
+        if (resourceCost) {
+            normalized.resourceCost = {
+                ...(typeof resourceCost.uses_spell_slot === "boolean"
+                    ? { usesSpellSlot: resourceCost.uses_spell_slot }
+                    : {}),
+                ...(typeof resourceCost.slot_level === "number"
+                    ? { slotLevel: resourceCost.slot_level }
+                    : {}),
+                ...(typeof resourceCost.charges === "number"
+                    ? { charges: resourceCost.charges }
+                    : {}),
+                ...(resourceCost.recharge
+                    ? { recharge: resourceCost.recharge }
+                    : {}),
+                ...(resourceCost.points_label !== undefined
+                    ? { pointsLabel: resourceCost.points_label }
+                    : {}),
+                ...(typeof resourceCost.points === "number"
+                    ? { points: resourceCost.points }
+                    : {}),
+            };
+        }
+    }
+    if (patch.save) {
+        const save = sanitizeSpellSavePatch(patch.save);
+        if (save) {
+            normalized.save = {
+                ...(save.type ? { type: save.type } : {}),
+                ...(save.save_ability ? { saveAbility: save.save_ability } : {}),
+                ...(save.dc_type ? { dcType: save.dc_type } : {}),
+                ...(typeof save.dc_value === "number" ? { dcValue: save.dc_value } : {}),
+                ...(save.dc_stat ? { dcStat: save.dc_stat } : {}),
+            };
+        }
+    }
+    if (patch.damage) {
+        const damage = sanitizeSpellDamagePatch(patch.damage);
+        if (damage) {
+            normalized.damage = {
+                ...(damage.damage_type ? { damageType: damage.damage_type } : {}),
+                ...(damage.dice ? { dice: damage.dice } : {}),
+                ...(damage.scaling ? { scaling: damage.scaling } : {}),
+            };
+        }
+    }
+    if (patch.action_type) normalized.actionType = patch.action_type;
+    if (typeof patch.requirements === "string" && patch.requirements.trim()) {
+        normalized.requirements = patch.requirements.trim();
+    }
+    if (typeof patch.effect === "string" && patch.effect.trim()) {
+        normalized.effect = patch.effect.trim();
+    }
     return normalized;
 }
 
@@ -1495,6 +3026,97 @@ function attachmentKey(value: Record<string, unknown>) {
     const name = asTrimmedString(value.name, 140) ?? "";
     const type = asTrimmedString(value.type, 32) ?? "other";
     return `${normalizeForItemMatch(type)}::${normalizeForItemMatch(name)}`;
+}
+
+function normalizeExistingItemConfiguration(value: unknown): Record<string, unknown> | null {
+    if (!isRecord(value)) return null;
+    const name = asTrimmedString(value.name, 140);
+    if (!name) return null;
+
+    const id = asTrimmedString(value.id, 80) ?? buildGeneratedId("cfg");
+    const description = extractLocalizedTextValue(value.description, 4000);
+    const usage = asTrimmedString(value.usage, 240);
+    const damage = asTrimmedString(value.damage, 240);
+    const range = asTrimmedString(value.range, 240);
+    const magicBonusRaw = Number(value.magicBonus ?? value.magic_bonus);
+    const magicBonus = Number.isFinite(magicBonusRaw)
+        ? Math.round(clampNumber(magicBonusRaw, -30, 30))
+        : undefined;
+
+    const attachmentsRaw = Array.isArray(value.attachments) ? value.attachments : [];
+    const attachments = attachmentsRaw
+        .map((entry) => normalizeExistingItemAttachment(entry))
+        .filter((entry): entry is Record<string, unknown> => !!entry);
+
+    const normalized: Record<string, unknown> = {
+        id,
+        name,
+    };
+    if (description) normalized.description = toLocalizedTextObject(description);
+    if (usage) normalized.usage = usage;
+    if (damage) normalized.damage = damage;
+    if (range) normalized.range = range;
+    if (typeof magicBonus === "number") normalized.magicBonus = magicBonus;
+    if (attachments.length > 0) normalized.attachments = attachments;
+    return normalized;
+}
+
+function normalizeExistingItemConfigurations(value: unknown) {
+    if (!Array.isArray(value)) return [] as Record<string, unknown>[];
+    return value
+        .map((entry) => normalizeExistingItemConfiguration(entry))
+        .filter((entry): entry is Record<string, unknown> => !!entry);
+}
+
+function buildConfigurationFromPatch(
+    patch: ItemConfigurationPatch,
+    existingId?: string
+): Record<string, unknown> {
+    const normalized: Record<string, unknown> = {
+        id: existingId ?? buildGeneratedId("cfg"),
+        name: patch.name,
+    };
+    if (typeof patch.description === "string" && patch.description.trim()) {
+        normalized.description = toLocalizedTextObject(patch.description.trim());
+    }
+    if (typeof patch.usage === "string" && patch.usage.trim()) {
+        normalized.usage = patch.usage.trim();
+    }
+    if (typeof patch.damage === "string" && patch.damage.trim()) {
+        normalized.damage = patch.damage.trim();
+    }
+    if (typeof patch.range === "string" && patch.range.trim()) {
+        normalized.range = patch.range.trim();
+    }
+    if (typeof patch.magic_bonus === "number") {
+        normalized.magicBonus = patch.magic_bonus;
+    }
+    if (Array.isArray(patch.attachments_replace) && patch.attachments_replace.length > 0) {
+        normalized.attachments = patch.attachments_replace.map((entry) =>
+            buildAttachmentFromPatch(entry)
+        );
+    }
+    return normalized;
+}
+
+function findConfigurationByName(
+    configurations: Record<string, unknown>[],
+    name: string
+) {
+    const target = normalizeForItemMatch(name);
+    let found = configurations.find((config) => {
+        const configName = asTrimmedString(config.name, 140);
+        if (!configName) return false;
+        return normalizeForItemMatch(configName) === target;
+    });
+    if (found) return found;
+    found = configurations.find((config) => {
+        const configName = asTrimmedString(config.name, 140);
+        if (!configName) return false;
+        const normalized = normalizeForItemMatch(configName);
+        return normalized.includes(target) || target.includes(normalized);
+    });
+    return found;
 }
 
 function normalizeExistingItems(value: unknown) {
@@ -1517,7 +3139,11 @@ function normalizeExistingItems(value: unknown) {
     return output;
 }
 
-function findItemIndex(items: Record<string, unknown>[], targetName: string) {
+function findItemIndex(
+    items: Record<string, unknown>[],
+    targetName: string,
+    allowFuzzy = true
+) {
     const target = normalizeForItemMatch(targetName);
     let index = items.findIndex((item) => {
         const itemName = asTrimmedString(item.name, 120);
@@ -1525,6 +3151,7 @@ function findItemIndex(items: Record<string, unknown>[], targetName: string) {
         return normalizeForItemMatch(itemName) === target;
     });
     if (index >= 0) return index;
+    if (!allowFuzzy) return -1;
 
     index = items.findIndex((item) => {
         const itemName = asTrimmedString(item.name, 120);
@@ -1538,30 +3165,52 @@ function findItemIndex(items: Record<string, unknown>[], targetName: string) {
 function applyItemPatch(details: unknown, patch: ItemPatch): ItemPatchApplyResult {
     const baseDetails = isRecord(details) ? { ...details } : {};
     const items = normalizeExistingItems(baseDetails.items);
+    const targetLabel = parseItemLabelAndPrice(patch.target_item_name, 120);
+    const canonicalTargetName = targetLabel?.name ?? patch.target_item_name;
+    const allowFuzzyMatch = patch.create_if_missing !== true;
 
-    let itemIndex = findItemIndex(items, patch.target_item_name);
+    let itemIndex = findItemIndex(items, canonicalTargetName, allowFuzzyMatch);
+    if (itemIndex < 0 && canonicalTargetName !== patch.target_item_name) {
+        itemIndex = findItemIndex(items, patch.target_item_name, allowFuzzyMatch);
+    }
     let changed = false;
+    let createdNow = false;
     if (itemIndex < 0) {
         if (!patch.create_if_missing) {
             return {
                 applied: false,
-                message: `No se encontró el objeto "${patch.target_item_name}" en el inventario.`,
+                message: `No se encontró el objeto "${canonicalTargetName}" en el inventario.`,
             };
         }
         const created: Record<string, unknown> = {
             id: buildGeneratedId("item"),
-            name: patch.target_item_name,
+            name: patch.name ?? canonicalTargetName,
             category: patch.category ?? "misc",
             equippable: false,
             equipped: false,
             sortOrder: items.length,
         };
+        if (patch.description === undefined && targetLabel?.price) {
+            created.description = toLocalizedTextObject(`Precio: ${targetLabel.price}`);
+        }
         items.push(created);
         itemIndex = items.length - 1;
         changed = true;
+        createdNow = true;
     }
 
     const current = { ...items[itemIndex] };
+    if (!createdNow && canonicalTargetName !== patch.target_item_name) {
+        const currentName = asTrimmedString(current.name, 120);
+        if (
+            currentName &&
+            normalizeForItemMatch(currentName) ===
+                normalizeForItemMatch(patch.target_item_name)
+        ) {
+            current.name = canonicalTargetName;
+            changed = true;
+        }
+    }
     if (patch.name) {
         current.name = patch.name;
         changed = true;
@@ -1632,6 +3281,73 @@ function applyItemPatch(details: unknown, patch: ItemPatch): ItemPatchApplyResul
         changed = true;
     }
 
+    if (patch.clear_configurations || patch.configurations_replace?.length) {
+        const existingConfigurations = normalizeExistingItemConfigurations(
+            current.configurations
+        );
+        if (patch.configurations_replace?.length) {
+            const nextConfigurations = patch.configurations_replace.map((entry) => {
+                const existing = findConfigurationByName(
+                    existingConfigurations,
+                    entry.name
+                );
+                const existingId = asTrimmedString(existing?.id, 80);
+                return buildConfigurationFromPatch(entry, existingId);
+            });
+            if (nextConfigurations.length > 0) {
+                current.configurations = nextConfigurations;
+                if (patch.active_configuration === undefined) {
+                    const previousActive = asTrimmedString(
+                        current.activeConfigurationId,
+                        80
+                    );
+                    const hasPreviousActive =
+                        !!previousActive &&
+                        nextConfigurations.some(
+                            (entry) =>
+                                asTrimmedString(entry.id, 80) === previousActive
+                        );
+                    if (!hasPreviousActive) {
+                        current.activeConfigurationId = asTrimmedString(
+                            nextConfigurations[0]?.id,
+                            80
+                        );
+                    }
+                }
+            } else {
+                delete current.configurations;
+                delete current.activeConfigurationId;
+            }
+            changed = true;
+        } else if (patch.clear_configurations) {
+            delete current.configurations;
+            delete current.activeConfigurationId;
+            changed = true;
+        }
+    }
+
+    if (patch.active_configuration !== undefined) {
+        if (patch.active_configuration === null || patch.active_configuration === "") {
+            if (current.activeConfigurationId !== undefined) {
+                delete current.activeConfigurationId;
+                changed = true;
+            }
+        } else {
+            const existingConfigurations = normalizeExistingItemConfigurations(
+                current.configurations
+            );
+            const selectedConfiguration = findConfigurationByName(
+                existingConfigurations,
+                patch.active_configuration
+            );
+            const selectedId = asTrimmedString(selectedConfiguration?.id, 80);
+            if (selectedId && current.activeConfigurationId !== selectedId) {
+                current.activeConfigurationId = selectedId;
+                changed = true;
+            }
+        }
+    }
+
     if (
         patch.clear_attachments ||
         patch.attachments_replace?.length ||
@@ -1671,6 +3387,27 @@ function applyItemPatch(details: unknown, patch: ItemPatch): ItemPatchApplyResul
                 if (built.description !== undefined) {
                     existing.description = built.description;
                 }
+                const mergeKeys = [
+                    "school",
+                    "castingTime",
+                    "range",
+                    "components",
+                    "materials",
+                    "duration",
+                    "concentration",
+                    "ritual",
+                    "resourceCost",
+                    "save",
+                    "damage",
+                    "actionType",
+                    "requirements",
+                    "effect",
+                ] as const;
+                for (const mergeKey of mergeKeys) {
+                    if (built[mergeKey] !== undefined) {
+                        existing[mergeKey] = built[mergeKey];
+                    }
+                }
             }
             attachments = Array.from(byKey.values());
         }
@@ -1701,7 +3438,7 @@ function applyItemPatch(details: unknown, patch: ItemPatch): ItemPatchApplyResul
     return {
         applied: true,
         details: baseDetails,
-        message: `Objeto "${patch.target_item_name}" actualizado en inventario.`,
+        message: `Objeto "${canonicalTargetName}" actualizado en inventario.`,
     };
 }
 
@@ -2257,31 +3994,198 @@ function parseAssistantPlan(raw: string): AssistantPlan {
     };
 }
 
-function buildAssistantSystemPrompt() {
-    return [
-        "Eres un asistente para una web de gestión de campañas de DnD.",
-        "Tu trabajo es traducir instrucciones del usuario en acciones de mutación de personajes.",
-        "Devuelve solo JSON válido con el esquema pedido.",
-        "Lee y usa context.productKnowledge y context.clientContext para entender mejor el flujo de la web.",
-        "Lee también context.visibleCharacters e inventorySnapshot para entender lo que ya existe en cada personaje.",
-        "No inventes IDs. Usa solo IDs del contexto de personajes disponibles.",
-        "No propongas acciones fuera de create/update en personajes.",
-        "Si clientContext trae personaje seleccionado y el usuario no especifica uno, úsalo como objetivo por defecto.",
-        "Si el usuario indica objetivo con expresiones tipo 'en X', 'para X' o 'a X', prioriza ese personaje.",
-        "Para cambios de objetos del inventario usa data.item_patch, no details_patch.inventory.",
-        "Si el usuario pide añadir/crear un objeto que no existe, usa item_patch.create_if_missing=true.",
-        "Si el usuario dice 'añade este objeto' y pega un bloque largo, usa el título principal del bloque como target_item_name.",
-        "Si el texto de un objeto incluye secciones como rasgos o habilidades, represéntalas como attachments con type 'trait' o 'ability'.",
-        "Para textos largos de objetos, no descartes la petición: crea al menos una acción mínima viable con item_patch.",
-        "Para hechizos personalizados usa data.custom_spell_patch sobre customSpells/customCantrips.",
-        "Para rasgos/habilidades personalizadas usa data.custom_feature_patch sobre customTraits/customClassAbilities.",
-        "Para aprender u olvidar hechizos por nivel usa data.learned_spell_patch.",
-        "Tolera typos y lenguaje mixto ES/EN si la intención es clara.",
-        "Prioriza propuestas concretas sobre respuestas vacías.",
-        "Si no hay cambios claros, devuelve actions: [].",
-        "Si el usuario pregunta capacidades o ayuda, explica claramente qué puedes hacer y propone ejemplos útiles.",
-        "Mantén reply corto y útil en español.",
-    ].join(" ");
+function buildAssistantUserPayload(
+    prompt: string,
+    context: Record<string, unknown>
+) {
+    const assistantMode = normalizeAssistantMode(context?.assistantMode);
+    const trainingSubmode = normalizeTrainingSubmode(context?.trainingSubmode);
+    return {
+        user_request: prompt,
+        context,
+        assistant_mode: assistantMode,
+        training_submode:
+            assistantMode === "training" ? trainingSubmode : undefined,
+        reasoning_contract: {
+            mode: "deterministic-structured-extraction",
+            strict_json_only: true,
+            max_actions: 4,
+            prioritize_actionable_changes: true,
+            avoid_duplicate_information: true,
+            extract_and_map_long_object_cards: true,
+            infer_target_character_from_context: true,
+            prefer_minimal_complete_patches: true,
+        },
+        training_contract:
+            assistantMode === "training"
+                ? {
+                      enabled: true,
+                      submode: trainingSubmode,
+                      explain_prompt_quality: true,
+                      include_better_prompt_template: true,
+                      sandbox_drafts_are_never_persisted: true,
+                      avoid_apply_without_explicit_confirmation: true,
+                  }
+                : undefined,
+        parsing_priorities: [
+            "resolver personaje objetivo",
+            "extraer entidad principal (objeto/hechizo/rasgo/estadistica)",
+            "separar narrativa vs mecanica",
+            "mapear mecanicas a estructuras del esquema",
+            "devolver cambios minimos pero completos",
+        ],
+        ui_render_contract: {
+            item_description_is_base_only: true,
+            mechanics_should_live_in_attachments: true,
+            avoid_repeating_attachment_text_in_description: true,
+            avoid_generic_attachment_titles: true,
+            action_blocks_should_map_to_action_attachment: true,
+            spell_blocks_should_map_to_spell_attachment: true,
+            modular_configurations_supported: true,
+            modular_stats_should_live_in_configuration_fields: true,
+        },
+        text_format_contract: {
+            allow_markdown_lists: true,
+            prefer_paragraph_breaks: true,
+            use_bullets_when_multiple_short_points: true,
+            use_numbered_list_for_steps_or_sequences: true,
+            dont_force_lists_for_single_sentence: true,
+            avoid_single_long_line_blocks: true,
+        },
+        object_structuring_contract: {
+            strip_price_from_name: true,
+            preserve_rarity_attunement_state_in_metadata: true,
+            split_long_cards_into_base_plus_mechanics: true,
+            merge_subsections_into_parent_spell_when_needed: true,
+            reject_placeholder_actions: true,
+            detect_configuration_modes: true,
+        },
+        output_quality_gate: [
+            "Hay personaje objetivo resoluble o inferido",
+            "Cada accion es create/update valido",
+            "No hay texto duplicado descripcion/adjuntos",
+            "Nombre de objeto limpio sin precio ni decoradores",
+            "Bloques mecanicos mapeados al tipo de adjunto correcto",
+            "Si hay configuraciones A/B, usar item_patch.configurations_replace",
+        ],
+    };
+}
+
+function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
+    const attachmentFieldList = ITEM_ATTACHMENT_STRUCTURED_AI_KEYS.join(", ");
+    const basePrompt = [
+        "ROL",
+        "Eres un asistente experto en estructurar cambios para una web de campaña DnD.",
+        "Tu tarea es convertir texto libre en acciones create/update válidas para personajes.",
+        "",
+        "CONTRATO DE SALIDA",
+        "Devuelve SOLO JSON válido con el esquema pedido: { reply, actions }.",
+        "No añadas texto fuera del JSON.",
+        "No inventes IDs ni campos fuera del esquema.",
+        "Máximo 4 acciones por respuesta.",
+        "",
+        "FUENTES DE VERDAD",
+        "Prioriza context.visibleCharacters, inventorySnapshot y productKnowledge sobre suposiciones.",
+        "Si existe clientContext.selectedCharacter y la orden no especifica objetivo, úsalo.",
+        "Si la orden usa 'en X', 'para X' o 'a X', prioriza ese personaje.",
+        "",
+        "REGLAS DE MUTACIÓN",
+        "Usa create/update únicamente.",
+        "Para objetos del inventario usa data.item_patch (NO details_patch.inventory).",
+        "Para crear objeto nuevo usa item_patch.create_if_missing=true.",
+        "Para hechizos personalizados usa custom_spell_patch.",
+        "Para rasgos/habilidades personalizadas usa custom_feature_patch.",
+        "Para aprender/olvidar hechizos por nivel usa learned_spell_patch.",
+        "",
+        "PROTOCOLO OPERATIVO (OBLIGATORIO)",
+        "1) Detecta personaje objetivo por: orden explícita > clientContext.selectedCharacter > coincidencia por nombre.",
+        "2) Detecta la intención principal: crear, actualizar, equipar, aprender, olvidar, etc.",
+        "3) Segmenta el texto del usuario en bloques semánticos antes de mapear al esquema.",
+        "4) Distingue narrativa vs mecánica; solo la narrativa/base va a description.",
+        "5) Convierte cada bloque mecánico en attachment tipado (trait/ability/action/spell).",
+        "6) Valida anti-duplicación y limpieza de nombres.",
+        "7) Genera acciones mínimas pero completas (sin placeholders).",
+        "8) Redacta reply corto en español y deja todo lo ejecutable en actions.",
+        "",
+        "PARSER DE OBJETOS (OBLIGATORIO)",
+        "Cuando el usuario pega una ficha larga de objeto, primero segmenta:",
+        "1) Nombre principal del objeto",
+        "2) Metadatos (tipo, rareza, sintonización, estado, precio, etc.)",
+        "3) Descripción narrativa",
+        "4) Bloques mecánicos (pasivas, focos, poderes, conjuros, estados, efectos)",
+        "Mapeo recomendado:",
+        "- 'Propiedad pasiva' => attachment type='trait'",
+        "- 'Foco ...' => attachment type='ability'",
+        "- 'Poder especial ...' => attachment type='action'",
+        "- Bloque con señales de conjuro (alcance/área/salvación/duración/componentes/CD) => type='spell' (o 'cantrip' si aplica)",
+        "- Estados/DoT persistentes => type='ability' o 'trait' según naturaleza",
+        "- Si hay 'CONFIGURACIÓN A/B', usar item_patch.configurations_replace (NO mezclar todo en attachments globales).",
+        "- En cada configuración usa campos: name, description, usage, damage, range, magic_bonus, attachments_replace.",
+        "- Usa item_patch.active_configuration para marcar el modo inicial activo.",
+        "Si un bloque menciona conjuros pero el título es 'FOCO ...', se mantiene como ability (no spell).",
+        "Si un bloque es 'PODER ESPECIAL ...' y lanza un conjuro, ese bloque es action y el conjuro va en un attachment spell separado.",
+        `Para adjuntos tipo spell/cantrip rellena campos estructurados cuando existan: ${attachmentFieldList}.`,
+        "Para adjuntos tipo ability/action/classFeature rellena action_type, resource_cost, requirements, effect cuando el texto lo indique.",
+        "No dejes esos parámetros metidos solo en description si pueden ir en campos estructurados.",
+        "Formato de texto: usa markdown legible en description/attachment.description solo cuando aporte claridad.",
+        "Si hay varios puntos cortos, usa lista con viñetas.",
+        "Si hay pasos o secuencia temporal, usa lista numerada.",
+        "Si es narrativa corta o una sola idea, usa párrafo normal (sin forzar listas).",
+        "",
+        "REGLAS FINAS DE OBJETOS",
+        "No incluyas precio en el nombre del objeto (ej: '- 35 po' debe salir del nombre).",
+        "Metadatos compactos (precio, rareza, sintonización) pueden ir en description si no hay campo dedicado.",
+        "No crear adjuntos desde líneas puramente administrativas: 'tipo', 'rareza', 'precio', 'descripción'.",
+        "Si hay 'Uso: acción' + efecto corto, crear action con título del efecto (sin duplicar 'Uso: acción' en descripción).",
+        "Si existe conjuro principal y subbloques como 'Efecto inicial', intégralos dentro del mismo spell.",
+        "En objetos contenedor (bolsas/códices con partes), mantener un objeto principal y partes como adjuntos coherentes.",
+        "En objetos modulares (armas transformables), mantener narrativa base en item.description y mecánicas por modo en configurations_replace.",
+        "Si aparecen encabezados genéricos como 'Características básicas' o 'Propiedades especiales', no crear un adjunto único genérico: dividir en adjuntos concretos por línea mecánica o por bloques 'Nombre: efecto'.",
+        "Evita bloques de texto en una sola línea; usa saltos de párrafo cuando la descripción sea larga.",
+        "",
+        "ANTIDUPLICACIÓN (OBLIGATORIO)",
+        "No repitas en item.description lo que ya esté modelado como attachments.",
+        "item.description debe contener solo narrativa/base del objeto y metadatos esenciales.",
+        "No crees attachments desde etiquetas genéricas: 'uso', 'efecto', 'tipo', 'rareza', 'precio', 'descripción'.",
+        "Si un bloque incluye 'Uso: acción' y un efecto corto, el attachment puede ser action con nombre del efecto.",
+        "",
+        "NORMALIZACIÓN",
+        "Tolera typos, emojis, ES/EN mixto y separadores (---).",
+        "Limpia prefijos decorativos del nombre (emoji, 'OBJETO ÚNICO —', etc.).",
+        "Evita nombres triviales de adjunto como 'Efecto inicial' si debe integrarse en el conjuro principal.",
+        "Si la orden contiene varios objetos, crea una acción por objeto sin mezclar sus campos.",
+        "No pierdas bloques por saltos de línea o markdown decorativo.",
+        "",
+        "CONTROL DE CALIDAD FINAL (OBLIGATORIO)",
+        "Antes de responder, verifica internamente:",
+        "- ¿Hay cambio accionable claro? Si sí, no devuelvas actions vacío.",
+        "- ¿Cada acción apunta a un target_character_id válido/inferible?",
+        "- ¿Los nombres están limpios y no contienen precio ni ruido?",
+        "- ¿Description y attachments no duplican contenido?",
+        "- ¿El tipo de attachment refleja su mecánica real?",
+        "",
+        "CALIDAD",
+        "Prioriza acciones concretas y aplicables sobre respuestas vacías.",
+        "Si hay señal clara de cambio, propone al menos una acción viable.",
+        "Si realmente no hay cambio accionable, devuelve actions: [].",
+        "reply breve y útil en español.",
+    ];
+
+    if (mode === "training") {
+        basePrompt.push(
+            "",
+            "MODO ENTRENAMIENTO (OBLIGATORIO)",
+            "Estás en modo entrenamiento: además de proponer acciones si hay cambios claros, debes enseñar al usuario a redactar mejores prompts.",
+            "Lee context.trainingSubmode:",
+            "- ai_prompt: NO devuelvas acciones aplicables. Entrega ejercicios/prompts de práctica y criterios de validación.",
+            "- sandbox_object: puedes devolver actions como borrador de entrenamiento editable en chat.",
+            "Si la orden parece petición de ayuda de prompt (no mutación concreta), devuelve actions: [] y reply con guía práctica.",
+            "Cuando sí haya mutación clara, incluye acciones válidas y en reply añade una versión de prompt recomendada para futuras órdenes.",
+            "No apliques cambios por tu cuenta: solo propones acciones para confirmación."
+        );
+    }
+
+    return basePrompt.join("\n");
 }
 
 function normalizeForMatch(value: string) {
@@ -2433,6 +4337,890 @@ function isCapabilitiesQuestion(prompt: string) {
         "what can you do",
     ];
     return patterns.some((pattern) => normalized.includes(pattern));
+}
+
+function normalizeAssistantMode(value: unknown): AssistantMode {
+    const normalized = asTrimmedString(value, 24)?.toLowerCase();
+    if (normalized === "training" || normalized === "entrenamiento") {
+        return "training";
+    }
+    return "normal";
+}
+
+function normalizeTrainingSubmode(value: unknown): TrainingSubmode {
+    const normalized = asTrimmedString(value, 40)?.toLowerCase();
+    if (
+        normalized === "ai_prompt" ||
+        normalized === "prompt" ||
+        normalized === "coach"
+    ) {
+        return "ai_prompt";
+    }
+    if (
+        normalized === "sandbox_object" ||
+        normalized === "sandbox" ||
+        normalized === "draft"
+    ) {
+        return "sandbox_object";
+    }
+    return "sandbox_object";
+}
+
+function isTrainingApprovalIntent(prompt: string) {
+    const normalized = normalizeForMatch(extractCurrentUserInstruction(prompt));
+    const patterns = [
+        "esta correcto",
+        "está correcto",
+        "correcto",
+        "validado",
+        "ok",
+        "listo",
+        "esta bien",
+        "está bien",
+        "perfecto",
+    ];
+    return patterns.some((pattern) => normalized.includes(pattern));
+}
+
+function isTrainingPromptRequest(prompt: string) {
+    const normalized = normalizeForMatch(extractCurrentUserInstruction(prompt));
+    const patterns = [
+        "modo entrenamiento",
+        "entrenamiento",
+        "prompt",
+        "mejora este prompt",
+        "mejorame este prompt",
+        "ayudame con el prompt",
+        "ayudame a redactar",
+        "como lo pido",
+        "como deberia pedirlo",
+        "como debería pedirlo",
+        "dame un prompt",
+        "pasa un prompt",
+    ];
+    return patterns.some((pattern) => normalized.includes(pattern));
+}
+
+function buildTrainingPromptTemplate({
+    prompt,
+    clientContext,
+}: {
+    prompt: string;
+    clientContext?: ClientContextPayload | null;
+}) {
+    const instruction = extractCurrentUserInstruction(prompt);
+    const normalized = normalizeForMatch(instruction);
+    const selectedName =
+        asTrimmedString(clientContext?.selectedCharacter?.name, 120) ??
+        "<nombre del personaje>";
+
+    const looksLikeObject =
+        normalized.includes("objeto") ||
+        normalized.includes("arma") ||
+        normalized.includes("armadura") ||
+        normalized.includes("inventario") ||
+        normalized.includes("item") ||
+        normalized.includes("accesorio");
+    const looksLikeSpell =
+        normalized.includes("hechizo") ||
+        normalized.includes("conjuro") ||
+        normalized.includes("cantrip") ||
+        normalized.includes("truco") ||
+        normalized.includes("spell");
+    const looksLikeFeature =
+        normalized.includes("rasgo") ||
+        normalized.includes("habilidad") ||
+        normalized.includes("accion") ||
+        normalized.includes("acción") ||
+        normalized.includes("trait") ||
+        normalized.includes("ability");
+
+    if (looksLikeObject) {
+        return [
+            `Objetivo: ${selectedName}`,
+            "Acción: crear o actualizar objeto",
+            "Nombre del objeto: <nombre limpio sin precio>",
+            "Categoría: weapon|armor|accessory|consumable|tool|misc",
+            "Rareza/attunement (si aplica): <texto breve>",
+            "Descripción base (solo lore, sin mecánicas duplicadas):",
+            "<texto>",
+            "Mecánicas separadas:",
+            "- Rasgo: <nombre> -> <efecto pasivo>",
+            "- Habilidad: <nombre> -> <beneficio continuo>",
+            "- Acción: <nombre> -> <activación y efecto>",
+            "- Hechizo adjunto (si aplica): <nombre> con alcance/salvación/daño estructurado",
+            "Instrucción final: crea/actualiza este objeto en el inventario del objetivo.",
+        ].join("\n");
+    }
+
+    if (looksLikeSpell) {
+        return [
+            `Objetivo: ${selectedName}`,
+            "Acción: crear o actualizar hechizo personalizado",
+            "Nombre del hechizo: <nombre>",
+            "Nivel: <0-9>",
+            "Escuela: <escuela o vacío>",
+            "Alcance: <valor>",
+            "Salvación o tirada: <tipo + atributo>",
+            "Daño: <dados + tipo>",
+            "Duración/Concentración/Ritual: <valores>",
+            "Descripción (solo efecto narrativo y reglas que no estén ya en campos estructurados):",
+            "<texto>",
+        ].join("\n");
+    }
+
+    if (looksLikeFeature) {
+        return [
+            `Objetivo: ${selectedName}`,
+            "Acción: crear o actualizar rasgo/habilidad personalizada",
+            "Colección: customTraits o customClassAbilities",
+            "Nombre: <nombre>",
+            "Tipo de acción: action|bonus|reaction|passive",
+            "Requisitos/coste (si aplica): <texto>",
+            "Efecto:",
+            "<texto claro y corto>",
+        ].join("\n");
+    }
+
+    return [
+        `Objetivo: ${selectedName}`,
+        "Acción exacta: crear|actualizar|equipar|aprender|olvidar",
+        "Entidad: personaje|objeto|hechizo|rasgo|habilidad",
+        "Nombre exacto de la entidad:",
+        "<nombre>",
+        "Campos a cambiar (uno por línea):",
+        "- campo: valor",
+        "Notas:",
+        "- separar descripción base vs mecánicas",
+        "- evitar meter precio o metadatos en el nombre",
+    ].join("\n");
+}
+
+function buildTrainingModeReply({
+    prompt,
+    role,
+    clientContext,
+    trainingSubmode = "sandbox_object",
+    actionCount = 0,
+}: {
+    prompt: string;
+    role: CampaignRole;
+    clientContext?: ClientContextPayload | null;
+    trainingSubmode?: TrainingSubmode;
+    actionCount?: number;
+}) {
+    const instruction = extractCurrentUserInstruction(prompt);
+    const compactInstruction =
+        instruction.length > 500
+            ? `${instruction.slice(0, 500)}...`
+            : instruction;
+    const roleScope =
+        role === "DM"
+            ? "Como DM puedes entrenar prompts para cualquier personaje de la campaña."
+            : "Como jugador, en entrenamiento solo puedes simular cambios sobre tus personajes (sin guardar).";
+    const uiHint = describeUIContextHint(clientContext);
+    const template = buildTrainingPromptTemplate({ prompt, clientContext });
+
+    const lines = [
+        "Modo entrenamiento activo.",
+        trainingSubmode === "ai_prompt"
+            ? "Submodo: IA propone prompts/ejercicios (no se generan objetos reales)."
+            : "Submodo: sandbox de borrador editable en chat (no se generan objetos reales).",
+        roleScope,
+        uiHint ? `Contexto detectado: ${uiHint}` : null,
+        actionCount > 0
+            ? `Detecté ${actionCount} cambio(s) accionable(s) con tu texto actual.`
+            : "Con este texto no hay cambios estructurados listos para aplicar todavía.",
+        compactInstruction
+            ? `Resumen de tu instrucción:\n${compactInstruction}`
+            : null,
+        "Prompt recomendado:",
+        "```txt",
+        template,
+        "```",
+        "Consejo: separa lore (descripción base) y mecánicas (adjuntos) para evitar duplicados.",
+    ];
+
+    return lines.filter((line): line is string => !!line).join("\n\n");
+}
+
+function buildTrainingSimulationResults(actions: SanitizedAction[]): MutationResult[] {
+    if (actions.length === 0) {
+        return [
+            {
+                operation: "update",
+                status: "skipped",
+                message:
+                    "Modo entrenamiento: no se aplicaron cambios reales. No había acciones válidas que simular.",
+            },
+        ];
+    }
+    return actions.map((action) => ({
+        operation: action.operation,
+        characterId: action.characterId,
+        status: "skipped",
+        message:
+            "Modo entrenamiento: borrador simulado. No se aplicó ningún cambio real en la campaña.",
+    }));
+}
+
+const TRAINING_SIGNATURE_CACHE_LIMIT = 140;
+let recentTrainingChallengeSignatures: string[] = [];
+
+function pickRandomTrainingValue<T>(options: readonly T[]): T {
+    return options[Math.floor(Math.random() * options.length)];
+}
+
+function randomTrainingInt(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function maybeTraining(probability = 0.5) {
+    return Math.random() < probability;
+}
+
+function pushTrainingChallengeSignature(signature: string) {
+    recentTrainingChallengeSignatures = recentTrainingChallengeSignatures.filter(
+        (entry) => entry !== signature
+    );
+    recentTrainingChallengeSignatures.push(signature);
+    if (recentTrainingChallengeSignatures.length > TRAINING_SIGNATURE_CACHE_LIMIT) {
+        recentTrainingChallengeSignatures = recentTrainingChallengeSignatures.slice(
+            recentTrainingChallengeSignatures.length - TRAINING_SIGNATURE_CACHE_LIMIT
+        );
+    }
+}
+
+function hasRecentTrainingChallengeSignature(signature: string) {
+    return recentTrainingChallengeSignatures.includes(signature);
+}
+
+function flattenTrainingText(value: string) {
+    return value.replace(/\s+/g, " ").trim();
+}
+
+function isGenericTrainingAutoInstruction(instruction: string) {
+    const normalized = normalizeForMatch(instruction);
+    return (
+        normalized.includes("propon un ejercicio de entrenamiento") ||
+        normalized.includes("propose a training exercise") ||
+        normalized.includes("dame un ejercicio de entrenamiento") ||
+        normalized.includes("give me a training challenge")
+    );
+}
+
+function inferTrainingCategoryFromTheme(theme?: string): ItemCategory | null {
+    const normalized = normalizeForMatch(theme ?? "");
+    if (!normalized) return null;
+    if (
+        /\b(espada|daga|arco|arma|lanza|hacha|martillo|ballesta|guja|garrote)\b/.test(
+            normalized
+        )
+    ) {
+        return "weapon";
+    }
+    if (
+        /\b(armadura|yelmo|casco|guantelete|escudo|coraza|botas|grebas)\b/.test(
+            normalized
+        )
+    ) {
+        return "armor";
+    }
+    if (
+        /\b(pocion|elixir|frasco|polvo|ampolla|consumible|vial|unguento)\b/.test(
+            normalized
+        )
+    ) {
+        return "consumable";
+    }
+    if (
+        /\b(codice|libro|grimorio|amuleto|anillo|colgante|reliquia|talisman)\b/.test(
+            normalized
+        )
+    ) {
+        return "accessory";
+    }
+    if (/\b(herramienta|kit|set|instrumento|brujula|compas)\b/.test(normalized)) {
+        return "tool";
+    }
+    return null;
+}
+
+function extractTrainingThemeToken(theme?: string) {
+    const cleaned = normalizeForMatch(theme ?? "")
+        .split(/\s+/)
+        .map((entry) => entry.trim())
+        .filter(
+            (entry) =>
+                entry.length >= 4 &&
+                ![
+                    "crea",
+                    "objeto",
+                    "entrenamiento",
+                    "prompt",
+                    "para",
+                    "sobre",
+                    "con",
+                    "esta",
+                    "web",
+                    "quiero",
+                    "actualiza",
+                    "personaje",
+                ].includes(entry)
+        );
+    return cleaned.slice(0, 2).join(" ");
+}
+
+type TrainingGeneratedChallenge = {
+    name: string;
+    category: ItemCategory;
+    rarity: string;
+    description: string;
+    sourceText: string;
+    attachments: ItemAttachmentPatch[];
+    signature: string;
+};
+
+function buildTrainingGeneratedChallenge(theme?: string): TrainingGeneratedChallenge {
+    const inferredCategory = inferTrainingCategoryFromTheme(theme);
+    const category: ItemCategory =
+        inferredCategory ??
+        pickRandomTrainingValue<ItemCategory>([
+            "weapon",
+            "armor",
+            "accessory",
+            "consumable",
+            "tool",
+            "misc",
+        ]);
+    const rarity = pickRandomTrainingValue([
+        "infrecuente",
+        "raro",
+        "muy raro",
+        "único",
+    ]);
+    const attunementClause = pickRandomTrainingValue([
+        "sí (druida o guardián natural)",
+        "sí (lanzador con vínculo arcano)",
+        "sí (portador que haya superado un ritual)",
+        "no",
+    ]);
+    const origin = pickRandomTrainingValue([
+        "ruinas micénicas cubiertas de musgo",
+        "forja subterránea de una orden perdida",
+        "templo hundido en marismas",
+        "archivo arcano clausurado",
+        "santuario dracónico semiderruido",
+        "bosque de niebla permanente",
+        "cripta de vidrio volcánico",
+        "observatorio astral en desuso",
+    ]);
+    const material = pickRandomTrainingValue([
+        "madera petrificada con vetas metálicas",
+        "hueso mineralizado",
+        "acero negro runado",
+        "cristal ahumado con inclusiones de savia",
+        "obsidiana lechosa",
+        "latón antiguo con filamentos vivos",
+        "piedra volcánica pulida",
+        "corteza viva endurecida",
+    ]);
+    const visualCue = pickRandomTrainingValue([
+        "late con un pulso tenue al acercarse a magia hostil",
+        "desprende un zumbido casi inaudible en silencio total",
+        "muestra grietas luminosas que cambian según la luna",
+        "reacciona con escarcha azul al contacto con sangre corrupta",
+        "emite chispas verdes cuando detecta runas activas",
+        "oscurece su superficie cuando hay peligro inminente",
+    ]);
+    const namePrefix = pickRandomTrainingValue([
+        "Reliquia",
+        "Núcleo",
+        "Códice",
+        "Foco",
+        "Daga",
+        "Guantelete",
+        "Lámpara",
+        "Broche",
+        "Talismán",
+        "Vial",
+        "Cuerda",
+    ]);
+    const nameCoreByCategory: Record<ItemCategory, string[]> = {
+        weapon: [
+            "de Raíz",
+            "del Velo",
+            "de Ceniza",
+            "del Eclipse",
+            "de Niebla",
+            "de Estirpe Verde",
+        ],
+        armor: [
+            "de Corteza",
+            "del Bastión Vivo",
+            "de la Placa Dormida",
+            "de Guardia Lunar",
+            "de Bruma Férrea",
+            "de Umbral Umbrío",
+        ],
+        accessory: [
+            "del Bosque Mudo",
+            "de Memoria Ancestral",
+            "del Pulso Rúnico",
+            "de Vigilia Astral",
+            "de Eco Profundo",
+            "de la Marea Negra",
+        ],
+        consumable: [
+            "de Rocío Frío",
+            "de Savia Tensa",
+            "de Polvo Silente",
+            "de Flor Corrupta",
+            "de Bruma Curativa",
+            "de Resina Sombría",
+        ],
+        tool: [
+            "de Cartografía Oculta",
+            "del Artesano Verde",
+            "de Ajuste Arcano",
+            "del Rastro Ciego",
+            "de Apertura Doble",
+            "de Ingeniería Fúngica",
+        ],
+        misc: [
+            "del Umbral",
+            "de la Quiebra Azul",
+            "del Trenzado Profundo",
+            "de Capa Feral",
+            "del Bastón Roto",
+            "de la Vetusta Guardia",
+        ],
+    };
+    const nameSuffix = pickRandomTrainingValue([
+        "Latente",
+        "Resonante",
+        "Dormida",
+        "Injertada",
+        "Velada",
+        "Persistente",
+        "de Vharlan",
+        "de Thamior",
+        "del Círculo Naciente",
+    ]);
+    const themeToken = extractTrainingThemeToken(theme);
+    const themedTail = themeToken ? ` (${themeToken})` : "";
+    const name = `${namePrefix} ${pickRandomTrainingValue(
+        nameCoreByCategory[category]
+    )} ${nameSuffix}${themedTail}`.replace(/\s+/g, " ").trim();
+
+    const passiveLabel = pickRandomTrainingValue([
+        "Detector de anomalías",
+        "Lectura de rastros",
+        "Memoria vegetal",
+        "Vigilancia del umbral",
+        "Alerta de corrupción",
+        "Eco de amenaza",
+    ]);
+    const passiveEffect = pickRandomTrainingValue([
+        "percibes vibraciones cuando hay infección, magia inestable o alteraciones rituales cerca",
+        "identificas rastros alterados y rutas manipuladas con ventaja en pruebas de investigación de entorno",
+        "reconoces escrituras parciales y símbolos incompletos sin tirada adicional",
+        "detectas focos de energía residual en estructuras antiguas a corta distancia",
+        "notas patrones de podredumbre o energía muerta antes de que sean visibles",
+        "el objeto reacciona con pulsos que anticipan zonas peligrosas",
+    ]);
+
+    const utilityLabel = pickRandomTrainingValue([
+        "Canalización focal",
+        "Asistencia de taller",
+        "Ajuste de precisión",
+        "Interfaz viva",
+        "Trenzado adaptativo",
+        "Sincronía de campo",
+    ]);
+    const utilityEffect = pickRandomTrainingValue([
+        "puede actuar como foco de lanzamiento y herramienta especializada según la escena",
+        "otorga ventaja para crear, reparar o modificar objetos durante descansos",
+        "reduce errores al manipular runas, cierres o componentes delicados",
+        "permite estabilizar temporalmente componentes dañados con una reparación menor",
+        "mejora la lectura de mecanismos y nodos mágicos de baja intensidad",
+        "facilita la integración entre conjuro y artesanía sin gasto extra",
+    ]);
+
+    const actionType = pickRandomTrainingValue<FeatureActionType>([
+        "action",
+        "bonus",
+        "reaction",
+    ]);
+    const charges = randomTrainingInt(1, 3);
+    const recharge = pickRandomTrainingValue<"short" | "long">(["short", "long"]);
+    const damageType = pickRandomTrainingValue([
+        "necrotico",
+        "frio",
+        "fuego",
+        "rayo",
+        "veneno",
+        "psiquico",
+        "force",
+    ]);
+    const damageDice = pickRandomTrainingValue([
+        "1d8",
+        "2d6",
+        "2d8",
+        "3d6",
+        "3d4",
+        "4d4",
+    ]);
+    const saveAbility = pickRandomTrainingValue<SpellSavePatch["save_ability"]>([
+        "STR",
+        "DEX",
+        "CON",
+        "INT",
+        "WIS",
+        "CHA",
+    ]);
+    const range = pickRandomTrainingValue([
+        "Toque",
+        "9 m",
+        "12 m",
+        "18 m",
+        "24 m",
+    ]);
+    const activeLabel = pickRandomTrainingValue([
+        "Descarga de injerto",
+        "Pulso de ruptura",
+        "Propagación controlada",
+        "Fulgor de contención",
+        "Estallido de savia",
+        "Onda del velo",
+    ]);
+    const activeFlavor = pickRandomTrainingValue([
+        "un pulso compacto que recorre venas mágicas cercanas",
+        "una onda breve que rompe formaciones inestables",
+        "un brote de energía que contamina o purga según el objetivo",
+        "una descarga radial de baja duración",
+        "un impacto focalizado con resonancia residual",
+        "un estallido silencioso que deforma la energía del área",
+    ]);
+    const lingeringName = pickRandomTrainingValue([
+        "Savia residual",
+        "Marca de interferencia",
+        "Latencia hostil",
+        "Inercia rúnica",
+        "Cicatriz de velo",
+    ]);
+    const lingeringEffect = pickRandomTrainingValue([
+        "al final de cada turno, salvación para terminar el efecto o recibe daño adicional",
+        "si falla la salvación, el objetivo mantiene el estado y sufre penalización de movimiento",
+        "los objetivos ya afectados por corrupción tienen desventaja en la salvación",
+        "el efecto escala contra objetivos con magia activa o vulnerabilidad elemental",
+        "si el objetivo supera la salvación dos veces, el efecto termina por completo",
+    ]);
+
+    const passiveAttachment: ItemAttachmentPatch = {
+        type: "trait",
+        name: passiveLabel,
+        description: `${passiveEffect}.`,
+    };
+
+    const utilityAttachment: ItemAttachmentPatch = {
+        type: maybeTraining(0.5) ? "ability" : "trait",
+        name: utilityLabel,
+        description: `${utilityEffect}.`,
+        action_type: "passive",
+    };
+
+    const useSpellShape = maybeTraining(0.55);
+    const activeAttachment: ItemAttachmentPatch = useSpellShape
+        ? {
+              type: "spell",
+              name: activeLabel,
+              school: pickRandomTrainingValue([
+                  "transmutacion",
+                  "necromancia",
+                  "conjuracion",
+                  "evocacion",
+              ]),
+              casting_time:
+                  actionType === "bonus"
+                      ? "1 acción bonus"
+                      : actionType === "reaction"
+                        ? "1 reacción"
+                        : "1 acción",
+              range,
+              duration: pickRandomTrainingValue([
+                  "Instantánea",
+                  "Hasta el final de tu siguiente turno",
+                  "1 minuto",
+              ]),
+              save: {
+                  type: "save",
+                  save_ability: saveAbility,
+                  dc_type: "stat",
+                  dc_stat: pickRandomTrainingValue([
+                      "WIS",
+                      "INT",
+                      "CHA",
+                      "CON",
+                  ]),
+              },
+              damage: {
+                  damage_type: damageType,
+                  dice: damageDice,
+              },
+              description: `${activeFlavor}.\n\nEfecto inicial: daño ${damageType} y aplica "${lingeringName}" durante 1 minuto.`,
+              resource_cost: {
+                  charges,
+                  recharge,
+              },
+          }
+        : {
+              type: "action",
+              name: activeLabel,
+              action_type: actionType,
+              description: `${activeFlavor}.`,
+              effect: `${lingeringName}: ${lingeringEffect}.`,
+              resource_cost: {
+                  charges,
+                  recharge,
+              },
+          };
+
+    const lingeringAttachment: ItemAttachmentPatch = {
+        type: maybeTraining(0.6) ? "ability" : "trait",
+        name: lingeringName,
+        description: `${lingeringEffect}.`,
+    };
+
+    const extraAttachment = maybeTraining(0.5)
+        ? ({
+              type: maybeTraining(0.4) ? "action" : "ability",
+              name: pickRandomTrainingValue([
+                  "Protocolo de emergencia",
+                  "Alineación de campo",
+                  "Cierre de fractura",
+                  "Compás de vigilancia",
+                  "Respuesta de retención",
+              ]),
+              action_type: pickRandomTrainingValue<FeatureActionType>([
+                  "action",
+                  "bonus",
+                  "reaction",
+                  "passive",
+              ]),
+              description: pickRandomTrainingValue([
+                  "mitiga una condición activa o reduce daño entrante de la siguiente fuente",
+                  "permite recolocar el efecto principal a un objetivo nuevo dentro del alcance",
+                  "anula un efecto menor de terreno en un radio corto",
+                  "refuerza la estabilidad del portador hasta el final del turno siguiente",
+                  "duplica un efecto utilitario del objeto una vez por descanso largo",
+              ]),
+          } satisfies ItemAttachmentPatch)
+        : null;
+
+    const attachments = [
+        passiveAttachment,
+        utilityAttachment,
+        activeAttachment,
+        lingeringAttachment,
+        ...(extraAttachment ? [extraAttachment] : []),
+    ];
+
+    const description = [
+        `Objeto recuperado en ${origin}, fabricado con ${material}.`,
+        `Su superficie ${visualCue}.`,
+        `No incluir mecánicas repetidas en esta descripción base; las reglas van en adjuntos.`,
+    ].join("\n\n");
+
+    const useActionLabel =
+        actionType === "bonus"
+            ? "acción bonus"
+            : actionType === "reaction"
+              ? "reacción"
+              : "acción";
+    const sourceText = [
+        `${name}`,
+        "",
+        `Tipo de objeto: ${category}`,
+        `Rareza: ${rarity}`,
+        `Requiere vinculación: ${attunementClause}`,
+        "",
+        "DESCRIPCION (papel)",
+        `Procedencia: ${origin}.`,
+        `Material principal: ${material}.`,
+        `Señal visual: ${visualCue}.`,
+        "",
+        "BLOQUES MECANICOS (papel)",
+        `- ${passiveLabel}: ${passiveEffect}.`,
+        `- ${utilityLabel}: ${utilityEffect}.`,
+        `- ${activeLabel}: uso ${useActionLabel}; alcance ${range}; tirada/salvación ${saveAbility}; daño ${damageDice} ${damageType}; ${activeFlavor}; aplica ${lingeringName}.`,
+        `- ${lingeringName}: ${lingeringEffect}.`,
+        extraAttachment
+            ? `- ${extraAttachment.name}: ${flattenTrainingText(
+                  extraAttachment.description ?? ""
+              )}.`
+            : null,
+        "",
+        "NOTA DE MESA",
+        "El objetivo del ejercicio es separar lore en descripción base y reglas en adjuntos estructurados sin duplicar campos.",
+    ]
+        .filter((line): line is string => !!line)
+        .join("\n");
+
+    const signature = normalizeForMatch(
+        [
+            name,
+            category,
+            rarity,
+            passiveLabel,
+            utilityLabel,
+            activeLabel,
+            lingeringName,
+            damageType,
+            damageDice,
+            saveAbility,
+            useActionLabel,
+        ].join("|")
+    );
+
+    return {
+        name,
+        category,
+        rarity,
+        description,
+        sourceText,
+        attachments,
+        signature,
+    };
+}
+
+function buildUniqueTrainingGeneratedChallenge(theme?: string) {
+    let fallback = buildTrainingGeneratedChallenge(theme);
+    for (let attempt = 0; attempt < 42; attempt += 1) {
+        const candidate = buildTrainingGeneratedChallenge(theme);
+        fallback = candidate;
+        if (!hasRecentTrainingChallengeSignature(candidate.signature)) {
+            pushTrainingChallengeSignature(candidate.signature);
+            return candidate;
+        }
+    }
+    pushTrainingChallengeSignature(fallback.signature);
+    return fallback;
+}
+
+function resolveTrainingTargetCharacterId({
+    targetCharacterId,
+    clientContext,
+    visibleCharacters,
+}: {
+    targetCharacterId?: string;
+    clientContext: ClientContextPayload | null;
+    visibleCharacters: CharacterSummaryRow[];
+}) {
+    if (
+        targetCharacterId &&
+        visibleCharacters.some((character) => character.id === targetCharacterId)
+    ) {
+        return targetCharacterId;
+    }
+    const selectedId = asTrimmedString(clientContext?.selectedCharacter?.id, 64);
+    if (selectedId && visibleCharacters.some((character) => character.id === selectedId)) {
+        return selectedId;
+    }
+    return visibleCharacters[0]?.id;
+}
+
+function buildTrainingFictionalDraft({
+    prompt,
+    targetCharacterId,
+    clientContext,
+    visibleCharacters,
+}: {
+    prompt: string;
+    targetCharacterId?: string;
+    clientContext: ClientContextPayload | null;
+    visibleCharacters: CharacterSummaryRow[];
+}) {
+    const instruction = extractCurrentUserInstruction(prompt);
+    const rawTheme =
+        asTrimmedString(instruction, 180) &&
+        !isTrainingPromptRequest(prompt) &&
+        !isTrainingApprovalIntent(prompt) &&
+        !isGenericTrainingAutoInstruction(instruction)
+            ? asTrimmedString(instruction, 180)
+            : undefined;
+    const theme = rawTheme ?? undefined;
+    const generated = buildUniqueTrainingGeneratedChallenge(theme);
+    const targetId = resolveTrainingTargetCharacterId({
+        targetCharacterId,
+        clientContext,
+        visibleCharacters,
+    });
+    const targetName =
+        visibleCharacters.find((entry) => entry.id === targetId)?.name ??
+        clientContext?.selectedCharacter?.name ??
+        "personaje seleccionado";
+
+    const practiceId = `TR-${Date.now().toString(36).toUpperCase()}-${Math.random()
+        .toString(36)
+        .slice(2, 6)
+        .toUpperCase()}`;
+    const themedPrompt = [
+        `Tengo un objeto en papel y quiero pasarlo a la web para el personaje "${targetName}".`,
+        "Interpreta el texto completo y crea/actualiza un único objeto.",
+        "Reglas de transcripción:",
+        "- Mantén el lore en la descripción base del objeto.",
+        "- Pasa mecánicas a adjuntos estructurados (rasgo/habilidad/acción/hechizo).",
+        "- No dupliques en descripción datos que ya van en campos de hechizo o acción.",
+        "- Si hay uso por descanso/cargas, represéntalo en coste de recurso.",
+        "- Si hay tirada/salvación/daño, rellena sus campos estructurados.",
+        theme ? `Tema solicitado por el usuario: ${theme}.` : null,
+        "",
+        `Texto fuente (papel) [${practiceId}]:`,
+        generated.sourceText,
+        "",
+        "Instrucción final:",
+        `\"Transcribe este objeto en la web para ${targetName} con estructura completa y sin perder información.\"`,
+    ]
+        .filter((line): line is string => !!line)
+        .join("\n");
+
+    const actions: unknown[] = [
+        {
+            operation: "update",
+            characterId: targetId,
+            note: "Borrador ficticio de entrenamiento. No se aplicará en campaña.",
+            data: {
+                item_patch: {
+                    target_item_name: generated.name,
+                    create_if_missing: true,
+                    category: generated.category,
+                    rarity: generated.rarity,
+                    description: generated.description,
+                    attachments_replace: generated.attachments,
+                },
+            },
+        },
+    ];
+
+    const reply = [
+        "Reto de entrenamiento (ficticio) generado.",
+        `Objetivo de práctica: ${targetName}.`,
+        "",
+        "Prompt de práctica (detallado):",
+        `\"${themedPrompt}\"`,
+        "",
+        "Criterios de validación sugeridos:",
+        "- La descripción base conserva solo narrativa/lore.",
+        "- Las mecánicas quedan en adjuntos estructurados sin texto duplicado.",
+        "- Acciones/hechizos incluyen alcance, tipo de tirada/salvación y daño cuando aplique.",
+        "- Costes por descanso/cargas quedan en recurso del adjunto, no en texto suelto.",
+        "",
+        "La estructura inicial ya está cargada en el editor del chat para que la corrijas.",
+        "Cuando la veas bien, pulsa \"Está correcto\" o escribe \"está correcto\".",
+    ].join("\n");
+
+    return { reply, actions };
 }
 
 function extractCurrentUserInstruction(prompt: string) {
@@ -2669,6 +5457,15 @@ function findMentionedItemName(text: string, candidates: string[]) {
     return bestMatch?.name;
 }
 
+function findExactItemName(candidate: string, options: string[]) {
+    const normalizedCandidate = normalizeForItemMatch(candidate).replace(/[^a-z0-9\s]/g, " ").trim();
+    if (!normalizedCandidate) return undefined;
+    return options.find((entry) => {
+        const normalizedEntry = normalizeForItemMatch(entry).replace(/[^a-z0-9\s]/g, " ").trim();
+        return normalizedEntry === normalizedCandidate;
+    });
+}
+
 function parseRarityFromText(value?: string) {
     if (!value) return undefined;
     const normalized = normalizeForItemMatch(value);
@@ -2719,6 +5516,67 @@ function isTraitHeadingLine(line: string) {
     if (normalized.startsWith("actualiza ")) return false;
     if (normalized.startsWith("edita ")) return false;
     if (normalized.startsWith("cambia ")) return false;
+    if (
+        normalized === "descripcion" ||
+        normalized === "descripción" ||
+        normalized === "funcionamiento" ||
+        normalized === "mecanica" ||
+        normalized === "mecánica" ||
+        normalized === "propiedades"
+    ) {
+        return false;
+    }
+    if (/[.]$/.test(trimmed) && words.length > 5) return false;
+
+    const normalizedSentence = ` ${normalized} `;
+    const sentenceSignals = [
+        " hay ",
+        " tiene ",
+        " tienen ",
+        " puede ",
+        " pueden ",
+        " permite ",
+        " permiten ",
+        " mientras ",
+        " cuando ",
+        " una vez ",
+        " dentro ",
+        " entre ",
+        " aunque ",
+        " obtiene ",
+        " obtienes ",
+        " brilla ",
+        " sostiene ",
+        " concentra ",
+    ];
+    if (sentenceSignals.some((signal) => normalizedSentence.includes(signal))) {
+        return false;
+    }
+
+    const connectorWords = new Set([
+        "de",
+        "del",
+        "la",
+        "las",
+        "el",
+        "los",
+        "y",
+        "o",
+        "con",
+        "en",
+        "por",
+        "para",
+        "que",
+    ]);
+    const significantWords = words.filter(
+        (word) => !connectorWords.has(normalizeForMatch(word))
+    );
+    if (significantWords.length > 0) {
+        const capitalizedCount = significantWords.filter((word) =>
+            /^[A-ZÁÉÍÓÚÜÑ0-9]/u.test(word)
+        ).length;
+        if (capitalizedCount / significantWords.length < 0.45) return false;
+    }
     return true;
 }
 
@@ -2838,9 +5696,18 @@ function isStructuredSectionOnlyLabel(line: string) {
     return (
         normalized === "uso" ||
         normalized === "aspecto" ||
+        normalized === "efecto" ||
+        normalized === "efecto inicial" ||
         normalized === "descripcion" ||
         normalized === "descripción" ||
         normalized === "propiedades" ||
+        normalized === "propiedades especiales" ||
+        normalized === "caracteristicas" ||
+        normalized === "características" ||
+        normalized === "caracteristicas basicas" ||
+        normalized === "características básicas" ||
+        normalized === "caracteristicas basicas del objeto" ||
+        normalized === "características básicas del objeto" ||
         normalized === "propiedades magicas" ||
         normalized === "propiedades mágicas"
     );
@@ -2850,6 +5717,7 @@ function parseStructuredSubItemHeading(line: string) {
     const raw = line.trim();
     if (!raw) return undefined;
     if (/[.!?]$/.test(raw)) return undefined;
+    if (raw.includes(":")) return undefined;
 
     const cleaned = stripLeadingDecorators(line)
         .replace(/[.:]+$/g, "")
@@ -2869,7 +5737,10 @@ function parseStructuredSubItemHeading(line: string) {
         return undefined;
     }
 
-    const words = cleaned.split(/\s+/).filter(Boolean);
+    const words = cleaned
+        .replace(/[—–-]+/g, " ")
+        .split(/\s+/)
+        .filter(Boolean);
     if (words.length < 2 || words.length > 8) return undefined;
 
     const normalizedSentence = ` ${normalized} `;
@@ -2924,7 +5795,13 @@ function parseStructuredSubItemHeading(line: string) {
         /\b(?:diamante|gema|piedra|cristal|daga|espada|hacha|mazo|arco|ballesta|baston|bastón|escudo|yelmo|casco|capa|anillo|amuleto|bolsa|cofre|pocion|poción)\b/i.test(
             cleaned
         );
-    if (!itemLike) return undefined;
+    const featureLike =
+        cleaned.includes("—") ||
+        cleaned.includes("–") ||
+        /\b(?:propiedad|pasiva|foco|druidico|druídico|poder|especial|conjuro|latente|savia|detector|funcionamiento|efecto)\b/i.test(
+            cleaned
+        );
+    if (!itemLike && !featureLike) return undefined;
 
     return asTrimmedString(cleaned, 140);
 }
@@ -2972,6 +5849,857 @@ function buildStructuredSubItemBlocks(lines: string[], rootHeadingName?: string)
     return blocks;
 }
 
+function cleanupStructuredItemHeadingName(value: string) {
+    const cleaned = stripLeadingDecorators(value).replace(/\s+/g, " ").trim();
+    if (!cleaned) return undefined;
+
+    const stripped = cleaned.replace(
+        /^(?:objeto(?:\s+[a-záéíóúüñ]+){0,3})\s*[–—−-]\s*/iu,
+        ""
+    );
+    const candidate = asTrimmedString(stripped, 120);
+    return candidate ?? asTrimmedString(cleaned, 120);
+}
+
+type StructuredItemSections = {
+    descriptionLines: string[];
+    behaviorLines: string[];
+};
+
+function extractStructuredItemSections(lines: string[]): StructuredItemSections {
+    const descriptionLines: string[] = [];
+    const behaviorLines: string[] = [];
+    let current: "description" | "behavior" | null = null;
+
+    const descriptionLabels = new Set(["descripcion", "descripción"]);
+    const behaviorLabels = new Set([
+        "funcionamiento",
+        "mecanica",
+        "mecánica",
+        "propiedades",
+        "propiedades especiales",
+        "caracteristicas",
+        "características",
+        "caracteristicas basicas",
+        "características básicas",
+    ]);
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        if (isNoiseStructuredLine(line)) continue;
+        if (isMutationCommandLine(line)) continue;
+
+        const compact = stripLeadingDecorators(line).replace(/[.:]+$/g, "").trim();
+        const normalizedLabel = normalizeForMatch(compact);
+        if (descriptionLabels.has(normalizedLabel)) {
+            current = "description";
+            continue;
+        }
+        if (
+            behaviorLabels.has(normalizedLabel) ||
+            normalizedLabel.startsWith("caracteristicas") ||
+            normalizedLabel.startsWith("características") ||
+            normalizedLabel.startsWith("propiedades ")
+        ) {
+            current = "behavior";
+            continue;
+        }
+
+        const detectedSubHeading = parseStructuredSubItemHeading(line);
+        if (detectedSubHeading) {
+            current = null;
+            continue;
+        }
+
+        if (current === "description") {
+            descriptionLines.push(line);
+            continue;
+        }
+        if (current === "behavior") {
+            behaviorLines.push(line);
+            continue;
+        }
+    }
+
+    return {
+        descriptionLines,
+        behaviorLines,
+    };
+}
+
+function inferStructuredBlockAttachmentType(
+    name: string,
+    bodyLines: string[]
+): ItemAttachmentType | undefined {
+    const normalizedName = normalizeForMatch(name);
+    const joinedBody = bodyLines.join("\n");
+    const normalizedBody = normalizeForMatch(joinedBody);
+
+    if (
+        normalizedName.includes("pasiva") ||
+        normalizedName.includes("detector") ||
+        normalizedBody.includes("pasiva")
+    ) {
+        return "trait";
+    }
+    if (
+        normalizedName.includes("foco") ||
+        normalizedName.includes("focus")
+    ) {
+        return "ability";
+    }
+
+    const actionLike =
+        normalizedName.includes("poder especial") ||
+        hasActionTriggerSignals(`${name}\n${joinedBody}`);
+    if (actionLike) return "action";
+
+    if (normalizedName.includes("truco") || normalizedBody.includes("cantrip")) {
+        return "cantrip";
+    }
+
+    const explicitSpellLike =
+        normalizedName.includes("conjuro") ||
+        normalizedName.includes("hechizo") ||
+        normalizedName.includes("spell") ||
+        normalizedBody.includes("conjuro unico") ||
+        normalizedBody.includes("conjuro único") ||
+        normalizedBody.includes("no ocupa ranura");
+    const structuralSpellLike = hasStrongSpellStructureSignals(joinedBody);
+    if (explicitSpellLike || structuralSpellLike) {
+        return "spell";
+    }
+
+    if (hasStateEffectSignals(joinedBody)) return "ability";
+    return inferAttachmentType(name, joinedBody);
+}
+
+function sanitizeStructuredBlockDescriptionLines(
+    lines: string[],
+    attachmentType?: ItemAttachmentType
+) {
+    const output: string[] = [];
+    for (const rawLine of lines) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) continue;
+        if (attachmentType === "action") {
+            const normalized = normalizeForMatch(trimmed);
+            if (
+                /^\d+\s*vez(?:es)?\s+por\s+descanso(?:\s+(?:largo|corto|long|short))?$/.test(
+                    normalized
+                )
+            ) {
+                continue;
+            }
+
+            const cleanedActionLead = trimmed.replace(
+                /^(?:\d+\s*vez(?:es)?\s+por\s+descanso(?:\s+(?:largo|corto|long|short))?[.,]?\s*)?(?:como\s+(?:una\s+)?(?:acción|accion|action|reacción|reaccion|reaction|bonus action)\s*,?\s*)/i,
+                ""
+            );
+            if (cleanedActionLead !== trimmed) {
+                const rest = asTrimmedString(cleanedActionLead, 900);
+                if (rest) output.push(rest);
+                continue;
+            }
+        }
+        output.push(trimmed);
+    }
+    return output;
+}
+
+function extractStructuredActionRechargeLabel(lines: string[]) {
+    for (const rawLine of lines) {
+        const line = normalizeForMatch(rawLine.trim());
+        if (!line) continue;
+        const match = line.match(
+            /(\d+)\s*vez(?:es)?\s+por\s+descanso(?:\s+(largo|corto|long|short))?/
+        );
+        if (!match) continue;
+        const uses = match[1];
+        const rest = match[2] ?? "largo";
+        if (rest === "corto" || rest === "short") return `${uses}/descanso corto`;
+        return `${uses}/descanso largo`;
+    }
+    return undefined;
+}
+
+function appendRechargeToAttachmentName(name: string, recharge?: string) {
+    const safeName = asTrimmedString(name, 120);
+    if (!safeName) return undefined;
+    if (!recharge) return safeName;
+    const normalizedName = normalizeForMatch(safeName);
+    const normalizedRecharge = normalizeForMatch(recharge);
+    if (normalizedName.includes(normalizedRecharge)) return safeName;
+    return asTrimmedString(`${safeName} (${recharge})`, 140) ?? safeName;
+}
+
+function buildAttachmentFromStructuredSubItemBlock(
+    block: StructuredSubItemBlock
+): ItemAttachmentPatch | undefined {
+    const explicitType = inferStructuredBlockAttachmentType(block.name, block.bodyLines);
+    const rechargeLabel =
+        explicitType === "action"
+            ? extractStructuredActionRechargeLabel(block.bodyLines)
+            : undefined;
+    const normalizedName =
+        explicitType === "action"
+            ? appendRechargeToAttachmentName(block.name, rechargeLabel)
+            : block.name;
+    const sanitizedLines = sanitizeStructuredBlockDescriptionLines(
+        block.bodyLines,
+        explicitType
+    );
+    const description = asTrimmedString(sanitizedLines.join("\n"), 4000);
+    const fallbackDescription = asTrimmedString(block.bodyLines.join("\n"), 4000);
+    const attachment: ItemAttachmentPatch = {
+        type:
+            explicitType ??
+            inferAttachmentType(
+                normalizedName ?? block.name,
+                description ?? fallbackDescription
+            ),
+        name: normalizedName ?? block.name,
+    };
+    if (description) {
+        attachment.description = description;
+    } else if (fallbackDescription && explicitType !== "action") {
+        attachment.description = fallbackDescription;
+    }
+    return attachment;
+}
+
+function isConfigurationHeadingName(value: string) {
+    const normalized = normalizeForMatch(value);
+    return (
+        normalized.startsWith("configuracion ") ||
+        normalized.startsWith("configuración ") ||
+        normalized.startsWith("configuration ") ||
+        normalized.startsWith("modo ")
+    );
+}
+
+function isGlobalOutsideConfigurationBlock(value: string) {
+    const normalized = normalizeForMatch(value);
+    return (
+        normalized.includes("afinidad") ||
+        normalized.includes("modificaciones") ||
+        normalized.includes("nucleo vivo") ||
+        normalized.includes("núcleo vivo") ||
+        normalized.includes("restricciones absolutas") ||
+        normalized.includes("restricciones")
+    );
+}
+
+function cleanupConfigurationHeadingName(value: string) {
+    const cleaned = stripLeadingDecorators(value).replace(/\s+/g, " ").trim();
+    if (!cleaned) return undefined;
+    const stripped = cleaned
+        .replace(
+            /^(?:configuracion|configuración|configuration)\s*[a-z0-9]+(?:\s*[–—−-]\s*)?/i,
+            ""
+        )
+        .replace(/^\s*modo\s*/i, "")
+        .trim();
+    return asTrimmedString(stripped || cleaned, 140);
+}
+
+function parseConfigurationMagicBonus(value: string) {
+    const match = value.match(/([+\-]?\d{1,2})/);
+    const parsed = asInteger(match?.[1], -30, 30);
+    return typeof parsed === "number" ? parsed : undefined;
+}
+
+function buildConfigurationPatchFromBlock(
+    block: StructuredSubItemBlock
+): ItemConfigurationPatch | undefined {
+    const name = cleanupConfigurationHeadingName(block.name);
+    if (!name) return undefined;
+
+    const descriptionLines: string[] = [];
+    const mechanicsLines: string[] = [];
+    let usage: string | undefined;
+    let damage: string | undefined;
+    let range: string | undefined;
+    let magicBonus: number | undefined;
+    let mode: "description" | "mechanics" | null = null;
+
+    for (const rawLine of block.bodyLines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const normalized = normalizeForMatch(
+            stripLeadingDecorators(line).replace(/[.:]+$/g, "").trim()
+        );
+
+        if (normalized === "descripcion" || normalized === "descripción") {
+            mode = "description";
+            continue;
+        }
+        if (
+            normalized === "estadisticas" ||
+            normalized === "estadísticas" ||
+            normalized === "stats"
+        ) {
+            mode = null;
+            continue;
+        }
+        if (
+            normalized === "habilidades" ||
+            normalized === "skills" ||
+            normalized === "mecanicas" ||
+            normalized === "mecánicas"
+        ) {
+            mode = "mechanics";
+            continue;
+        }
+
+        const keyValue = parseItemBodyKeyValueLine(line);
+        if (keyValue) {
+            const key = keyValue.keyNormalized;
+            if (
+                key === "uso" ||
+                key === "usage" ||
+                key === "use" ||
+                key === "modo de uso"
+            ) {
+                usage = keyValue.value;
+                continue;
+            }
+            if (key === "dano" || key === "daño" || key === "damage") {
+                damage = keyValue.value;
+                continue;
+            }
+            if (key === "alcance" || key === "range") {
+                range = keyValue.value;
+                continue;
+            }
+            if (
+                key.includes("bonificador") ||
+                key === "bono" ||
+                key === "bonus" ||
+                key.includes("magico") ||
+                key.includes("mágico")
+            ) {
+                magicBonus = parseConfigurationMagicBonus(keyValue.value);
+                continue;
+            }
+        }
+
+        if (mode === "description") {
+            descriptionLines.push(line);
+            continue;
+        }
+        if (mode === "mechanics") {
+            mechanicsLines.push(line);
+            continue;
+        }
+
+        if (!isLikelyStandaloneMechanicalLine(line) && descriptionLines.length < 5) {
+            descriptionLines.push(line);
+            continue;
+        }
+        mechanicsLines.push(line);
+    }
+
+    const patch: ItemConfigurationPatch = { name };
+    const description = asTrimmedString(descriptionLines.join("\n"), 2000);
+    if (description) patch.description = description;
+    if (usage) patch.usage = usage;
+    if (damage) patch.damage = damage;
+    if (range) patch.range = range;
+    if (typeof magicBonus === "number") patch.magic_bonus = magicBonus;
+
+    const attachments = buildItemAttachmentsFromBodyLines(mechanicsLines).slice(0, 10);
+    if (attachments.length > 0) patch.attachments_replace = attachments;
+    return patch;
+}
+
+function buildStructuredConfigurationPatches(
+    subItemBlocks: StructuredSubItemBlock[]
+) {
+    const configurations: ItemConfigurationPatch[] = [];
+    const consumedBlockIndexes = new Set<number>();
+
+    for (let index = 0; index < subItemBlocks.length; index += 1) {
+        const block = subItemBlocks[index];
+        if (!isConfigurationHeadingName(block.name)) continue;
+
+        const basePatch = buildConfigurationPatchFromBlock(block);
+        if (!basePatch) continue;
+        consumedBlockIndexes.add(index);
+
+        const childAttachments: ItemAttachmentPatch[] = [];
+        let cursor = index + 1;
+        while (cursor < subItemBlocks.length) {
+            const child = subItemBlocks[cursor];
+            if (isConfigurationHeadingName(child.name)) break;
+            if (isGlobalOutsideConfigurationBlock(child.name)) break;
+            const childAttachment = buildAttachmentFromStructuredSubItemBlock(child);
+            if (childAttachment) childAttachments.push(childAttachment);
+            consumedBlockIndexes.add(cursor);
+            cursor += 1;
+        }
+
+        const mergedAttachments = normalizeAttachmentPatchList([
+            ...(basePatch.attachments_replace ?? []),
+            ...childAttachments,
+        ]).slice(0, 10);
+        if (mergedAttachments.length > 0) {
+            basePatch.attachments_replace = mergedAttachments;
+        } else {
+            delete basePatch.attachments_replace;
+        }
+
+        configurations.push(basePatch);
+        index = cursor - 1;
+    }
+
+    return { configurations, consumedBlockIndexes };
+}
+
+function parseBatchItemHeadingLine(line: string) {
+    const cleaned = stripLeadingDecorators(line)
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!cleaned) return undefined;
+    if (isMutationCommandLine(cleaned)) return undefined;
+    if (isStructuredSectionOnlyLabel(cleaned)) return undefined;
+    if (cleaned.includes(":")) return undefined;
+
+    const parsed = parseItemLabelAndPrice(cleaned, 140);
+    if (!parsed?.name || !parsed.price) return undefined;
+
+    const normalizedName = normalizeForMatch(parsed.name);
+    if (
+        normalizedName.startsWith("instruccion actual del usuario") ||
+        normalizedName.startsWith("usuario") ||
+        normalizedName.startsWith("asistente")
+    ) {
+        return undefined;
+    }
+
+    return {
+        name: parsed.name,
+        price: parsed.price,
+    };
+}
+
+function splitInlineStructuredSegments(line: string) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.includes(":")) return [trimmed];
+
+    const matches = Array.from(
+        trimmed.matchAll(
+            /([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{1,40})\s*:\s*([^:]+?)(?=(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{1,40}\s*:)|$)/gu
+        )
+    );
+    if (matches.length < 2) return [trimmed];
+
+    const segments: string[] = [];
+    for (const match of matches) {
+        const key = cleanupEntityName(match[1], 60);
+        const value = asTrimmedString(match[2], 900);
+        if (!key || !value) continue;
+        segments.push(`${key}: ${value}`);
+    }
+    return segments.length > 0 ? segments : [trimmed];
+}
+
+function isMetadataOnlyItemBodyLine(line: string) {
+    const compact = stripLeadingDecorators(line).replace(/[.:]+$/g, "").trim();
+    if (!compact) return true;
+    const words = compact.split(/\s+/).filter(Boolean);
+    if (words.length > 2) return false;
+    if (normalizeItemCategory(compact)) return true;
+    if (parseRarityFromText(compact)) return true;
+    return false;
+}
+
+function isGenericBodyAttachmentKey(value: string) {
+    const normalized = normalizeForMatch(value);
+    return (
+        normalized === "uso" ||
+        normalized === "efecto" ||
+        normalized === "descripcion" ||
+        normalized === "descripción" ||
+        normalized === "aspecto" ||
+        normalized === "precio" ||
+        normalized === "coste" ||
+        normalized === "costo" ||
+        normalized === "categoria" ||
+        normalized === "categoría" ||
+        normalized === "tipo" ||
+        normalized === "propiedad" ||
+        normalized === "propiedades" ||
+        normalized === "dano" ||
+        normalized === "daño"
+    );
+}
+
+type ItemBodyKeyValueLine = {
+    key: string;
+    keyNormalized: string;
+    value: string;
+};
+
+function parseItemBodyKeyValueLine(line: string): ItemBodyKeyValueLine | undefined {
+    const trimmed = line.trim();
+    if (!trimmed) return undefined;
+    const keyValue = trimmed.match(/^([^:]{2,60})\s*:\s*(.+)$/);
+    if (!keyValue) return undefined;
+
+    const key = cleanupEntityName(keyValue[1], 80);
+    const value = asTrimmedString(keyValue[2], 900);
+    if (!key || !value) return undefined;
+
+    return {
+        key,
+        keyNormalized: normalizeForMatch(key),
+        value,
+    };
+}
+
+function isUsageBodyKey(key: string) {
+    return key === "uso" || key === "use" || key === "usage";
+}
+
+function isEffectBodyKey(key: string) {
+    return key === "efecto" || key === "effect";
+}
+
+function inferAttachmentTypeFromUsage(value?: string): ItemAttachmentType | undefined {
+    const normalized = normalizeForMatch(value ?? "");
+    if (!normalized) return undefined;
+
+    if (
+        normalized.includes("accion") ||
+        normalized.includes("acción") ||
+        normalized.includes("action") ||
+        normalized.includes("reaccion") ||
+        normalized.includes("reacción") ||
+        normalized.includes("reaction") ||
+        normalized.includes("bonus action")
+    ) {
+        return "action";
+    }
+    if (normalized.includes("pasivo") || normalized.includes("passive")) {
+        return "trait";
+    }
+    return undefined;
+}
+
+function normalizeAttachmentTextForCompare(value: string) {
+    return normalizeForMatch(value)
+        .replace(/[.?!:;]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function isPlainActionUsage(value?: string) {
+    const normalized = normalizeAttachmentTextForCompare(value ?? "");
+    return (
+        normalized === "accion" ||
+        normalized === "acción" ||
+        normalized === "una accion" ||
+        normalized === "una acción" ||
+        normalized === "1 accion" ||
+        normalized === "1 acción" ||
+        normalized === "action" ||
+        normalized === "one action"
+    );
+}
+
+function buildAttachmentNameFromEffectText(value: string) {
+    const cleaned = value
+        .replace(/\s+/g, " ")
+        .replace(/[.?!:;]+$/g, "")
+        .trim();
+    if (!cleaned) return undefined;
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    const base =
+        words.length <= 8
+            ? cleaned
+            : `${words.slice(0, 8).join(" ")}...`;
+    const firstChar = base.charAt(0);
+    const normalizedName =
+        firstChar ? `${firstChar.toUpperCase()}${base.slice(1)}` : base;
+    return asTrimmedString(normalizedName, 90);
+}
+
+function isLikelyStandaloneMechanicalLine(value: string) {
+    const normalized = normalizeForMatch(value);
+    if (!normalized) return false;
+    if (normalized.length < 12) return false;
+    if (isStructuredSectionOnlyLabel(value)) return false;
+    if (isMetadataOnlyItemBodyLine(value)) return false;
+    if (isMutationCommandLine(value)) return false;
+    if (/^[^:]{1,80}:\s*$/.test(value.trim())) return false;
+    if (parseItemBodyKeyValueLine(value)) return false;
+
+    return (
+        normalized.startsWith("puede ") ||
+        normalized.startsWith("puedes ") ||
+        normalized.startsWith("funciona ") ||
+        normalized.startsWith("obtienes ") ||
+        normalized.startsWith("obtiene ") ||
+        normalized.startsWith("cuenta como ") ||
+        normalized.startsWith("mientras ") ||
+        normalized.includes(" ventaja ") ||
+        normalized.includes(" foco ") ||
+        normalized.includes(" herramienta ")
+    );
+}
+
+function buildAttachmentNameFromStandaloneMechanicalLine(value: string) {
+    const normalized = normalizeForMatch(value);
+    if (normalized.includes("foco arcano")) {
+        return "Foco arcano integrado";
+    }
+    if (normalized.includes("mano funcional")) {
+        return "Mano funcional";
+    }
+    if (normalized.includes("ventaja") && normalized.includes("crear")) {
+        return "Ventaja de creación";
+    }
+    if (normalized.includes("cuenta como") && normalized.includes("tools")) {
+        return "Herramientas integradas";
+    }
+    return buildAttachmentNameFromEffectText(value) ?? "Propiedad";
+}
+
+function parseBodyLineAsAttachment(line: string): ItemAttachmentPatch | undefined {
+    const trimmed = line.trim();
+    if (!trimmed) return undefined;
+    if (isStructuredSectionOnlyLabel(trimmed)) return undefined;
+    if (isMetadataOnlyItemBodyLine(trimmed)) return undefined;
+
+    const keyValue = parseItemBodyKeyValueLine(trimmed);
+    if (keyValue) {
+        const name = keyValue.key;
+        const description = keyValue.value;
+        if (!name || !description) return undefined;
+        if (isGenericBodyAttachmentKey(name)) return undefined;
+        return {
+            type: inferAttachmentType(name, description),
+            name,
+            description,
+        };
+    }
+
+    const short = asTrimmedString(trimmed, 120);
+    if (!short) return undefined;
+    const wordCount = short.split(/\s+/).filter(Boolean).length;
+    if (wordCount <= 8 && !/[.!?]$/.test(short)) {
+        return {
+            type: inferAttachmentType(short),
+            name: short,
+        };
+    }
+    return undefined;
+}
+
+function bodyLineGeneratesAttachment(line: string) {
+    const keyValue = parseItemBodyKeyValueLine(line);
+    if (keyValue && isEffectBodyKey(keyValue.keyNormalized)) return true;
+    return !!parseBodyLineAsAttachment(line);
+}
+
+function shouldExcludeBodyLineFromDescription(line: string) {
+    const keyValue = parseItemBodyKeyValueLine(line);
+    if (!keyValue) return false;
+    if (isUsageBodyKey(keyValue.keyNormalized)) return true;
+    if (isEffectBodyKey(keyValue.keyNormalized)) return true;
+    if (
+        keyValue.keyNormalized === "precio" ||
+        keyValue.keyNormalized === "coste" ||
+        keyValue.keyNormalized === "costo" ||
+        keyValue.keyNormalized === "categoria" ||
+        keyValue.keyNormalized === "categoría"
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function buildItemAttachmentsFromBodyLines(lines: string[]) {
+    const attachments: ItemAttachmentPatch[] = [];
+    const usageHints: string[] = [];
+    for (const line of lines) {
+        const keyValue = parseItemBodyKeyValueLine(line);
+        if (keyValue && isUsageBodyKey(keyValue.keyNormalized)) {
+            usageHints.push(keyValue.value);
+            continue;
+        }
+        if (keyValue && isEffectBodyKey(keyValue.keyNormalized)) {
+            const effectName = buildAttachmentNameFromEffectText(keyValue.value);
+            if (!effectName) continue;
+            const usageHint =
+                usageHints.length > 0
+                    ? usageHints[usageHints.length - 1]
+                    : undefined;
+            const explicitType = inferAttachmentTypeFromUsage(usageHint);
+            const effectEqualsName =
+                !effectName.endsWith("...") &&
+                normalizeAttachmentTextForCompare(effectName) ===
+                    normalizeAttachmentTextForCompare(keyValue.value);
+
+            const descriptionParts: string[] = [];
+            if (usageHint && !(explicitType === "action" && isPlainActionUsage(usageHint))) {
+                descriptionParts.push(`Uso: ${usageHint}.`);
+            }
+            if (!effectEqualsName) {
+                descriptionParts.push(keyValue.value);
+            }
+            const description = asTrimmedString(descriptionParts.join(" "), 900);
+            const attachment: ItemAttachmentPatch = {
+                type: explicitType ?? inferAttachmentType(effectName, keyValue.value),
+                name: effectName,
+            };
+            if (description) attachment.description = description;
+            attachments.push(attachment);
+            continue;
+        }
+
+        const parsed = parseBodyLineAsAttachment(line);
+        if (!parsed) continue;
+        attachments.push(parsed);
+        continue;
+    }
+
+    for (const line of lines) {
+        if (!isLikelyStandaloneMechanicalLine(line)) continue;
+        const description = asTrimmedString(line, 900);
+        if (!description) continue;
+        const name = buildAttachmentNameFromStandaloneMechanicalLine(description);
+        attachments.push({
+            type: inferAttachmentType(name, description),
+            name,
+            description,
+        });
+    }
+
+    const byKey = new Map<string, ItemAttachmentPatch>();
+    for (const attachment of attachments) {
+        const key = `${normalizeForItemMatch(attachment.type ?? "trait")}::${normalizeForItemMatch(
+            attachment.name
+        )}`;
+        if (!byKey.has(key)) {
+            byKey.set(key, attachment);
+            continue;
+        }
+        const existing = byKey.get(key);
+        if (existing && !existing.description && attachment.description) {
+            existing.description = attachment.description;
+        }
+    }
+    return normalizeAttachmentPatchList(Array.from(byKey.values())).slice(0, 8);
+}
+
+function parseStructuredItemBatchPatchesFromInstruction({
+    instruction,
+    candidateItemNames,
+}: {
+    instruction: string;
+    candidateItemNames: string[];
+}) {
+    const normalizedInstruction = normalizeForMatch(instruction);
+    const wantsCreate =
+        normalizedInstruction.includes("anade") ||
+        normalizedInstruction.includes("añade") ||
+        normalizedInstruction.includes("agrega") ||
+        normalizedInstruction.includes("inserta") ||
+        normalizedInstruction.includes("mete") ||
+        normalizedInstruction.includes("crea") ||
+        normalizedInstruction.includes("crear") ||
+        normalizedInstruction.includes("add ") ||
+        normalizedInstruction.includes("insert ");
+    if (!wantsCreate) return [] as ItemPatch[];
+
+    const lines = instruction
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .map((line) => line.replace(/^[-*•]+\s*/, "").trim())
+        .map((line) => stripTrailingMutationCommandFragment(line))
+        .flatMap((line) => splitInlineStructuredSegments(line))
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (lines.length < 3) return [] as ItemPatch[];
+
+    const headings: Array<{ index: number; name: string; price?: string }> = [];
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
+        if (isMutationCommandLine(line)) continue;
+        const parsed = parseBatchItemHeadingLine(line);
+        if (!parsed) continue;
+        headings.push({
+            index,
+            name: parsed.name,
+            price: parsed.price,
+        });
+    }
+    if (headings.length < 2) return [] as ItemPatch[];
+
+    const patches: ItemPatch[] = [];
+    for (let idx = 0; idx < headings.length; idx += 1) {
+        const current = headings[idx];
+        const next = headings[idx + 1];
+        const start = current.index + 1;
+        const end = next ? next.index : lines.length;
+        const bodyLines = lines
+            .slice(start, end)
+            .filter((line) => !isNoiseStructuredLine(line))
+            .filter((line) => !isMutationCommandLine(line))
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        const attachmentLineKeys = new Set(
+            bodyLines
+                .filter((line) => bodyLineGeneratesAttachment(line))
+                .map((line) => normalizeForItemMatch(line))
+        );
+        const descriptionLines = bodyLines
+            .filter((line) => !isStructuredSectionOnlyLabel(line))
+            .filter((line) => !isMetadataOnlyItemBodyLine(line))
+            .filter((line) => !shouldExcludeBodyLineFromDescription(line))
+            .filter((line) => !attachmentLineKeys.has(normalizeForItemMatch(line)));
+        const description = asTrimmedString(
+            [current.price ? `Precio: ${current.price}` : null, ...descriptionLines]
+                .filter(Boolean)
+                .join("\n"),
+            1200
+        );
+        const attachments = buildItemAttachmentsFromBodyLines(bodyLines);
+
+        const existingName = findExactItemName(current.name, candidateItemNames);
+        const targetItemName = existingName ?? current.name;
+
+        const patch: ItemPatch = {
+            target_item_name: targetItemName,
+            create_if_missing: true,
+        };
+        if (
+            existingName &&
+            normalizeForItemMatch(existingName) !== normalizeForItemMatch(current.name)
+        ) {
+            patch.name = current.name;
+        }
+        if (description) patch.description = description;
+        if (attachments.length > 0) patch.attachments_replace = attachments;
+        const rarity = parseRarityFromText(current.name);
+        if (rarity) patch.rarity = rarity;
+
+        const hasConcreteChange =
+            patch.create_if_missing === true ||
+            patch.description !== undefined ||
+            patch.rarity !== undefined ||
+            (patch.attachments_replace?.length ?? 0) > 0;
+        if (!hasConcreteChange) continue;
+        patches.push(patch);
+        if (patches.length >= 4) break;
+    }
+    return patches;
+}
+
 function parseStructuredItemPatchFromInstruction({
     instruction,
     candidateItemNames,
@@ -2992,9 +6720,11 @@ function parseStructuredItemPatchFromInstruction({
         .map((line) => line.trim())
         .map((line) => line.replace(/^[-*•]+\s*/, "").trim())
         .map((line) => stripTrailingMutationCommandFragment(line))
+        .flatMap((line) => splitInlineStructuredSegments(line))
         .map((line) => line.trim())
         .filter(Boolean);
     if (lines.length === 0) return undefined;
+    const structuredSections = extractStructuredItemSections(lines);
 
     const commandLine = [...lines].reverse().find((line) => isMutationCommandLine(line));
     const commandTargetHint = commandLine
@@ -3025,11 +6755,16 @@ function parseStructuredItemPatchFromInstruction({
         break;
     }
 
+    const parsedBatchHeading = headingLine
+        ? parseBatchItemHeadingLine(headingLine)
+        : undefined;
     const cleanedHeading = headingLine
         ? stripLeadingDecorators(headingLine)
         : undefined;
     const headingRarityMatch = cleanedHeading?.match(/\(([^()]{2,40})\)\s*$/);
-    const headingName = cleanedHeading
+    const headingName = parsedBatchHeading?.name
+        ? parsedBatchHeading.name
+        : cleanedHeading
         ? asTrimmedString(
               headingRarityMatch
                   ? cleanedHeading.slice(0, headingRarityMatch.index).trim()
@@ -3037,10 +6772,14 @@ function parseStructuredItemPatchFromInstruction({
               120
           )
         : undefined;
-    const headingCandidate =
+    const headingPrice = parsedBatchHeading?.price;
+    const headingCandidateRaw =
         headingName && !isTraitHeadingLine(headingName)
             ? headingName
             : headingCandidateFromLine;
+    const headingCandidate = headingCandidateRaw
+        ? cleanupStructuredItemHeadingName(headingCandidateRaw)
+        : undefined;
     const headingAsExisting = headingCandidate
         ? findMentionedItemName(headingCandidate, candidateItemNames)
         : undefined;
@@ -3055,6 +6794,7 @@ function parseStructuredItemPatchFromInstruction({
     let metadataLine: string | undefined;
     for (const line of lines.slice(0, 6)) {
         if (line === headingLine) continue;
+        if (isMutationCommandLine(line)) continue;
         if (isTraitHeadingLine(line)) continue;
         const normalized = normalizeForMatch(line);
         if (normalized.startsWith("tengo este objeto")) continue;
@@ -3062,6 +6802,13 @@ function parseStructuredItemPatchFromInstruction({
         if (normalized.startsWith("actualiza ")) continue;
         if (normalized.startsWith("edita ")) continue;
         if (normalized.startsWith("cambia ")) continue;
+        if (normalized.startsWith("crea ")) continue;
+        if (normalized.startsWith("crear ")) continue;
+        if (normalized.startsWith("anade ")) continue;
+        if (normalized.startsWith("añade ")) continue;
+        if (normalized.startsWith("agrega ")) continue;
+        if (normalized.startsWith("inserta ")) continue;
+        if (normalized.startsWith("mete ")) continue;
         if (
             normalizeItemCategory(line) ||
             normalized.includes("armadura") ||
@@ -3093,16 +6840,36 @@ function parseStructuredItemPatchFromInstruction({
         }
     }
 
+    const configurationExtraction = buildStructuredConfigurationPatches(
+        subItemBlocks
+    );
+    const extractedConfigurations = configurationExtraction.configurations.slice(0, 6);
+    const consumedConfigurationIndexes =
+        configurationExtraction.consumedBlockIndexes;
+
     const attachments: ItemAttachmentPatch[] = [];
     if (subItemBlocks.length > 0) {
-        for (const block of subItemBlocks) {
-            const description = asTrimmedString(block.bodyLines.join(" "), 4000);
-            if (!description) continue;
-            attachments.push({
-                type: inferAttachmentType(block.name, description),
-                name: block.name,
-                description,
-            });
+        for (const [index, block] of subItemBlocks.entries()) {
+            if (consumedConfigurationIndexes.has(index)) continue;
+            const normalizedBlockName = normalizeForMatch(block.name);
+            const isGenericFeatureContainer =
+                normalizedBlockName === "propiedades" ||
+                normalizedBlockName === "propiedades especiales" ||
+                normalizedBlockName.startsWith("caracteristicas") ||
+                normalizedBlockName.startsWith("características");
+            if (isGenericFeatureContainer) {
+                const extractedFromBody = buildItemAttachmentsFromBodyLines(
+                    block.bodyLines
+                );
+                if (extractedFromBody.length > 0) {
+                    attachments.push(...extractedFromBody);
+                    if (attachments.length >= 8) break;
+                    continue;
+                }
+            }
+            const attachment = buildAttachmentFromStructuredSubItemBlock(block);
+            if (!attachment) continue;
+            attachments.push(attachment);
             if (attachments.length >= 8) break;
         }
     } else {
@@ -3148,6 +6915,32 @@ function parseStructuredItemPatchFromInstruction({
         }
     }
 
+    const normalizedAttachments = normalizeAttachmentPatchList(attachments).slice(0, 8);
+
+    if (
+        normalizedAttachments.length === 0 &&
+        structuredSections.behaviorLines.length > 0
+    ) {
+        const behaviorDerived = buildItemAttachmentsFromBodyLines(
+            structuredSections.behaviorLines
+        );
+        if (behaviorDerived.length > 0) {
+            normalizedAttachments.push(...behaviorDerived.slice(0, 8));
+        } else {
+            const behaviorDescription = asTrimmedString(
+                structuredSections.behaviorLines.join("\n"),
+                4000
+            );
+            if (behaviorDescription) {
+                normalizedAttachments.push({
+                    type: inferAttachmentType("Funcionamiento", behaviorDescription),
+                    name: "Funcionamiento",
+                    description: behaviorDescription,
+                });
+            }
+        }
+    }
+
     const rarity =
         parseRarityFromText(headingRarityMatch?.[1]) ??
         parseRarityFromText(metadataLine);
@@ -3167,10 +6960,31 @@ function parseStructuredItemPatchFromInstruction({
                   return asTrimmedString(introLines.join("\n"), 1200);
               })()
             : undefined;
+    const baseDescription =
+        structuredSections.descriptionLines.length > 0
+            ? asTrimmedString(structuredSections.descriptionLines.join("\n"), 1200)
+            : introDescription;
     const description = asTrimmedString(
-        [introDescription, metadataLine, ...detailLines].filter(Boolean).join("\n"),
+        [
+            baseDescription,
+            headingPrice ? `Precio: ${headingPrice}` : null,
+            metadataLine,
+            ...detailLines,
+            ...(subItemBlocks.length > 0 && extractedConfigurations.length === 0
+                ? structuredSections.behaviorLines
+                : []),
+        ]
+            .filter(Boolean)
+            .join("\n"),
         1200
     );
+    const dedupedDescription =
+        typeof description === "string" && normalizedAttachments.length > 0
+            ? asTrimmedString(
+                  stripDescriptionAttachmentOverlap(description, normalizedAttachments),
+                  1200
+              ) ?? undefined
+            : description;
 
     const patch: ItemPatch = {
         target_item_name: targetItemName,
@@ -3185,8 +6999,14 @@ function parseStructuredItemPatchFromInstruction({
     }
     if (category) patch.category = category;
     if (rarity) patch.rarity = rarity;
-    if (description) patch.description = description;
-    if (attachments.length > 0) patch.attachments_replace = attachments;
+    if (dedupedDescription) patch.description = dedupedDescription;
+    if (extractedConfigurations.length > 0) {
+        patch.configurations_replace = extractedConfigurations;
+        patch.active_configuration = extractedConfigurations[0]?.name;
+    }
+    if (normalizedAttachments.length > 0) {
+        patch.attachments_replace = normalizedAttachments;
+    }
 
     const hasConcreteChange =
         patch.create_if_missing === true ||
@@ -3194,6 +7014,7 @@ function parseStructuredItemPatchFromInstruction({
         !!patch.category ||
         patch.rarity !== undefined ||
         patch.description !== undefined ||
+        (patch.configurations_replace?.length ?? 0) > 0 ||
         (patch.attachments_replace?.length ?? 0) > 0;
     return hasConcreteChange ? patch : undefined;
 }
@@ -3282,6 +7103,47 @@ function buildHeuristicItemActions({
 
     if (!hasMutationVerb || !hasItemSignal || !hasStructuredCard) {
         return [];
+    }
+
+    const batchPatches = parseStructuredItemBatchPatchesFromInstruction({
+        instruction,
+        candidateItemNames: candidateNames,
+    });
+    if (batchPatches.length > 0) {
+        let resolvedCharacterId = resolveHeuristicTargetCharacterId({
+            targetCharacterId,
+            clientContext,
+            visibleCharacterIds,
+            instruction,
+            visibleCharacters,
+        });
+
+        if (!resolvedCharacterId) {
+            const holders = visibleCharacters.filter((character) =>
+                batchPatches.some((patch) =>
+                    characterHasItemName(character, patch.target_item_name)
+                )
+            );
+            if (holders.length === 1) {
+                resolvedCharacterId = holders[0].id;
+            } else if (holders.length > 1) {
+                resolvedCharacterId = holders[0].id;
+            }
+        }
+
+        if (!resolvedCharacterId && visibleCharacters.length === 1) {
+            resolvedCharacterId = visibleCharacters[0].id;
+        }
+        if (!resolvedCharacterId) return [];
+
+        return batchPatches.map((patch) => ({
+            operation: "update" as const,
+            characterId: resolvedCharacterId!,
+            note: "Fallback estructurado para actualización de objeto.",
+            data: {
+                item_patch: patch,
+            },
+        }));
     }
 
     const patch = parseStructuredItemPatchFromInstruction({
@@ -4225,6 +8087,7 @@ function buildCapabilitiesReply(
         "- Actualizar stats (str/dex/con/int/wis/cha).",
         "- Actualizar detalles como notas, trasfondo, alineamiento, idiomas, inventario y equipo.",
         "- Editar objetos del inventario por nombre y añadir rasgos/habilidades como adjuntos del objeto (trait/ability).",
+        "- Crear objetos modulares con configuraciones (A/B) y habilidades separadas por configuración.",
         "- Crear/editar hechizos personalizados y cantrips con su estructura completa (coste, tirada/salvación, daño, componentes).",
         "- Crear/editar rasgos y habilidades personalizadas (incluye acciones, requisitos, efecto y recursos).",
         "- Aprender u olvidar hechizos por nivel en la lista de hechizos del personaje.",
@@ -4233,6 +8096,7 @@ function buildCapabilitiesReply(
         "- \"Sube mi personaje a nivel 5 y pon 16 en DEX.\"",
         "- \"Añade en notas: desconfía de los magos rojos.\"",
         "- \"Modifica el yelmo del primer forjador y añade sus rasgos como habilidades del objeto.\"",
+        "- \"Crea el martillo con CONFIGURACIÓN A y B, cada una con su daño, alcance y habilidades.\"",
         "- \"Crea un hechizo personalizado nivel 2 llamado Lanza de Ceniza con daño 3d6 fuego.\"",
         "- \"Añade una acción personalizada llamada Rugido de Guerra con recarga corta.\"",
     ];
@@ -4259,6 +8123,7 @@ function buildChatGuidanceReply(
         "- \"Añade en notas: teme a los no-muertos.\"",
         "- \"Crea un companion halcón nivel 1.\"",
         "- \"Actualiza el objeto Yelmo del Primer Forjador y guarda sus rasgos como attachments.\"",
+        "- \"Crea un arma modular con configuración A/B y habilidades separadas por modo.\"",
         "- \"Añade el hechizo Bola de Fuego al nivel 3 de hechizos aprendidos.\"",
         "- \"Crea una habilidad personalizada llamada Golpe Sísmico con 3 cargas.\"",
     ];
@@ -4291,12 +8156,43 @@ function buildAssistantProductKnowledge({
 
     return {
         roleScope,
+        dataModel: {
+            operations: ["create", "update"],
+            itemCategories: [...ITEM_CATEGORY_VALUES],
+            attachmentTypes: [...ITEM_ATTACHMENT_TYPE_VALUES],
+            attachmentStructuredFields: [...ITEM_ATTACHMENT_STRUCTURED_AI_KEYS],
+            itemConfigurationFields: [
+                "name",
+                "description",
+                "usage",
+                "damage",
+                "range",
+                "magic_bonus",
+                "attachments_replace",
+            ],
+            detailPatchKeys: [...DETAIL_PATCH_KEYS],
+            featureCollections: [...FEATURE_COLLECTION_VALUES],
+            spellCollections: [...SPELL_COLLECTION_VALUES],
+        },
+        webRenderModel: {
+            itemCard: [
+                "name",
+                "category",
+                "equippable/equipped",
+                "description (base lore/metadatos)",
+                "attachments (mecanicas estructuradas)",
+                "configurations (modos A/B con stats + adjuntos propios)",
+            ],
+            attachmentCard: ["name", "type", "description", "level(optional)"],
+            renderingRule:
+                "Si una mecanica esta en attachments, no duplicarla en description.",
+        },
         supportedMutations: [
             "create/update character",
             "create/update companion",
             "update stats",
             "update details_patch: notes/background/alignment/personalityTraits/ideals/bonds/flaws/appearance/backstory/languages/proficiencies/abilities/inventory/equipment",
-            "update item_patch: target_item_name + category/rarity/equipped/description/tags/attachments",
+            "update item_patch: target_item_name + category/rarity/equipped/description/tags/attachments/configurations_replace/active_configuration",
             "update learned_spell_patch: learn/forget by spell_level + spell_name/spell_index",
             "update custom_spell_patch: create/update/delete customSpells/customCantrips",
             "update custom_feature_patch: create/update/delete customTraits/customClassAbilities",
@@ -4317,11 +8213,61 @@ function buildAssistantProductKnowledge({
             "Priorizar cambios concretos y mínimos; evitar acciones ambiguas.",
             "No inventar IDs; usar solo visibles en context.visibleCharacters.",
             "Si la petición incluye un bloque largo de objeto, extraer título, rareza, descripción y rasgos.",
+            "Si hay bloques de CONFIGURACIÓN A/B, crear item_patch.configurations_replace y no mezclar esos rasgos en attachments globales.",
             "Si la orden es añadir/crear objeto y no existe en inventario, usar item_patch.create_if_missing=true.",
             "Si el usuario describe rasgos o habilidades de un objeto, convertirlos en attachments del item con type ability/trait.",
+            "Si el bloque indica 'PODER ESPECIAL' o activación explícita, preferir attachment type='action'.",
+            "Si el bloque incluye campos de conjuro (alcance/área/salvación/duración/componentes), preferir type='spell'.",
+            "Si hay metadatos de hechizo/accion, rellenar campos estructurados del adjunto y no solo description.",
+            "Evitar duplicación: no repetir en description lo que ya vaya en attachments.",
+            "Integrar subbloques como 'Efecto inicial' dentro del conjuro principal cuando sea parte del mismo.",
+            "No usar nombres genéricos de adjunto como 'Funcionamiento' si el texto contiene rasgos concretos separables.",
             "Si el usuario pide crear/editar un hechizo personalizado, usar custom_spell_patch (no texto plano).",
             "Si pide rasgos/habilidades/acciones personalizadas, usar custom_feature_patch.",
             "Si pide aprender/olvidar un hechizo de nivel, usar learned_spell_patch.",
+        ],
+        structuredObjectSegmentation: [
+            "segmento_1_nombre_principal",
+            "segmento_2_metadatos (tipo/rareza/sintonizacion/estado/precio)",
+            "segmento_3_descripcion_narrativa",
+            "segmento_4_mecanicas (pasivas/focos/poderes/conjuros/estados)",
+            "segmento_5_configuraciones modulares (A/B/modos)",
+        ],
+        attachmentMappingHeuristics: [
+            "propiedad pasiva -> trait",
+            "foco/beneficio continuo -> ability",
+            "poder especial/activable -> action",
+            "conjuro unico o bloque con alcance/area/salvacion -> spell",
+            "estado persistente o condicion periodica -> ability|trait",
+            "si el titulo contiene FOCO, NO mapear a spell aunque mencione conjuros",
+            "si el titulo contiene PODER ESPECIAL, mapear a action y separar el conjuro interno",
+        ],
+        antiDuplicationRules: [
+            "No repetir en item.description texto ya representado en attachments",
+            "No crear adjuntos con nombres genericos (uso/efecto/tipo/rareza/precio)",
+            "Si hay contenido mecanico bien segmentado, dejar description solo narrativa",
+            "No copiar bloques completos largos en description si ya fueron troceados en adjuntos",
+            "En attachment.description no duplicar alcance/area/duracion/componentes/salvacion/dano/uso/descanso si ya existen en campos estructurados",
+            "Usar parrafos con saltos de linea (\\n\\n) en descripciones; evitar bloques de texto en una sola linea",
+            "Usar viñetas para multiples puntos cortos; no forzar viñetas en texto narrativo corto",
+            "Usar numeracion cuando haya pasos/orden temporal o secuencias",
+        ],
+        strictNormalization: [
+            "limpiar emojis/decoradores en nombres principales",
+            "quitar sufijos de precio del nombre del objeto",
+            "conservar precio/rareza/sintonizacion como metadata textual en description",
+            "evitar adjuntos vacios o de una sola etiqueta",
+        ],
+        highSignalKeywords: {
+            action: ["accion", "acción", "reaction", "bonus action", "como accion", "1 vez por descanso"],
+            spell: ["conjuro", "hechizo", "alcance", "área", "salvación", "componentes", "duración", "CD"],
+            trait: ["pasiva", "innata", "detector", "aura", "siempre activa"],
+            ability: ["mientras", "obtiene", "puede usar", "bono", "modificador"],
+        },
+        fewShotPatterns: [
+            "Entrada: 'PODER ESPECIAL — X' + '1 vez por descanso largo' + 'Como acción...' => action named 'PODER ESPECIAL — X (1/descanso largo)'",
+            "Entrada: bloque 'Conjuro único' con alcance/área/salvación => spell attachment con esa estructura en description",
+            "Entrada: 'Efecto inicial' debajo de un conjuro => integrar en el mismo spell, no crear adjunto independiente",
         ],
         clientContext,
     };
@@ -4333,6 +8279,238 @@ function canAccessNote(note: NoteRow, role: CampaignRole, userId: string) {
     if (visibility === "PUBLIC" || visibility === "CAMPAIGN") return true;
     if (visibility === "PRIVATE" && note.author_id === userId) return true;
     return false;
+}
+
+function isMissingRelationError(error: unknown) {
+    if (!isRecord(error)) return false;
+    const code = asTrimmedString(error.code, 16);
+    if (code === "42P01") return true;
+    const message = String(error.message ?? "").toLowerCase();
+    return (
+        message.includes("does not exist") &&
+        (message.includes("relation") || message.includes("table"))
+    );
+}
+
+async function storeGlobalLearningEvent({
+    adminClient,
+    enabled,
+    consent,
+    campaignId,
+    userId,
+    role,
+    assistantMode,
+    trainingSubmode,
+    prompt,
+    clientContext,
+    noticeAccepted,
+}: {
+    adminClient: SupabaseClient;
+    enabled: boolean;
+    consent: boolean;
+    campaignId: string;
+    userId: string;
+    role: CampaignRole;
+    assistantMode: AssistantMode;
+    trainingSubmode: TrainingSubmode;
+    prompt: string;
+    clientContext: ClientContextPayload | null;
+    noticeAccepted: boolean;
+}) {
+    if (!enabled || !consent) return;
+    const instruction = asTrimmedString(extractCurrentUserInstruction(prompt), 2800);
+    if (!instruction) return;
+    const contextHint = asTrimmedString(describeUIContextHint(clientContext), 240);
+
+    const { error } = await adminClient
+        .from("ai_global_training_events")
+        .insert({
+            user_id: userId,
+            campaign_id: campaignId,
+            role,
+            assistant_mode: assistantMode,
+            training_submode: assistantMode === "training" ? trainingSubmode : null,
+            instruction,
+            context_hint: contextHint ?? null,
+            notice_accepted: noticeAccepted,
+        });
+
+    if (error && !isMissingRelationError(error)) {
+        console.warn("assistant.global-learning.store warn:", error.message);
+    }
+}
+
+function normalizeSanitizedActionForCompare(action: SanitizedAction) {
+    return {
+        operation: action.operation,
+        characterId: action.characterId ?? null,
+        note: action.note ?? null,
+        data: action.data ?? null,
+    };
+}
+
+function areSanitizedActionsEqual(left: SanitizedAction[], right: SanitizedAction[]) {
+    if (left.length !== right.length) return false;
+    return (
+        JSON.stringify(left.map(normalizeSanitizedActionForCompare)) ===
+        JSON.stringify(right.map(normalizeSanitizedActionForCompare))
+    );
+}
+
+function buildSanitizedActionEditSummary(
+    original: SanitizedAction[],
+    edited: SanitizedAction[]
+) {
+    if (areSanitizedActionsEqual(original, edited)) return "";
+    const parts: string[] = [];
+    if (original.length !== edited.length) {
+        parts.push(`acciones: ${original.length} -> ${edited.length}`);
+    }
+    const max = Math.min(original.length, edited.length);
+    for (let index = 0; index < max; index += 1) {
+        const before = original[index];
+        const after = edited[index];
+        const entryDiffs: string[] = [];
+        if (before.operation !== after.operation) {
+            entryDiffs.push(`operación ${before.operation} -> ${after.operation}`);
+        }
+        if ((before.characterId ?? "") !== (after.characterId ?? "")) {
+            entryDiffs.push("personaje cambiado");
+        }
+        if ((before.note ?? "") !== (after.note ?? "")) {
+            entryDiffs.push("nota cambiada");
+        }
+        if (JSON.stringify(before.data ?? null) !== JSON.stringify(after.data ?? null)) {
+            entryDiffs.push("payload cambiado");
+        }
+        if (entryDiffs.length > 0) {
+            parts.push(`acción ${index + 1}: ${entryDiffs.join(", ")}`);
+        }
+        if (parts.length >= 6) break;
+    }
+    return parts.join(" | ").slice(0, 1200);
+}
+
+async function storeProposalEditLearningEvent({
+    adminClient,
+    enabled,
+    consent,
+    campaignId,
+    userId,
+    role,
+    assistantMode,
+    trainingSubmode,
+    prompt,
+    originalActions,
+    editedActions,
+    summary,
+    noticeAccepted,
+}: {
+    adminClient: SupabaseClient;
+    enabled: boolean;
+    consent: boolean;
+    campaignId: string;
+    userId: string;
+    role: CampaignRole;
+    assistantMode: AssistantMode;
+    trainingSubmode: TrainingSubmode;
+    prompt: string;
+    originalActions: SanitizedAction[];
+    editedActions: SanitizedAction[];
+    summary?: string | null;
+    noticeAccepted: boolean;
+}) {
+    if (!enabled || !consent) return;
+    if (originalActions.length === 0 || editedActions.length === 0) return;
+    if (areSanitizedActionsEqual(originalActions, editedActions)) return;
+
+    const instructionSource = asTrimmedString(extractCurrentUserInstruction(prompt), 1000);
+    const summaryText =
+        asTrimmedString(summary, 1200) ??
+        buildSanitizedActionEditSummary(originalActions, editedActions);
+    const beforeSnippet = safeJsonSnippet(originalActions, 900);
+    const afterSnippet = safeJsonSnippet(editedActions, 900);
+    const instruction = asTrimmedString(
+        [
+            "Corrección de propuesta IA por edición del usuario.",
+            instructionSource ? `Instrucción: ${instructionSource}` : null,
+            summaryText ? `Resumen: ${summaryText}` : null,
+            beforeSnippet ? `Antes: ${beforeSnippet}` : null,
+            afterSnippet ? `Después: ${afterSnippet}` : null,
+        ]
+            .filter((entry): entry is string => !!entry)
+            .join("\n"),
+        2800
+    );
+    if (!instruction) return;
+
+    const { error } = await adminClient
+        .from("ai_global_training_events")
+        .insert({
+            user_id: userId,
+            campaign_id: campaignId,
+            role,
+            assistant_mode: assistantMode,
+            training_submode: assistantMode === "training" ? trainingSubmode : null,
+            instruction,
+            context_hint: "user-edit-feedback",
+            notice_accepted: noticeAccepted,
+        });
+
+    if (error && !isMissingRelationError(error)) {
+        console.warn("assistant.global-learning.edit-feedback warn:", error.message);
+    }
+}
+
+async function loadGlobalLearningDocs({
+    adminClient,
+    enabled,
+    maxRows = 120,
+}: {
+    adminClient: SupabaseClient;
+    enabled: boolean;
+    maxRows?: number;
+}) {
+    if (!enabled) return [] as RagDocument[];
+    const { data, error } = await adminClient
+        .from("ai_global_training_events")
+        .select("id, instruction, assistant_mode, training_submode, role")
+        .order("created_at", { ascending: false })
+        .limit(Math.max(20, Math.min(maxRows, 300)));
+
+    if (error) {
+        if (!isMissingRelationError(error)) {
+            console.warn("assistant.global-learning.load warn:", error.message);
+        }
+        return [] as RagDocument[];
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const docs: RagDocument[] = [];
+    const seen = new Set<string>();
+    for (const entry of rows) {
+        if (!isRecord(entry)) continue;
+        const id = asTrimmedString(entry.id, 64);
+        const instruction = asTrimmedString(entry.instruction, 700);
+        if (!id || !instruction) continue;
+        const dedupeKey = normalizeForMatch(instruction);
+        if (!dedupeKey || seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        const mode = asTrimmedString(entry.assistant_mode, 24) ?? "normal";
+        const submode = asTrimmedString(entry.training_submode, 40);
+        const role = asTrimmedString(entry.role, 20) ?? "PLAYER";
+        docs.push({
+            id: `community:${id}`,
+            sourceType: "community",
+            title: submode
+                ? `Ejemplo comunidad (${mode}/${submode})`
+                : `Ejemplo comunidad (${mode})`,
+            text: `Rol: ${role} | Prompt: ${instruction}`,
+            priority: 2,
+        });
+        if (docs.length >= 60) break;
+    }
+    return docs;
 }
 
 function safeJsonSnippet(value: unknown, maxLen = 900) {
@@ -4505,6 +8683,7 @@ function buildRagSnippets({
     campaign,
     visibleCharacters,
     notes,
+    communityDocs,
     topK,
     docMaxChars,
 }: {
@@ -4513,6 +8692,7 @@ function buildRagSnippets({
     campaign: CampaignRow | null;
     visibleCharacters: CharacterSummaryRow[];
     notes: NoteRow[];
+    communityDocs?: RagDocument[];
     topK: number;
     docMaxChars: number;
 }) {
@@ -4547,6 +8727,10 @@ function buildRagSnippets({
             text,
             priority: 4,
         });
+    }
+
+    if (Array.isArray(communityDocs) && communityDocs.length > 0) {
+        docs.push(...communityDocs);
     }
 
     const promptNormalized = normalizeForMatch(prompt);
@@ -4595,18 +8779,16 @@ async function requestAssistantPlanOpenAI({
     context: Record<string, unknown>;
     timeoutMs: number;
 }) {
+    const assistantMode = normalizeAssistantMode(context?.assistantMode);
     const body = {
         model,
-        temperature: 0.2,
+        temperature: 0,
         messages: [
-            { role: "system", content: buildAssistantSystemPrompt() },
+            { role: "system", content: buildAssistantSystemPrompt(assistantMode) },
             {
                 role: "user",
                 content: JSON.stringify(
-                    {
-                        user_request: prompt,
-                        context,
-                    },
+                    buildAssistantUserPayload(prompt, context),
                     null,
                     2
                 ),
@@ -4672,13 +8854,14 @@ async function requestAssistantPlanGemini({
     context: Record<string, unknown>;
     timeoutMs: number;
 }) {
+    const assistantMode = normalizeAssistantMode(context?.assistantMode);
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
         model
     )}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const body = {
         systemInstruction: {
             role: "system",
-            parts: [{ text: buildAssistantSystemPrompt() }],
+            parts: [{ text: buildAssistantSystemPrompt(assistantMode) }],
         },
         contents: [
             {
@@ -4686,10 +8869,7 @@ async function requestAssistantPlanGemini({
                 parts: [
                     {
                         text: JSON.stringify(
-                            {
-                                user_request: prompt,
-                                context,
-                            },
+                            buildAssistantUserPayload(prompt, context),
                             null,
                             2
                         ),
@@ -4698,7 +8878,7 @@ async function requestAssistantPlanGemini({
             },
         ],
         generationConfig: {
-            temperature: 0.2,
+            temperature: 0,
             responseMimeType: "application/json",
         },
     };
@@ -4762,25 +8942,23 @@ async function requestAssistantPlanOllama({
     numPredict: number;
     numCtx: number;
 }) {
+    const assistantMode = normalizeAssistantMode(context?.assistantMode);
     const endpoint = `${baseUrl.replace(/\/$/, "")}/api/chat`;
     const body = {
         model,
         stream: false,
         format: "json",
         options: {
-            temperature: 0.2,
+            temperature: 0,
             num_predict: numPredict,
             num_ctx: numCtx,
         },
         messages: [
-            { role: "system", content: buildAssistantSystemPrompt() },
+            { role: "system", content: buildAssistantSystemPrompt(assistantMode) },
             {
                 role: "user",
                 content: JSON.stringify(
-                    {
-                        user_request: prompt,
-                        context,
-                    },
+                    buildAssistantUserPayload(prompt, context),
                     null,
                     2
                 ),
@@ -5321,6 +9499,19 @@ async function applyActions({
     return results;
 }
 
+export const __assistantTestHooks = {
+    parseStructuredItemPatchFromInstruction,
+    parseStructuredItemBatchPatchesFromInstruction,
+    normalizeAttachmentPatchList,
+    buildItemAttachmentsFromBodyLines,
+    normalizeAssistantMode,
+    normalizeTrainingSubmode,
+    isTrainingPromptRequest,
+    isTrainingApprovalIntent,
+    buildTrainingModeReply,
+    buildTrainingFictionalDraft,
+};
+
 export async function POST(req: NextRequest, context: RouteContext) {
     try {
         const params = await context.params;
@@ -5337,17 +9528,34 @@ export async function POST(req: NextRequest, context: RouteContext) {
                   prompt?: string;
                   targetCharacterId?: string;
                   apply?: boolean;
+                  assistantMode?: unknown;
+                  trainingSubmode?: unknown;
                   clientContext?: unknown;
                   proposedActions?: unknown;
+                  originalProposedActions?: unknown;
+                  userEditedProposal?: unknown;
+                  proposalEditSummary?: unknown;
                   previewReply?: string;
+                  globalTrainingConsent?: unknown;
+                  aiUsageNoticeAccepted?: unknown;
               }
             | null;
         const prompt = asTrimmedString(body?.prompt, 12000);
         const targetCharacterId = asTrimmedString(body?.targetCharacterId, 64);
         const apply = body?.apply !== false;
+        const assistantMode = normalizeAssistantMode(body?.assistantMode);
+        const trainingSubmode = normalizeTrainingSubmode(body?.trainingSubmode);
         const clientContext = sanitizeClientContext(body?.clientContext);
+        const globalTrainingConsent = asBooleanFlag(body?.globalTrainingConsent) === true;
+        const aiUsageNoticeAccepted = asBooleanFlag(body?.aiUsageNoticeAccepted) === true;
         const proposedActions =
             Array.isArray(body?.proposedActions) ? body.proposedActions : null;
+        const originalProposedActions =
+            Array.isArray(body?.originalProposedActions)
+                ? body.originalProposedActions
+                : null;
+        const userEditedProposal = asBooleanFlag(body?.userEditedProposal) === true;
+        const proposalEditSummary = asTrimmedString(body?.proposalEditSummary, 1800);
         const previewReply = asTrimmedString(body?.previewReply, 4000);
 
         if (!prompt) {
@@ -5367,6 +9575,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
             process.env.AI_FREE_ONLY,
             DEFAULT_AI_FREE_ONLY
         );
+        const aiGlobalLearningEnabled = parseEnvBool(
+            process.env.AI_GLOBAL_LEARNING_ENABLED,
+            DEFAULT_AI_GLOBAL_LEARNING_ENABLED
+        );
+        const aiGlobalLearningRagEnabled = parseEnvBool(
+            process.env.AI_GLOBAL_LEARNING_RAG_ENABLED,
+            DEFAULT_AI_GLOBAL_LEARNING_RAG_ENABLED
+        );
         const enableLocalFallback = parseEnvBool(
             process.env.AI_ENABLE_LOCAL_FALLBACK,
             true
@@ -5380,13 +9596,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
         const ollamaModel = process.env.OLLAMA_MODEL ?? DEFAULT_OLLAMA_MODEL;
         const openaiTimeoutMs = parseEnvInt(
             process.env.OPENAI_TIMEOUT_MS,
-            12000,
+            25000,
             1500,
             120000
         );
         const geminiTimeoutMs = parseEnvInt(
             process.env.GEMINI_TIMEOUT_MS,
-            15000,
+            30000,
             1500,
             120000
         );
@@ -5398,13 +9614,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
         );
         const ollamaNumPredict = parseEnvInt(
             process.env.OLLAMA_NUM_PREDICT,
-            180,
+            320,
             64,
             1024
         );
         const ollamaNumCtx = parseEnvInt(
             process.env.OLLAMA_NUM_CTX,
-            3072,
+            6144,
             512,
             32768
         );
@@ -5509,6 +9725,20 @@ export async function POST(req: NextRequest, context: RouteContext) {
             visibleCharacters.map((character) => character.id)
         );
 
+        await storeGlobalLearningEvent({
+            adminClient,
+            enabled: aiGlobalLearningEnabled,
+            consent: globalTrainingConsent,
+            campaignId,
+            userId: user.id,
+            role,
+            assistantMode,
+            trainingSubmode,
+            prompt,
+            clientContext,
+            noticeAccepted: aiUsageNoticeAccepted,
+        });
+
         if (targetCharacterId && !visibleCharacterIds.has(targetCharacterId)) {
             return NextResponse.json(
                 { error: "No tienes acceso al personaje objetivo." },
@@ -5521,6 +9751,52 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 proposedActions,
                 targetCharacterId
             );
+            const sanitizedOriginalActions = originalProposedActions
+                ? sanitizeActions(originalProposedActions, targetCharacterId)
+                : [];
+            const hasUserProposalEdits =
+                userEditedProposal ||
+                (sanitizedOriginalActions.length > 0 &&
+                    !areSanitizedActionsEqual(
+                        sanitizedOriginalActions,
+                        sanitizedActions
+                    ));
+            if (assistantMode === "training") {
+                const results = buildTrainingSimulationResults(sanitizedActions);
+                const effectiveReply =
+                    previewReply ??
+                    "Modo entrenamiento activo: simulé la aplicación del borrador, pero no guardé cambios reales.";
+                if (hasUserProposalEdits && sanitizedOriginalActions.length > 0) {
+                    await storeProposalEditLearningEvent({
+                        adminClient,
+                        enabled: aiGlobalLearningEnabled,
+                        consent: globalTrainingConsent,
+                        campaignId,
+                        userId: user.id,
+                        role,
+                        assistantMode,
+                        trainingSubmode,
+                        prompt,
+                        originalActions: sanitizedOriginalActions,
+                        editedActions: sanitizedActions,
+                        summary: proposalEditSummary,
+                        noticeAccepted: aiUsageNoticeAccepted,
+                    });
+                }
+                return NextResponse.json({
+                    reply: effectiveReply,
+                    proposedActions: sanitizedActions,
+                    applied: false,
+                    provider: "training-simulated",
+                    intent: "mutation",
+                    rag: [],
+                    results,
+                    permissions: {
+                        role,
+                        canManageAllCharacters: role === "DM",
+                    },
+                });
+            }
             const results = await applyActions({
                 adminClient,
                 campaignId,
@@ -5537,6 +9813,24 @@ export async function POST(req: NextRequest, context: RouteContext) {
                     ? "No hubo cambios concretos para aplicar."
                     : "He aplicado los cambios confirmados.");
 
+            if (hasUserProposalEdits && sanitizedOriginalActions.length > 0) {
+                await storeProposalEditLearningEvent({
+                    adminClient,
+                    enabled: aiGlobalLearningEnabled,
+                    consent: globalTrainingConsent,
+                    campaignId,
+                    userId: user.id,
+                    role,
+                    assistantMode,
+                    trainingSubmode,
+                    prompt,
+                    originalActions: sanitizedOriginalActions,
+                    editedActions: sanitizedActions,
+                    summary: proposalEditSummary,
+                    noticeAccepted: aiUsageNoticeAccepted,
+                });
+            }
+
             return NextResponse.json({
                 reply: effectiveReply,
                 proposedActions: sanitizedActions,
@@ -5552,7 +9846,73 @@ export async function POST(req: NextRequest, context: RouteContext) {
             });
         }
 
+        if (assistantMode === "training" && trainingSubmode === "ai_prompt") {
+            if (isTrainingApprovalIntent(prompt)) {
+                return NextResponse.json({
+                    reply: "Perfecto. Ejercicio validado en entrenamiento (sin guardar cambios reales). ¿Genero otro reto ficticio?",
+                    proposedActions: [],
+                    applied: false,
+                    provider: "training-local",
+                    intent: "chat",
+                    rag: [],
+                    results: [],
+                    permissions: {
+                        role,
+                        canManageAllCharacters: role === "DM",
+                    },
+                });
+            }
+
+            const trainingDraft = buildTrainingFictionalDraft({
+                prompt,
+                targetCharacterId,
+                clientContext,
+                visibleCharacters,
+            });
+            return NextResponse.json({
+                reply: trainingDraft.reply,
+                proposedActions: trainingDraft.actions,
+                applied: false,
+                provider: "training-local",
+                intent: "chat",
+                rag: [],
+                results: [],
+                permissions: {
+                    role,
+                    canManageAllCharacters: role === "DM",
+                },
+            });
+        }
+
         const intent = classifyAssistantIntent(prompt, targetCharacterId);
+        const shouldReturnTrainingCoachOnly =
+            assistantMode === "training" &&
+            (trainingSubmode === "ai_prompt" ||
+                intent === "chat" ||
+                intent === "capabilities" ||
+                isTrainingPromptRequest(prompt));
+        if (shouldReturnTrainingCoachOnly) {
+            return NextResponse.json({
+                reply: buildTrainingModeReply({
+                    prompt,
+                    role,
+                    clientContext,
+                    trainingSubmode,
+                    actionCount: 0,
+                }),
+                proposedActions: [],
+                applied: false,
+                provider: "training-local",
+                intent,
+                rag: [],
+                results: [],
+                permissions: {
+                    role,
+                    canManageAllCharacters: role === "DM",
+                },
+            });
+        }
+
         if (intent === "capabilities") {
             return NextResponse.json({
                 reply: buildCapabilitiesReply(role, clientContext),
@@ -5596,16 +9956,44 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 : null;
         if (directHeuristicPlan && directHeuristicPlan.actions.length > 0) {
             const directReply = `${directHeuristicPlan.reply} Revísala y confirma para aplicarla.`;
+            const directPreviewReply =
+                assistantMode === "training"
+                    ? `${buildTrainingModeReply({
+                          prompt,
+                          role,
+                          clientContext,
+                          trainingSubmode,
+                          actionCount: directHeuristicPlan.actions.length,
+                      })}\n\n${directReply}`
+                    : directReply;
 
             if (!apply) {
                 return NextResponse.json({
-                    reply: directReply,
+                    reply: directPreviewReply,
                     proposedActions: directHeuristicPlan.actions,
                     applied: false,
                     provider: "heuristic-local",
                     intent,
                     rag: [],
                     results: [],
+                    permissions: {
+                        role,
+                        canManageAllCharacters: role === "DM",
+                    },
+                });
+            }
+
+            if (assistantMode === "training") {
+                return NextResponse.json({
+                    reply: directPreviewReply,
+                    proposedActions: directHeuristicPlan.actions,
+                    applied: false,
+                    provider: "training-simulated",
+                    intent,
+                    rag: [],
+                    results: buildTrainingSimulationResults(
+                        sanitizeActions(directHeuristicPlan.actions, targetCharacterId)
+                    ),
                     permissions: {
                         role,
                         canManageAllCharacters: role === "DM",
@@ -5638,12 +10026,19 @@ export async function POST(req: NextRequest, context: RouteContext) {
             });
         }
 
+        const communityDocs = await loadGlobalLearningDocs({
+            adminClient,
+            enabled: aiGlobalLearningRagEnabled,
+            maxRows: 120,
+        });
+
         const ragSnippets = buildRagSnippets({
             prompt,
             targetCharacterId,
             campaign,
             visibleCharacters,
             notes,
+            communityDocs,
             topK: ragTopK,
             docMaxChars: ragDocMaxChars,
         });
@@ -5659,6 +10054,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
         const modelContext = {
             campaignId,
             role,
+            assistantMode,
+            trainingSubmode,
             actorUserId: user.id,
             targetCharacterId: targetCharacterId ?? null,
             clientContext,
@@ -5802,16 +10199,42 @@ export async function POST(req: NextRequest, context: RouteContext) {
             : heuristicPlan && isNoConcreteChangeReply(plan.reply)
               ? `${heuristicPlan.reply} Revísala y confirma para aplicarla.`
             : plan.reply;
+        const effectivePreviewReply =
+            assistantMode === "training"
+                ? `${buildTrainingModeReply({
+                      prompt,
+                      role,
+                      clientContext,
+                      trainingSubmode,
+                      actionCount: effectiveActions.length,
+                  })}\n\n${effectiveReply}`
+                : effectiveReply;
 
         if (!apply) {
             return NextResponse.json({
-                reply: effectiveReply,
+                reply: effectivePreviewReply,
                 proposedActions: effectiveActions,
                 applied: false,
                 provider,
                 intent,
                 rag: ragSnippets,
                 results: [],
+                permissions: {
+                    role,
+                    canManageAllCharacters: role === "DM",
+                },
+            });
+        }
+
+        if (assistantMode === "training") {
+            return NextResponse.json({
+                reply: effectivePreviewReply,
+                proposedActions: effectiveActions,
+                applied: false,
+                provider: "training-simulated",
+                intent,
+                rag: ragSnippets,
+                results: buildTrainingSimulationResults(effectiveActions),
                 permissions: {
                     role,
                     canManageAllCharacters: role === "DM",

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "test:assistant": "vitest run tests/assistantItemRegression.test.ts tests/assistantTrainingMode.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "dnd:sync-local-data": "node scripts/generate-local-dnd-data.mjs",

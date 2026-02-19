@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Sparkles, X, SendHorizontal, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
@@ -34,12 +34,194 @@ type ChatMessage = {
     proposedActions?: ProposedAction[];
 };
 
+type PendingActionEditorDraft = {
+    id: string;
+    operation: ProposedAction["operation"];
+    characterId: string;
+    note: string;
+    dataText: string;
+};
+
 type PendingPlan = {
     prompt: string;
     targetCharacterId?: string;
-    proposedActions: ProposedAction[];
+    originalProposedActions: ProposedAction[];
+    editorDrafts: PendingActionEditorDraft[];
     previewReply?: string;
 };
+
+type LocalEditMemory = {
+    id: string;
+    timestamp: string;
+    summary: string;
+};
+
+type FloatingButtonPosition = {
+    left: number;
+    top: number;
+};
+
+type FloatingButtonDragState = {
+    startMouseX: number;
+    startMouseY: number;
+    startLeft: number;
+    startTop: number;
+    moved: boolean;
+};
+
+type AssistantMode = "normal" | "training";
+type TrainingSubmode = "ai_prompt" | "sandbox_object";
+type ItemCategory = "weapon" | "armor" | "accessory" | "consumable" | "tool" | "misc";
+type DraftAttachmentType =
+    | "trait"
+    | "ability"
+    | "action"
+    | "spell"
+    | "cantrip"
+    | "classFeature"
+    | "other";
+type DraftFeatureActionType = "action" | "bonus" | "reaction" | "passive" | "";
+type DraftAbilityKey = "" | "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+type DraftSaveType = "none" | "attack" | "save";
+type DraftDcType = "" | "fixed" | "stat";
+type DraftRecharge = "" | "short" | "long";
+
+type TrainingAttachmentDraft = {
+    id: string;
+    type: DraftAttachmentType;
+    name: string;
+    description: string;
+    actionType: DraftFeatureActionType;
+    level: string;
+    school: string;
+    castingTime: string;
+    castingTimeNote: string;
+    range: string;
+    duration: string;
+    componentVerbal: boolean;
+    componentSomatic: boolean;
+    componentMaterial: boolean;
+    materials: string;
+    concentration: boolean;
+    ritual: boolean;
+    usesSpellSlot: boolean;
+    slotLevel: string;
+    charges: string;
+    recharge: DraftRecharge;
+    pointsLabel: string;
+    points: string;
+    saveType: DraftSaveType;
+    saveAbility: DraftAbilityKey;
+    dcType: DraftDcType;
+    dcValue: string;
+    dcStat: DraftAbilityKey;
+    damageType: string;
+    damageDice: string;
+    damageScaling: string;
+    requirements: string;
+    effect: string;
+};
+
+type TrainingItemDraft = {
+    targetItemName: string;
+    category: ItemCategory;
+    rarity: string;
+    description: string;
+    createIfMissing: boolean;
+    equippable: boolean;
+    equipped: boolean;
+    attachments: TrainingAttachmentDraft[];
+};
+
+const ITEM_CATEGORY_OPTIONS: Array<{ value: ItemCategory; es: string; en: string }> = [
+    { value: "weapon", es: "Arma", en: "Weapon" },
+    { value: "armor", es: "Armadura", en: "Armor" },
+    { value: "accessory", es: "Accesorio", en: "Accessory" },
+    { value: "consumable", es: "Consumible", en: "Consumable" },
+    { value: "tool", es: "Herramienta", en: "Tool" },
+    { value: "misc", es: "Misceláneo", en: "Misc" },
+];
+
+const ATTACHMENT_TYPE_OPTIONS: Array<{
+    value: DraftAttachmentType;
+    es: string;
+    en: string;
+}> = [
+    { value: "trait", es: "Rasgo", en: "Trait" },
+    { value: "ability", es: "Habilidad", en: "Ability" },
+    { value: "action", es: "Acción", en: "Action" },
+    { value: "spell", es: "Hechizo", en: "Spell" },
+    { value: "cantrip", es: "Truco", en: "Cantrip" },
+    { value: "classFeature", es: "Clase", en: "Class feature" },
+    { value: "other", es: "Otro", en: "Other" },
+];
+
+const FEATURE_ACTION_OPTIONS: Array<{
+    value: Exclude<DraftFeatureActionType, "">;
+    es: string;
+    en: string;
+}> = [
+    { value: "action", es: "Acción", en: "Action" },
+    { value: "bonus", es: "Acción bonus", en: "Bonus action" },
+    { value: "reaction", es: "Reacción", en: "Reaction" },
+    { value: "passive", es: "Pasiva", en: "Passive" },
+];
+
+const ATTACHMENT_ABILITY_OPTIONS: Array<{
+    value: Exclude<DraftAbilityKey, "">;
+    es: string;
+    en: string;
+}> = [
+    { value: "STR", es: "Fuerza", en: "Strength" },
+    { value: "DEX", es: "Destreza", en: "Dexterity" },
+    { value: "CON", es: "Constitución", en: "Constitution" },
+    { value: "INT", es: "Inteligencia", en: "Intelligence" },
+    { value: "WIS", es: "Sabiduría", en: "Wisdom" },
+    { value: "CHA", es: "Carisma", en: "Charisma" },
+];
+
+const SPELL_CASTING_TIME_OPTIONS = [
+    "1 acción",
+    "1 acción bonus",
+    "1 reacción",
+    "1 minuto",
+    "10 minutos",
+    "1 hora",
+];
+
+const ATTACHMENT_SAVE_TYPE_OPTIONS: Array<{
+    value: DraftSaveType;
+    es: string;
+    en: string;
+}> = [
+    { value: "none", es: "Ninguno", en: "None" },
+    { value: "attack", es: "Ataque", en: "Attack" },
+    { value: "save", es: "Salvación", en: "Saving throw" },
+];
+
+const ATTACHMENT_DC_TYPE_OPTIONS: Array<{
+    value: Exclude<DraftDcType, "">;
+    es: string;
+    en: string;
+}> = [
+    { value: "stat", es: "Basada en atributo", en: "Based on stat" },
+    { value: "fixed", es: "Fija", en: "Fixed" },
+];
+
+const ATTACHMENT_RECHARGE_OPTIONS: Array<{
+    value: Exclude<DraftRecharge, "">;
+    es: string;
+    en: string;
+}> = [
+    { value: "short", es: "Descanso corto", en: "Short rest" },
+    { value: "long", es: "Descanso largo", en: "Long rest" },
+];
+
+const AI_NOTICE_ACK_STORAGE_KEY_PREFIX = "dnd-ai-notice-ack-v1";
+const AI_GLOBAL_TRAINING_OPT_IN_STORAGE_KEY_PREFIX =
+    "dnd-ai-global-training-opt-in-v1";
+const AI_LOCAL_EDIT_MEMORY_STORAGE_KEY_PREFIX = "dnd-ai-local-edit-memory-v1";
+const AI_CHAT_BUTTON_POSITION_STORAGE_KEY_PREFIX = "dnd-ai-chat-button-pos-v1";
 
 export type AIAssistantClientContext = {
     surface?: "player" | "dm";
@@ -224,6 +406,11 @@ function ProposedActionPreview({
             const equippable = boolLabel(asBoolean(itemPatch.equippable), t);
             const createIfMissing = boolLabel(asBoolean(itemPatch.create_if_missing), t);
             const clearAttachments = boolLabel(asBoolean(itemPatch.clear_attachments), t);
+            const clearConfigurations = boolLabel(
+                asBoolean(itemPatch.clear_configurations),
+                t
+            );
+            const activeConfiguration = asString(itemPatch.active_configuration, 120);
             const tagsAdd = asStringArray(itemPatch.tags_add, 6, 40);
             const tagsRemove = asStringArray(itemPatch.tags_remove, 6, 40);
 
@@ -242,6 +429,16 @@ function ProposedActionPreview({
             if (clearAttachments) {
                 lines.push(
                     `${t("Limpiar adjuntos", "Clear attachments")}: ${clearAttachments}`
+                );
+            }
+            if (clearConfigurations) {
+                lines.push(
+                    `${t("Limpiar configuraciones", "Clear configurations")}: ${clearConfigurations}`
+                );
+            }
+            if (activeConfiguration) {
+                lines.push(
+                    `${t("Configuración activa", "Active configuration")}: ${activeConfiguration}`
                 );
             }
             if (description) lines.push(`${t("Descripción", "Description")}: ${description}`);
@@ -270,6 +467,31 @@ function ProposedActionPreview({
             if (attachmentNames.length > 0) {
                 lines.push(
                     `${t("Adjuntos", "Attachments")}: ${attachmentNames.join(", ")}`
+                );
+            }
+
+            const configurationSource = Array.isArray(itemPatch.configurations_replace)
+                ? itemPatch.configurations_replace
+                : [];
+            const configurationNames = configurationSource
+                .map((entry) => {
+                    if (!isRecord(entry)) return null;
+                    const name = asString(entry.name, 90);
+                    if (!name) return null;
+                    const usage = asString(entry.usage, 60);
+                    const damage = asString(entry.damage, 60);
+                    const range = asString(entry.range, 60);
+                    const hints = [usage, damage, range]
+                        .filter((value): value is string => !!value)
+                        .slice(0, 2)
+                        .join(" · ");
+                    return hints ? `${name} (${hints})` : name;
+                })
+                .filter((entry): entry is string => !!entry)
+                .slice(0, 6);
+            if (configurationNames.length > 0) {
+                lines.push(
+                    `${t("Configuraciones", "Configurations")}: ${configurationNames.join(", ")}`
                 );
             }
 
@@ -435,6 +657,479 @@ function sanitizeProposedActions(value: unknown): ProposedAction[] {
     return actions;
 }
 
+function makeDraftId(prefix = "draft") {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createPendingActionEditorDrafts(
+    actions: ProposedAction[]
+): PendingActionEditorDraft[] {
+    if (!Array.isArray(actions) || actions.length === 0) {
+        return [
+            {
+                id: makeDraftId("pending"),
+                operation: "update",
+                characterId: "",
+                note: "",
+                dataText: "{}",
+            },
+        ];
+    }
+    return actions.map((entry) => ({
+        id: makeDraftId("pending"),
+        operation: entry.operation,
+        characterId: entry.characterId ?? "",
+        note: entry.note ?? "",
+        dataText: entry.data ? JSON.stringify(entry.data, null, 2) : "{}",
+    }));
+}
+
+function areProposedActionListsEqual(left: ProposedAction[], right: ProposedAction[]) {
+    if (left.length !== right.length) return false;
+    const normalized = (value: ProposedAction[]) =>
+        value.map((entry) => ({
+            operation: entry.operation,
+            characterId: entry.characterId ?? null,
+            note: entry.note ?? null,
+            data: entry.data ?? null,
+        }));
+    return JSON.stringify(normalized(left)) === JSON.stringify(normalized(right));
+}
+
+function summarizeProposedActionEdits(
+    original: ProposedAction[],
+    edited: ProposedAction[]
+) {
+    if (areProposedActionListsEqual(original, edited)) return "";
+    const parts: string[] = [];
+    if (original.length !== edited.length) {
+        parts.push(`nº de acciones: ${original.length} -> ${edited.length}`);
+    }
+    const minLength = Math.min(original.length, edited.length);
+    for (let index = 0; index < minLength; index += 1) {
+        const before = original[index];
+        const after = edited[index];
+        const diffs: string[] = [];
+        if (before.operation !== after.operation) {
+            diffs.push(`operación ${before.operation} -> ${after.operation}`);
+        }
+        if ((before.characterId ?? "") !== (after.characterId ?? "")) {
+            diffs.push(
+                `personaje "${before.characterId ?? "-"}" -> "${after.characterId ?? "-"}"`
+            );
+        }
+        if ((before.note ?? "") !== (after.note ?? "")) {
+            diffs.push("nota editada");
+        }
+        const beforeData = JSON.stringify(before.data ?? null);
+        const afterData = JSON.stringify(after.data ?? null);
+        if (beforeData !== afterData) {
+            diffs.push("data editada");
+        }
+        if (diffs.length > 0) {
+            parts.push(`acción ${index + 1}: ${diffs.join(", ")}`);
+        }
+        if (parts.length >= 6) break;
+    }
+    return parts.join(" | ").slice(0, 900);
+}
+
+function createEmptyTrainingAttachmentDraft(): TrainingAttachmentDraft {
+    return {
+        id: makeDraftId("att"),
+        type: "trait",
+        name: "",
+        description: "",
+        actionType: "",
+        level: "",
+        school: "",
+        castingTime: "1 acción",
+        castingTimeNote: "",
+        range: "",
+        duration: "",
+        componentVerbal: false,
+        componentSomatic: false,
+        componentMaterial: false,
+        materials: "",
+        concentration: false,
+        ritual: false,
+        usesSpellSlot: false,
+        slotLevel: "",
+        charges: "",
+        recharge: "",
+        pointsLabel: "",
+        points: "",
+        saveType: "none",
+        saveAbility: "",
+        dcType: "",
+        dcValue: "",
+        dcStat: "",
+        damageType: "",
+        damageDice: "",
+        damageScaling: "",
+        requirements: "",
+        effect: "",
+    };
+}
+
+function createEmptyTrainingItemDraft(): TrainingItemDraft {
+    return {
+        targetItemName: "",
+        category: "misc",
+        rarity: "",
+        description: "",
+        createIfMissing: true,
+        equippable: false,
+        equipped: false,
+        attachments: [createEmptyTrainingAttachmentDraft()],
+    };
+}
+
+function normalizeDraftAttachmentType(value: unknown): DraftAttachmentType {
+    const parsed = asString(value, 30);
+    if (!parsed) return "trait";
+    if (
+        parsed === "trait" ||
+        parsed === "ability" ||
+        parsed === "action" ||
+        parsed === "spell" ||
+        parsed === "cantrip" ||
+        parsed === "classFeature" ||
+        parsed === "other"
+    ) {
+        return parsed;
+    }
+    return "trait";
+}
+
+function normalizeDraftActionType(value: unknown): DraftFeatureActionType {
+    const parsed = asString(value, 20);
+    if (!parsed) return "";
+    if (
+        parsed === "action" ||
+        parsed === "bonus" ||
+        parsed === "reaction" ||
+        parsed === "passive"
+    ) {
+        return parsed;
+    }
+    return "";
+}
+
+function normalizeDraftAbilityKey(value: unknown): DraftAbilityKey {
+    const parsed = asString(value, 12);
+    if (!parsed) return "";
+    if (
+        parsed === "STR" ||
+        parsed === "DEX" ||
+        parsed === "CON" ||
+        parsed === "INT" ||
+        parsed === "WIS" ||
+        parsed === "CHA"
+    ) {
+        return parsed;
+    }
+    return "";
+}
+
+function normalizeDraftSaveType(value: unknown): DraftSaveType {
+    const parsed = asString(value, 20);
+    if (!parsed) return "none";
+    if (parsed === "attack" || parsed === "save" || parsed === "none") {
+        return parsed;
+    }
+    return "none";
+}
+
+function normalizeDraftDcType(value: unknown): DraftDcType {
+    const parsed = asString(value, 20);
+    if (!parsed) return "";
+    if (parsed === "fixed" || parsed === "stat") return parsed;
+    return "";
+}
+
+function normalizeDraftRecharge(value: unknown): DraftRecharge {
+    const parsed = asString(value, 20);
+    if (!parsed) return "";
+    if (parsed === "short" || parsed === "long") return parsed;
+    return "";
+}
+
+function parseDraftInt(value: string, min: number, max: number) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return undefined;
+    const rounded = Math.round(parsed);
+    if (rounded < min || rounded > max) return undefined;
+    return rounded;
+}
+
+function isTrainingDraftSpellLike(type: DraftAttachmentType) {
+    return type === "spell" || type === "cantrip";
+}
+
+function isTrainingDraftAbilityLike(type: DraftAttachmentType) {
+    return type === "action" || type === "ability" || type === "classFeature";
+}
+
+function parseTrainingDraftFromActions(actions: ProposedAction[]) {
+    for (const action of actions) {
+        if (!isRecord(action.data)) continue;
+        const itemPatch = isRecord(action.data.item_patch)
+            ? action.data.item_patch
+            : null;
+        if (!itemPatch) continue;
+        const hasModularConfigurations =
+            Array.isArray(itemPatch.configurations_replace) ||
+            itemPatch.active_configuration !== undefined ||
+            asBoolean(itemPatch.clear_configurations) !== undefined;
+        if (hasModularConfigurations) {
+            return null;
+        }
+
+        const attachmentSource = Array.isArray(itemPatch.attachments_replace)
+            ? itemPatch.attachments_replace
+            : Array.isArray(itemPatch.attachments_add)
+              ? itemPatch.attachments_add
+              : [];
+
+        const attachments: TrainingAttachmentDraft[] = attachmentSource
+            .map((entry) => {
+                if (!isRecord(entry)) return null;
+                const name = asString(entry.name, 140) ?? "";
+                const description = asString(entry.description, 1800) ?? "";
+                if (!name && !description) return null;
+                const resourceCost = isRecord(entry.resource_cost)
+                    ? entry.resource_cost
+                    : null;
+                const save = isRecord(entry.save) ? entry.save : null;
+                const damage = isRecord(entry.damage) ? entry.damage : null;
+                const components = isRecord(entry.components) ? entry.components : null;
+                return {
+                    id: makeDraftId("att"),
+                    type: normalizeDraftAttachmentType(entry.type),
+                    name,
+                    description,
+                    actionType: normalizeDraftActionType(entry.action_type),
+                    level:
+                        typeof entry.level === "number" && Number.isFinite(entry.level)
+                            ? String(Math.round(entry.level))
+                            : "",
+                    school: asString(entry.school, 80) ?? "",
+                    castingTime: asString(entry.casting_time, 80) ?? "1 acción",
+                    castingTimeNote: asString(entry.casting_time_note, 120) ?? "",
+                    range: asString(entry.range, 120) ?? "",
+                    duration: asString(entry.duration, 120) ?? "",
+                    componentVerbal: asBoolean(components?.verbal) ?? false,
+                    componentSomatic: asBoolean(components?.somatic) ?? false,
+                    componentMaterial: asBoolean(components?.material) ?? false,
+                    materials: asString(entry.materials, 220) ?? "",
+                    concentration: asBoolean(entry.concentration) ?? false,
+                    ritual: asBoolean(entry.ritual) ?? false,
+                    usesSpellSlot: asBoolean(resourceCost?.uses_spell_slot) ?? false,
+                    slotLevel:
+                        typeof resourceCost?.slot_level === "number" &&
+                        Number.isFinite(resourceCost.slot_level)
+                            ? String(Math.round(resourceCost.slot_level))
+                            : "",
+                    charges:
+                        typeof resourceCost?.charges === "number" &&
+                        Number.isFinite(resourceCost.charges)
+                            ? String(Math.round(resourceCost.charges))
+                            : "",
+                    recharge: normalizeDraftRecharge(resourceCost?.recharge),
+                    pointsLabel: asString(resourceCost?.points_label, 80) ?? "",
+                    points:
+                        typeof resourceCost?.points === "number" &&
+                        Number.isFinite(resourceCost.points)
+                            ? String(Math.round(resourceCost.points))
+                            : "",
+                    saveType: normalizeDraftSaveType(save?.type),
+                    saveAbility: normalizeDraftAbilityKey(save?.save_ability),
+                    dcType: normalizeDraftDcType(save?.dc_type),
+                    dcValue:
+                        typeof save?.dc_value === "number" && Number.isFinite(save.dc_value)
+                            ? String(Math.round(save.dc_value))
+                            : "",
+                    dcStat: normalizeDraftAbilityKey(save?.dc_stat),
+                    damageType: asString(damage?.damage_type, 80) ?? "",
+                    damageDice: asString(damage?.dice, 40) ?? "",
+                    damageScaling: asString(damage?.scaling, 120) ?? "",
+                    requirements: asString(entry.requirements, 300) ?? "",
+                    effect: asString(entry.effect, 1200) ?? "",
+                } satisfies TrainingAttachmentDraft;
+            })
+            .filter((entry): entry is TrainingAttachmentDraft => !!entry);
+
+        const categoryRaw = asString(itemPatch.category, 30);
+        const category: ItemCategory =
+            categoryRaw === "weapon" ||
+            categoryRaw === "armor" ||
+            categoryRaw === "accessory" ||
+            categoryRaw === "consumable" ||
+            categoryRaw === "tool" ||
+            categoryRaw === "misc"
+                ? categoryRaw
+                : "misc";
+
+        const draft: TrainingItemDraft = {
+            targetItemName:
+                asString(itemPatch.target_item_name, 180) ??
+                asString(itemPatch.name, 180) ??
+                "",
+            category,
+            rarity: asString(itemPatch.rarity, 120) ?? "",
+            description: asString(itemPatch.description, 3000) ?? "",
+            createIfMissing: asBoolean(itemPatch.create_if_missing) ?? true,
+            equippable: asBoolean(itemPatch.equippable) ?? false,
+            equipped: asBoolean(itemPatch.equipped) ?? false,
+            attachments:
+                attachments.length > 0
+                    ? attachments
+                    : [createEmptyTrainingAttachmentDraft()],
+        };
+
+        return {
+            characterId: action.characterId,
+            draft,
+        };
+    }
+    return null;
+}
+
+function buildTrainingActionsFromDraft({
+    draft,
+    targetCharacterId,
+}: {
+    draft: TrainingItemDraft;
+    targetCharacterId?: string;
+}): ProposedAction[] {
+    const targetItemName = draft.targetItemName.trim();
+    if (!targetItemName) return [];
+
+    const attachments = draft.attachments
+        .map((entry) => {
+            const name = entry.name.trim();
+            const description = entry.description.trim();
+            if (!name && !description) return null;
+            const isSpellLike = isTrainingDraftSpellLike(entry.type);
+            const isAbilityLike = isTrainingDraftAbilityLike(entry.type);
+            const payload: Record<string, unknown> = {
+                type: entry.type,
+                name: name || "Adjunto",
+                description: description || undefined,
+            };
+            if (isAbilityLike && entry.actionType) {
+                payload.action_type = entry.actionType;
+            }
+            if (isSpellLike) {
+                const level = parseDraftInt(entry.level, 0, 9);
+                if (typeof level === "number") payload.level = level;
+                else if (entry.type === "cantrip") payload.level = 0;
+            }
+
+            const school = entry.school.trim();
+            if (isSpellLike && school) payload.school = school;
+            const castingTime = entry.castingTime.trim();
+            if (isSpellLike && castingTime) payload.casting_time = castingTime;
+            const castingTimeNote = entry.castingTimeNote.trim();
+            if (isSpellLike && castingTimeNote) payload.casting_time_note = castingTimeNote;
+            const range = entry.range.trim();
+            if (isSpellLike && range) payload.range = range;
+            const duration = entry.duration.trim();
+            if (isSpellLike && duration) payload.duration = duration;
+
+            if (isSpellLike) {
+                const hasComponents =
+                    entry.componentVerbal || entry.componentSomatic || entry.componentMaterial;
+                if (hasComponents) {
+                    payload.components = {
+                        verbal: entry.componentVerbal,
+                        somatic: entry.componentSomatic,
+                        material: entry.componentMaterial,
+                    };
+                }
+                const materials = entry.materials.trim();
+                if (materials) payload.materials = materials;
+                if (entry.concentration) payload.concentration = true;
+                if (entry.ritual) payload.ritual = true;
+            }
+
+            const requirements = entry.requirements.trim();
+            if (isAbilityLike && requirements) payload.requirements = requirements;
+            const effect = entry.effect.trim();
+            if (isAbilityLike && effect) payload.effect = effect;
+
+            const resourceCost: Record<string, unknown> = {};
+            if (entry.usesSpellSlot) resourceCost.uses_spell_slot = true;
+            const slotLevel = parseDraftInt(entry.slotLevel, 0, 9);
+            if (typeof slotLevel === "number") resourceCost.slot_level = slotLevel;
+            const charges = parseDraftInt(entry.charges, 0, 999);
+            if (typeof charges === "number") resourceCost.charges = charges;
+            if (entry.recharge === "short" || entry.recharge === "long") {
+                resourceCost.recharge = entry.recharge;
+            }
+            const pointsLabel = entry.pointsLabel.trim();
+            if (pointsLabel) resourceCost.points_label = pointsLabel;
+            const points = parseDraftInt(entry.points, 0, 999);
+            if (typeof points === "number") resourceCost.points = points;
+            if (Object.keys(resourceCost).length > 0) {
+                payload.resource_cost = resourceCost;
+            }
+
+            if (entry.saveType !== "none") {
+                const savePatch: Record<string, unknown> = {
+                    type: entry.saveType,
+                };
+                if (entry.saveAbility) savePatch.save_ability = entry.saveAbility;
+                if (entry.dcType === "fixed") {
+                    savePatch.dc_type = "fixed";
+                    const dcValue = parseDraftInt(entry.dcValue, 0, 99);
+                    if (typeof dcValue === "number") savePatch.dc_value = dcValue;
+                } else if (entry.dcType === "stat") {
+                    savePatch.dc_type = "stat";
+                    if (entry.dcStat) savePatch.dc_stat = entry.dcStat;
+                }
+                payload.save = savePatch;
+            }
+
+            const damageType = entry.damageType.trim();
+            const damageDice = entry.damageDice.trim();
+            const damageScaling = entry.damageScaling.trim();
+            if (damageType || damageDice || damageScaling) {
+                payload.damage = {
+                    damage_type: damageType || undefined,
+                    dice: damageDice || undefined,
+                    scaling: damageScaling || undefined,
+                };
+            }
+            return payload;
+        })
+        .filter((entry): entry is Record<string, unknown> => !!entry);
+
+    const itemPatch: Record<string, unknown> = {
+        target_item_name: targetItemName,
+        category: draft.category,
+        rarity: draft.rarity.trim() || undefined,
+        description: draft.description.trim() || undefined,
+        create_if_missing: draft.createIfMissing,
+        equippable: draft.equippable,
+        equipped: draft.equipped,
+        attachments_replace:
+            attachments.length > 0 ? attachments : undefined,
+    };
+
+    return [
+        {
+            operation: "update",
+            characterId: targetCharacterId,
+            note: "Borrador de entrenamiento editable en chat.",
+            data: {
+                item_patch: itemPatch,
+            },
+        },
+    ];
+}
+
 function makeMessage(
     role: ChatMessage["role"],
     text: string,
@@ -462,24 +1157,267 @@ export default function AIAssistantPanel({
     assistantContext,
     onApplied,
 }: AIAssistantPanelProps) {
+    const CLOSE_PANEL_THRESHOLD = 260;
+    const MIN_PANEL_WIDTH = 320;
+    const NORMAL_PANEL_DEFAULT_WIDTH = 420;
+    const NORMAL_PANEL_MAX_WIDTH = 560;
+    const WIDE_PANEL_DEFAULT_WIDTH = 1120;
+    const WIDE_PANEL_MAX_WIDTH = 1880;
+
     const [prompt, setPrompt] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
+    const [pendingPlanUsesTrainingEditor, setPendingPlanUsesTrainingEditor] =
+        useState(false);
+    const [assistantMode, setAssistantMode] = useState<AssistantMode>("normal");
+    const [trainingSubmode, setTrainingSubmode] =
+        useState<TrainingSubmode>("ai_prompt");
+    const [trainingDraft, setTrainingDraft] = useState<TrainingItemDraft>(
+        createEmptyTrainingItemDraft
+    );
+    const [trainingDraftTargetCharacterId, setTrainingDraftTargetCharacterId] = useState<
+        string | undefined
+    >(selectedCharacterId ?? undefined);
+    const [trainingDraftNotes, setTrainingDraftNotes] = useState("");
+    const [trainingDraftError, setTrainingDraftError] = useState<string | null>(null);
+    const [trainingEditorCollapsed, setTrainingEditorCollapsed] = useState(false);
+    const [trainingEditorCompact, setTrainingEditorCompact] = useState(false);
+    const [aiNoticeAcknowledged, setAiNoticeAcknowledged] = useState(false);
+    const [globalTrainingConsent, setGlobalTrainingConsent] = useState(false);
+    const [localEditMemories, setLocalEditMemories] = useState<LocalEditMemory[]>([]);
+    const [viewportWidth, setViewportWidth] = useState(0);
+    const [panelWidth, setPanelWidth] = useState(420);
+    const [resizing, setResizing] = useState(false);
+    const [floatingButtonPosition, setFloatingButtonPosition] =
+        useState<FloatingButtonPosition | null>(null);
+    const [draggingFloatingButton, setDraggingFloatingButton] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
+    const floatingButtonRef = useRef<HTMLButtonElement | null>(null);
+    const floatingButtonPositionRef = useRef<FloatingButtonPosition | null>(null);
+    const floatingButtonDragRef = useRef<FloatingButtonDragState | null>(null);
+    const skipNextFloatingButtonClickRef = useRef(false);
 
     const t = (es: string, en: string) => tr(locale, es, en);
-    const welcomeMessage = t(
-        "Hola. Soy tu asistente IA. Te propondré cambios y tú confirmas si se aplican.",
-        "Hi. I am your AI assistant. I will propose changes and you confirm before applying."
-    );
+    const getWelcomeMessage = (mode: AssistantMode) =>
+        mode === "training"
+            ? t(
+                  "Modo entrenamiento activo. Pásame tu prompt y te propongo una versión mejor para crear objetos, hechizos, rasgos o cualquier cambio.",
+                  "Training mode enabled. Send me your prompt and I will propose a better version to create objects, spells, traits, or any change."
+              )
+            : t(
+                  "Hola. Soy tu asistente IA. Te propondré cambios y tú confirmas si se aplican.",
+                  "Hi. I am your AI assistant. I will propose changes and you confirm before applying."
+              );
+    const welcomeMessage = getWelcomeMessage(assistantMode);
+    const promptPlaceholder =
+        assistantMode === "training" && trainingSubmode === "ai_prompt"
+            ? t(
+                  "Deja esto vacío para un reto automático, o indica tema: objeto de hielo para druida.",
+                  "Leave this empty for an automatic challenge, or provide a theme: ice object for druid."
+              )
+            : assistantMode === "training"
+              ? t(
+                    "Ejemplo: crea un borrador de objeto raro para Kaelden con 1 rasgo y 1 acción.",
+                    "Example: create a rare item draft for Kaelden with 1 trait and 1 action."
+                )
+            : t(
+                  "Ejemplo: crea un companion lobo nivel 2 y añade nota de trasfondo.",
+                  "Example: create a level 2 wolf companion and add a backstory note."
+              );
+    const sendLabel =
+        assistantMode === "training" && trainingSubmode === "ai_prompt"
+            ? t("Proponer reto", "Generate challenge")
+            : assistantMode === "training"
+              ? t("Generar borrador", "Generate draft")
+            : t("Proponer cambios", "Propose changes");
 
     const selectedLabel = useMemo(() => {
         if (!selectedCharacterId) return null;
         if (selectedCharacterName?.trim()) return selectedCharacterName.trim();
         return selectedCharacterId;
     }, [selectedCharacterId, selectedCharacterName]);
+    const noticeAckStorageKey = `${AI_NOTICE_ACK_STORAGE_KEY_PREFIX}:${campaignId}`;
+    const globalTrainingOptInStorageKey =
+        `${AI_GLOBAL_TRAINING_OPT_IN_STORAGE_KEY_PREFIX}:${campaignId}`;
+    const localEditMemoryStorageKey =
+        `${AI_LOCAL_EDIT_MEMORY_STORAGE_KEY_PREFIX}:${campaignId}`;
+    const floatingButtonStorageKey = `${AI_CHAT_BUTTON_POSITION_STORAGE_KEY_PREFIX}:${campaignId}:${
+        assistantContext?.surface ?? "default"
+    }`;
+
+    const isTraining = assistantMode === "training";
+    const activeTrainingReference = useMemo(() => {
+        if (!isTraining) return "";
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const entry = messages[index];
+            if (entry.role !== "assistant") continue;
+            const normalized = entry.text.toLowerCase();
+            if (
+                normalized.includes("prompt de práctica") ||
+                normalized.includes("prompt de practica") ||
+                normalized.includes("prompt recomendado") ||
+                normalized.includes("texto fuente (papel)") ||
+                normalized.includes("practice prompt") ||
+                normalized.includes("training challenge")
+            ) {
+                return entry.text;
+            }
+        }
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+            const entry = messages[index];
+            if (entry.role === "assistant" && entry.text.trim()) {
+                return entry.text.trim();
+            }
+        }
+        return "";
+    }, [isTraining, messages]);
+    const blocksByPendingPlan = !isTraining && !!pendingPlan;
+    const pendingPlanHasUserEdits = useMemo(() => {
+        if (!pendingPlan) return false;
+        if (pendingPlanUsesTrainingEditor) {
+            const currentActions = buildTrainingActionsFromDraft({
+                draft: trainingDraft,
+                targetCharacterId:
+                    trainingDraftTargetCharacterId ??
+                    pendingPlan.targetCharacterId ??
+                    selectedCharacterId ??
+                    undefined,
+            });
+            return !areProposedActionListsEqual(
+                pendingPlan.originalProposedActions,
+                currentActions
+            );
+        }
+        return false;
+    }, [
+        pendingPlan,
+        pendingPlanUsesTrainingEditor,
+        selectedCharacterId,
+        trainingDraft,
+        trainingDraftTargetCharacterId,
+    ]);
+    const pendingPlanTrainingPreviewActions = useMemo(() => {
+        if (!pendingPlan || !pendingPlanUsesTrainingEditor) return [] as ProposedAction[];
+        return buildTrainingActionsFromDraft({
+            draft: trainingDraft,
+            targetCharacterId:
+                trainingDraftTargetCharacterId ??
+                pendingPlan.targetCharacterId ??
+                selectedCharacterId ??
+                undefined,
+        });
+    }, [
+        pendingPlan,
+        pendingPlanUsesTrainingEditor,
+        selectedCharacterId,
+        trainingDraft,
+        trainingDraftTargetCharacterId,
+    ]);
+    const showTrainingLikeStructureEditor =
+        isTraining || (!!pendingPlan && pendingPlanUsesTrainingEditor);
+    const defaultPanelWidth = showTrainingLikeStructureEditor
+        ? WIDE_PANEL_DEFAULT_WIDTH
+        : NORMAL_PANEL_DEFAULT_WIDTH;
+    const isDesktopViewport = viewportWidth >= 768;
+    const draftDescriptionRows = trainingEditorCompact ? 2 : 3;
+    const attachmentDescriptionRows = trainingEditorCompact ? 1 : 2;
+    const attachmentsMaxHeightClass = trainingEditorCompact
+        ? "max-h-36"
+        : "max-h-56";
+
+    const clampPanelWidth = (value: number, mode: AssistantMode = assistantMode) => {
+        const maxByViewport =
+            viewportWidth > 0
+                ? Math.max(MIN_PANEL_WIDTH, viewportWidth - 8)
+                : WIDE_PANEL_DEFAULT_WIDTH;
+        const wideLayoutActive =
+            mode === "training" || showTrainingLikeStructureEditor;
+        const modeMax = wideLayoutActive ? WIDE_PANEL_MAX_WIDTH : NORMAL_PANEL_MAX_WIDTH;
+        const max = Math.min(maxByViewport, modeMax);
+        return Math.min(Math.max(value, MIN_PANEL_WIDTH), max);
+    };
+
+    const clampFloatingButtonPosition = (
+        position: FloatingButtonPosition
+    ): FloatingButtonPosition => {
+        if (typeof window === "undefined") return position;
+        const margin = 8;
+        const fallbackWidth = 150;
+        const fallbackHeight = 52;
+        const buttonWidth = floatingButtonRef.current?.offsetWidth ?? fallbackWidth;
+        const buttonHeight = floatingButtonRef.current?.offsetHeight ?? fallbackHeight;
+        const maxLeft = Math.max(
+            margin,
+            window.innerWidth - Math.max(buttonWidth, margin * 2) - margin
+        );
+        const maxTop = Math.max(
+            margin,
+            window.innerHeight - Math.max(buttonHeight, margin * 2) - margin
+        );
+        return {
+            left: Math.min(Math.max(position.left, margin), maxLeft),
+            top: Math.min(Math.max(position.top, margin), maxTop),
+        };
+    };
+
+    const getDefaultFloatingButtonPosition = (): FloatingButtonPosition => {
+        if (typeof window === "undefined") {
+            return { left: 0, top: 0 };
+        }
+        const fallbackWidth = 150;
+        const fallbackHeight = 52;
+        const buttonWidth = floatingButtonRef.current?.offsetWidth ?? fallbackWidth;
+        const buttonHeight = floatingButtonRef.current?.offsetHeight ?? fallbackHeight;
+        return clampFloatingButtonPosition({
+            left: window.innerWidth - buttonWidth - 8,
+            top: window.innerHeight / 2 - buttonHeight / 2,
+        });
+    };
+
+    function persistFloatingButtonPosition(position: FloatingButtonPosition) {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem(floatingButtonStorageKey, JSON.stringify(position));
+        } catch {
+            // ignore storage errors
+        }
+    }
+
+    function handleFloatingButtonMouseDown(event: ReactMouseEvent<HTMLButtonElement>) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        floatingButtonDragRef.current = {
+            startMouseX: event.clientX,
+            startMouseY: event.clientY,
+            startLeft: rect.left,
+            startTop: rect.top,
+            moved: false,
+        };
+        setDraggingFloatingButton(true);
+    }
+
+    useEffect(() => {
+        floatingButtonPositionRef.current = floatingButtonPosition;
+    }, [floatingButtonPosition]);
+
+    function resetPanelWidthForMode(mode: AssistantMode) {
+        const target =
+            mode === "training" || showTrainingLikeStructureEditor
+                ? WIDE_PANEL_DEFAULT_WIDTH
+                : NORMAL_PANEL_DEFAULT_WIDTH;
+        setPanelWidth(clampPanelWidth(target, mode));
+    }
+
+    function handleResizeMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+        if (!isDesktopViewport) return;
+        event.preventDefault();
+        resizeStartRef.current = { x: event.clientX, width: panelWidth };
+        setResizing(true);
+    }
 
     useEffect(() => {
         if (!open) return;
@@ -493,8 +1431,271 @@ export default function AIAssistantPanel({
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }, [messages, open]);
 
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const syncViewport = () => setViewportWidth(window.innerWidth);
+        syncViewport();
+        window.addEventListener("resize", syncViewport);
+        return () => window.removeEventListener("resize", syncViewport);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const raw = window.localStorage.getItem(floatingButtonStorageKey);
+            if (!raw) {
+                setFloatingButtonPosition(getDefaultFloatingButtonPosition());
+                return;
+            }
+
+            const parsed = JSON.parse(raw) as
+                | { left?: unknown; top?: unknown }
+                | null
+                | undefined;
+            const left = Number(parsed?.left);
+            const top = Number(parsed?.top);
+            if (!Number.isFinite(left) || !Number.isFinite(top)) {
+                setFloatingButtonPosition(getDefaultFloatingButtonPosition());
+                return;
+            }
+
+            setFloatingButtonPosition(
+                clampFloatingButtonPosition({
+                    left,
+                    top,
+                })
+            );
+        } catch {
+            setFloatingButtonPosition(getDefaultFloatingButtonPosition());
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [floatingButtonStorageKey]);
+
+    useEffect(() => {
+        if (!floatingButtonPosition) return;
+        setFloatingButtonPosition((prev) => {
+            if (!prev) return prev;
+            const next = clampFloatingButtonPosition(prev);
+            if (next.left === prev.left && next.top === prev.top) return prev;
+            return next;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewportWidth]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const savedAck = window.localStorage.getItem(noticeAckStorageKey);
+            const savedOptIn = window.localStorage.getItem(globalTrainingOptInStorageKey);
+            const savedLocalMemory = window.localStorage.getItem(localEditMemoryStorageKey);
+            setAiNoticeAcknowledged(savedAck === "1");
+            setGlobalTrainingConsent(savedOptIn === "1");
+            if (savedLocalMemory) {
+                const parsed = JSON.parse(savedLocalMemory);
+                const entries = Array.isArray(parsed)
+                    ? parsed
+                          .map((entry) =>
+                              isRecord(entry)
+                                  ? {
+                                        id: asString(entry.id, 64) ?? "",
+                                        timestamp:
+                                            asString(entry.timestamp, 40) ??
+                                            new Date().toISOString(),
+                                        summary: asString(entry.summary, 500) ?? "",
+                                    }
+                                  : null
+                          )
+                          .filter(
+                              (entry): entry is LocalEditMemory =>
+                                  !!entry && !!entry.id && !!entry.summary
+                          )
+                          .slice(0, 40)
+                    : [];
+                setLocalEditMemories(entries);
+            } else {
+                setLocalEditMemories([]);
+            }
+        } catch {
+            setAiNoticeAcknowledged(false);
+            setGlobalTrainingConsent(false);
+            setLocalEditMemories([]);
+        }
+    }, [globalTrainingOptInStorageKey, localEditMemoryStorageKey, noticeAckStorageKey]);
+
+    useEffect(() => {
+        if (!open) return;
+        setPanelWidth((prev) => {
+            if (!prev || Number.isNaN(prev)) {
+                return clampPanelWidth(defaultPanelWidth);
+            }
+            return clampPanelWidth(prev);
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, viewportWidth]);
+
+    useEffect(() => {
+        resetPanelWidthForMode(assistantMode);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assistantMode]);
+
+    useEffect(() => {
+        if (trainingDraftTargetCharacterId) return;
+        if (!selectedCharacterId) return;
+        setTrainingDraftTargetCharacterId(selectedCharacterId);
+    }, [selectedCharacterId, trainingDraftTargetCharacterId]);
+
+    useEffect(() => {
+        if (!resizing || !isDesktopViewport) return;
+
+        const handleMove = (event: MouseEvent) => {
+            const start = resizeStartRef.current;
+            if (!start) return;
+            const delta = start.x - event.clientX;
+            const candidate = start.width + delta;
+            if (candidate < CLOSE_PANEL_THRESHOLD) {
+                setResizing(false);
+                resizeStartRef.current = null;
+                onOpenChange(false);
+                return;
+            }
+            setPanelWidth(clampPanelWidth(candidate));
+        };
+
+        const handleUp = () => {
+            setResizing(false);
+            resizeStartRef.current = null;
+        };
+
+        window.addEventListener("mousemove", handleMove);
+        window.addEventListener("mouseup", handleUp);
+        return () => {
+            window.removeEventListener("mousemove", handleMove);
+            window.removeEventListener("mouseup", handleUp);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resizing, isDesktopViewport, assistantMode, viewportWidth]);
+
+    useEffect(() => {
+        if (!draggingFloatingButton) return;
+
+        const handleMove = (event: MouseEvent) => {
+            const start = floatingButtonDragRef.current;
+            if (!start) return;
+            const deltaX = event.clientX - start.startMouseX;
+            const deltaY = event.clientY - start.startMouseY;
+            if (Math.abs(deltaX) + Math.abs(deltaY) > 3) {
+                start.moved = true;
+            }
+            const next = clampFloatingButtonPosition({
+                left: start.startLeft + deltaX,
+                top: start.startTop + deltaY,
+            });
+            setFloatingButtonPosition(next);
+        };
+
+        const handleUp = () => {
+            const start = floatingButtonDragRef.current;
+            floatingButtonDragRef.current = null;
+            setDraggingFloatingButton(false);
+
+            if (!start || !start.moved) {
+                skipNextFloatingButtonClickRef.current = false;
+                return;
+            }
+
+            skipNextFloatingButtonClickRef.current = true;
+            window.setTimeout(() => {
+                skipNextFloatingButtonClickRef.current = false;
+            }, 0);
+            const finalPosition = clampFloatingButtonPosition(
+                floatingButtonPositionRef.current ?? {
+                    left: start.startLeft,
+                    top: start.startTop,
+                }
+            );
+            setFloatingButtonPosition(finalPosition);
+            persistFloatingButtonPosition(finalPosition);
+        };
+
+        window.addEventListener("mousemove", handleMove);
+        window.addEventListener("mouseup", handleUp);
+        return () => {
+            window.removeEventListener("mousemove", handleMove);
+            window.removeEventListener("mouseup", handleUp);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draggingFloatingButton]);
+
     function closeDrawer() {
         onOpenChange(false);
+    }
+
+    function handleAcknowledgeAiNotice() {
+        setAiNoticeAcknowledged(true);
+        if (typeof window !== "undefined") {
+            try {
+                window.localStorage.setItem(noticeAckStorageKey, "1");
+            } catch {
+                // ignore storage errors
+            }
+        }
+    }
+
+    function handleGlobalTrainingConsentToggle(nextValue: boolean) {
+        setGlobalTrainingConsent(nextValue);
+        if (typeof window !== "undefined") {
+            try {
+                window.localStorage.setItem(
+                    globalTrainingOptInStorageKey,
+                    nextValue ? "1" : "0"
+                );
+            } catch {
+                // ignore storage errors
+            }
+        }
+        if (nextValue && !aiNoticeAcknowledged) {
+            handleAcknowledgeAiNotice();
+        }
+    }
+
+    function storeLocalEditMemory(summary: string) {
+        const trimmedSummary = summary.trim();
+        if (!trimmedSummary) return;
+        const entry: LocalEditMemory = {
+            id: makeDraftId("learn"),
+            timestamp: new Date().toISOString(),
+            summary: trimmedSummary.slice(0, 500),
+        };
+        setLocalEditMemories((prev) => {
+            const next = [entry, ...prev].slice(0, 40);
+            if (typeof window !== "undefined") {
+                try {
+                    window.localStorage.setItem(
+                        localEditMemoryStorageKey,
+                        JSON.stringify(next)
+                    );
+                } catch {
+                    // ignore storage errors
+                }
+            }
+            return next;
+        });
+    }
+
+    function handleResetPendingPlanStructureEditor() {
+        if (!pendingPlan) return;
+        const parsed = parseTrainingDraftFromActions(
+            pendingPlan.originalProposedActions
+        );
+        if (!parsed) return;
+        setTrainingDraft(parsed.draft);
+        setTrainingDraftTargetCharacterId(
+            parsed.characterId ??
+                pendingPlan.targetCharacterId ??
+                selectedCharacterId ??
+                undefined
+        );
+        setTrainingDraftError(null);
     }
 
     function handleClearConversation() {
@@ -502,7 +1703,164 @@ export default function AIAssistantPanel({
         setPrompt("");
         setError(null);
         setPendingPlan(null);
+        setPendingPlanUsesTrainingEditor(false);
+        setTrainingDraft(createEmptyTrainingItemDraft());
+        setTrainingDraftTargetCharacterId(selectedCharacterId ?? undefined);
+        setTrainingDraftNotes("");
+        setTrainingDraftError(null);
+        setTrainingEditorCollapsed(false);
         setMessages([makeMessage("assistant", welcomeMessage)]);
+    }
+
+    function handleAssistantModeChange(mode: AssistantMode) {
+        if (loading || mode === assistantMode) return;
+        setAssistantMode(mode);
+        setTrainingSubmode("ai_prompt");
+        resetPanelWidthForMode(mode);
+        setPrompt("");
+        setError(null);
+        setPendingPlan(null);
+        setPendingPlanUsesTrainingEditor(false);
+        setTrainingDraft(createEmptyTrainingItemDraft());
+        setTrainingDraftTargetCharacterId(selectedCharacterId ?? undefined);
+        setTrainingDraftNotes("");
+        setTrainingDraftError(null);
+        setTrainingEditorCollapsed(false);
+        setMessages([makeMessage("assistant", getWelcomeMessage(mode))]);
+    }
+
+    function handleTrainingSubmodeChange(mode: TrainingSubmode) {
+        if (loading || mode === trainingSubmode) return;
+        setTrainingSubmode(mode);
+        setError(null);
+        setTrainingDraftError(null);
+        setTrainingEditorCollapsed(false);
+        setPrompt("");
+        if (mode === "ai_prompt") {
+            setTrainingDraft(createEmptyTrainingItemDraft());
+            setTrainingDraftTargetCharacterId(selectedCharacterId ?? undefined);
+            setTrainingDraftNotes("");
+            setMessages((prev) => [
+                ...prev,
+                makeMessage(
+                    "assistant",
+                    t(
+                        "Submodo activo: la IA te propone ejercicios y prompts para que practiques creando tú el objeto en el chat.",
+                        "Submode active: AI proposes exercises/prompts so you can practice creating the item yourself in chat."
+                    )
+                ),
+            ]);
+            return;
+        }
+        setMessages((prev) => [
+            ...prev,
+            makeMessage(
+                "assistant",
+                t(
+                    "Submodo activo: sandbox de borrador. La IA crea ejemplos y tú los editas aquí en el chat. No se aplicará nada real.",
+                    "Submode active: draft sandbox. AI creates examples and you edit them here in chat. Nothing real will be applied."
+                )
+            ),
+        ]);
+    }
+
+    function buildComposedPrompt(baseInstruction: string, contextMessages: ChatMessage[]) {
+        const recentContext = contextMessages
+            .slice(-4)
+            .map((entry) =>
+                `${entry.role === "user" ? "Usuario" : "Asistente"}: ${entry.text}`
+            )
+            .join("\n");
+        const compactRecentContext =
+            recentContext.length > 1400
+                ? recentContext.slice(recentContext.length - 1400)
+                : recentContext;
+        const localLearningHintsRaw = localEditMemories
+            .slice(0, 4)
+            .map((entry) => `- ${entry.summary}`)
+            .join("\n");
+        const localLearningHints =
+            localLearningHintsRaw.length > 1200
+                ? `${localLearningHintsRaw.slice(0, 1197)}...`
+                : localLearningHintsRaw;
+        return [
+            `Instruccion actual del usuario: ${baseInstruction}`,
+            compactRecentContext ? `Contexto reciente:\n${compactRecentContext}` : null,
+            localLearningHints
+                ? `Preferencias aprendidas de correcciones anteriores del usuario (aplícalas si encajan):\n${localLearningHints}`
+                : null,
+        ]
+            .filter((entry): entry is string => !!entry)
+            .join("\n\n");
+    }
+
+    async function runAssistantRequest({
+        instruction,
+        nextMessages,
+    }: {
+        instruction: string;
+        nextMessages: ChatMessage[];
+    }) {
+        const accessToken = await getAccessToken();
+        const composedPrompt = buildComposedPrompt(instruction, nextMessages);
+        const payload = await postAssistant(accessToken, {
+            prompt: composedPrompt,
+            targetCharacterId: selectedCharacterId ?? undefined,
+            clientContext: assistantContext ?? undefined,
+            assistantMode,
+            trainingSubmode: isTraining ? trainingSubmode : undefined,
+            apply: false,
+        });
+
+        const reply =
+            payload?.reply?.trim() || t("He preparado una propuesta.", "I prepared a proposal.");
+        const proposedActions = sanitizeProposedActions(payload?.proposedActions);
+        setMessages((prev) => [
+            ...prev,
+            makeMessage("assistant", reply, {
+                proposedActions,
+            }),
+        ]);
+
+        if (isTraining) {
+            setPendingPlan(null);
+            const parsedDraft = parseTrainingDraftFromActions(proposedActions);
+            if (parsedDraft) {
+                setTrainingDraft(parsedDraft.draft);
+                setTrainingDraftTargetCharacterId(
+                    parsedDraft.characterId ?? selectedCharacterId ?? undefined
+                );
+            } else if (proposedActions.length === 0) {
+                setTrainingDraft(createEmptyTrainingItemDraft());
+                setTrainingDraftTargetCharacterId(selectedCharacterId ?? undefined);
+            }
+            setTrainingDraftError(null);
+            return;
+        }
+
+        if (proposedActions.length > 0) {
+            const parsedPendingDraft = parseTrainingDraftFromActions(proposedActions);
+            if (parsedPendingDraft) {
+                setTrainingDraft(parsedPendingDraft.draft);
+                setTrainingDraftTargetCharacterId(
+                    parsedPendingDraft.characterId ?? selectedCharacterId ?? undefined
+                );
+                setPendingPlanUsesTrainingEditor(true);
+                setTrainingDraftError(null);
+            } else {
+                setPendingPlanUsesTrainingEditor(false);
+            }
+            setPendingPlan({
+                prompt: composedPrompt,
+                targetCharacterId: selectedCharacterId ?? undefined,
+                originalProposedActions: proposedActions,
+                editorDrafts: createPendingActionEditorDrafts(proposedActions),
+                previewReply: reply,
+            });
+        } else {
+            setPendingPlan(null);
+            setPendingPlanUsesTrainingEditor(false);
+        }
     }
 
     async function getAccessToken() {
@@ -522,7 +1880,11 @@ export default function AIAssistantPanel({
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${accessToken}`,
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify({
+                ...body,
+                globalTrainingConsent,
+                aiUsageNoticeAccepted: aiNoticeAcknowledged,
+            }),
         });
 
         const payload = (await res.json().catch(() => null)) as AssistantPayload | null;
@@ -543,7 +1905,7 @@ export default function AIAssistantPanel({
 
     async function handleRunAssistant() {
         if (loading) return;
-        if (pendingPlan) {
+        if (blocksByPendingPlan) {
             setError(
                 t(
                     "Confirma o cancela los cambios pendientes antes de enviar otra instruccion.",
@@ -554,12 +1916,20 @@ export default function AIAssistantPanel({
         }
 
         const trimmed = prompt.trim();
-        if (!trimmed) {
+        const autoInstruction =
+            isTraining && trainingSubmode === "ai_prompt"
+                ? t(
+                      "Propón un ejercicio de entrenamiento para crear o editar un objeto en esta web. Devuelve un prompt claro que yo pueda copiar y responder, y una lista corta de criterios de validación.",
+                      "Propose a training exercise to create or edit an item in this app. Return a clear prompt I can copy and answer, and a short validation checklist."
+                  )
+                : "";
+        const instruction = trimmed || autoInstruction;
+        if (!instruction) {
             setError(t("Escribe una instruccion para el asistente.", "Write an instruction for the assistant."));
             return;
         }
 
-        const userMessage = makeMessage("user", trimmed);
+        const userMessage = makeMessage("user", trimmed || t("Dame un ejercicio de entrenamiento.", "Give me a training challenge."));
         const nextMessages = [...messages, userMessage];
         setMessages(nextMessages);
         setPrompt("");
@@ -567,57 +1937,7 @@ export default function AIAssistantPanel({
         setError(null);
 
         try {
-            const accessToken = await getAccessToken();
-
-            const recentContext = nextMessages
-                .slice(-4)
-                .map((entry) =>
-                    `${entry.role === "user" ? "Usuario" : "Asistente"}: ${entry.text}`
-                )
-                .join("\n");
-            const compactRecentContext =
-                recentContext.length > 1400
-                    ? recentContext.slice(recentContext.length - 1400)
-                    : recentContext;
-
-            const composedPrompt = [
-                `Instruccion actual del usuario: ${trimmed}`,
-                compactRecentContext
-                    ? `Contexto reciente:\n${compactRecentContext}`
-                    : null,
-            ]
-                .filter((entry): entry is string => !!entry)
-                .join("\n\n");
-
-            const payload = await postAssistant(accessToken, {
-                prompt: composedPrompt,
-                targetCharacterId: selectedCharacterId ?? undefined,
-                clientContext: assistantContext ?? undefined,
-                apply: false,
-            });
-
-            const reply =
-                payload?.reply?.trim() ||
-                t("He preparado una propuesta.", "I prepared a proposal.");
-            const proposedActions = sanitizeProposedActions(payload?.proposedActions);
-
-            setMessages((prev) => [
-                ...prev,
-                makeMessage("assistant", reply, {
-                    proposedActions,
-                }),
-            ]);
-
-            if (proposedActions.length > 0) {
-                setPendingPlan({
-                    prompt: composedPrompt,
-                    targetCharacterId: selectedCharacterId ?? undefined,
-                    proposedActions,
-                    previewReply: reply,
-                });
-            } else {
-                setPendingPlan(null);
-            }
+            await runAssistantRequest({ instruction, nextMessages });
         } catch (err: unknown) {
             const message =
                 err instanceof Error
@@ -631,7 +1951,48 @@ export default function AIAssistantPanel({
     }
 
     async function handleApplyPendingPlan() {
+        if (isTraining) {
+            setError(
+                t(
+                    "En modo entrenamiento no se aplican cambios reales.",
+                    "Training mode never applies real changes."
+                )
+            );
+            return;
+        }
         if (loading || !pendingPlan) return;
+        let actionsToApply: ProposedAction[] = [];
+        if (pendingPlanUsesTrainingEditor) {
+            actionsToApply = buildTrainingActionsFromDraft({
+                draft: trainingDraft,
+                targetCharacterId:
+                    trainingDraftTargetCharacterId ??
+                    pendingPlan.targetCharacterId ??
+                    selectedCharacterId ??
+                    undefined,
+            });
+            if (actionsToApply.length === 0) {
+                setError(
+                    t(
+                        "No hay acciones válidas para aplicar desde el editor.",
+                        "There are no valid actions to apply from the editor."
+                    )
+                );
+                return;
+            }
+        } else {
+            actionsToApply = pendingPlan.originalProposedActions;
+        }
+        const hasUserEdits = !areProposedActionListsEqual(
+            pendingPlan.originalProposedActions,
+            actionsToApply
+        );
+        const proposalEditSummary = hasUserEdits
+            ? summarizeProposedActionEdits(
+                  pendingPlan.originalProposedActions,
+                  actionsToApply
+              )
+            : "";
         setLoading(true);
         setError(null);
 
@@ -641,8 +2002,13 @@ export default function AIAssistantPanel({
                 prompt: pendingPlan.prompt,
                 targetCharacterId: pendingPlan.targetCharacterId,
                 clientContext: assistantContext ?? undefined,
+                assistantMode,
+                trainingSubmode: isTraining ? trainingSubmode : undefined,
                 apply: true,
-                proposedActions: pendingPlan.proposedActions,
+                proposedActions: actionsToApply,
+                originalProposedActions: pendingPlan.originalProposedActions,
+                userEditedProposal: hasUserEdits,
+                proposalEditSummary,
                 previewReply: pendingPlan.previewReply,
             });
 
@@ -658,6 +2024,34 @@ export default function AIAssistantPanel({
                 }),
             ]);
             setPendingPlan(null);
+            setPendingPlanUsesTrainingEditor(false);
+            if (hasUserEdits) {
+                const sourceInstruction = pendingPlan.prompt
+                    .replace("Instruccion actual del usuario:", "")
+                    .split("\n")[0]
+                    ?.trim();
+                const summaryLine =
+                    proposalEditSummary ||
+                    t(
+                        "Se editó la propuesta antes de aplicar.",
+                        "The proposal was edited before applying."
+                    );
+                storeLocalEditMemory(
+                    sourceInstruction
+                        ? `${sourceInstruction} -> ${summaryLine}`
+                        : summaryLine
+                );
+                setMessages((prev) => [
+                    ...prev,
+                    makeMessage(
+                        "assistant",
+                        t(
+                            "He guardado esta corrección como preferencia para próximas propuestas.",
+                            "I saved this correction as a preference for future proposals."
+                        )
+                    ),
+                ]);
+            }
 
             const hasApplied = results.some((entry) => entry.status === "applied");
             if (hasApplied) {
@@ -678,6 +2072,7 @@ export default function AIAssistantPanel({
     function handleCancelPendingPlan() {
         if (loading || !pendingPlan) return;
         setPendingPlan(null);
+        setPendingPlanUsesTrainingEditor(false);
         setError(null);
         setMessages((prev) => [
             ...prev,
@@ -691,15 +2086,266 @@ export default function AIAssistantPanel({
         ]);
     }
 
+    function handlePreviewTrainingDraft() {
+        if (!isTraining) return;
+        const parsed = buildTrainingActionsFromDraft({
+            draft: trainingDraft,
+            targetCharacterId:
+                trainingDraftTargetCharacterId ?? selectedCharacterId ?? undefined,
+        });
+        if (parsed.length === 0) {
+            setTrainingDraftError(
+                t(
+                    "Falta al menos el nombre del objeto para previsualizar.",
+                    "At least the item name is required for preview."
+                )
+            );
+            return;
+        }
+        setTrainingDraftError(null);
+        setMessages((prev) => [
+            ...prev,
+            makeMessage(
+                "assistant",
+                t(
+                    "Vista previa local del borrador de entrenamiento (no se aplicará).",
+                    "Local preview of the training draft (will not be applied)."
+                ),
+                { proposedActions: parsed }
+            ),
+        ]);
+    }
+
+    function handlePreviewPendingPlanStructureDraft() {
+        if (isTraining || !pendingPlan || !pendingPlanUsesTrainingEditor) return;
+        const parsed = buildTrainingActionsFromDraft({
+            draft: trainingDraft,
+            targetCharacterId:
+                trainingDraftTargetCharacterId ??
+                pendingPlan.targetCharacterId ??
+                selectedCharacterId ??
+                undefined,
+        });
+        if (parsed.length === 0) {
+            setError(
+                t(
+                    "Falta al menos el nombre del objeto para previsualizar.",
+                    "At least the item name is required for preview."
+                )
+            );
+            return;
+        }
+        setError(null);
+        setMessages((prev) => [
+            ...prev,
+            makeMessage(
+                "assistant",
+                t(
+                    "Vista previa local de la edición pendiente antes de aplicar.",
+                    "Local preview of pending edits before applying."
+                ),
+                { proposedActions: parsed }
+            ),
+        ]);
+    }
+
+    async function handleRequestTrainingDraftRevision() {
+        if (loading || !isTraining) return;
+        try {
+            const parsed = buildTrainingActionsFromDraft({
+                draft: trainingDraft,
+                targetCharacterId:
+                    trainingDraftTargetCharacterId ?? selectedCharacterId ?? undefined,
+            });
+            if (parsed.length === 0) {
+                setTrainingDraftError(
+                    t(
+                        "Falta al menos el nombre del objeto para revisar el borrador.",
+                        "At least the item name is required to revise the draft."
+                    )
+                );
+                return;
+            }
+
+            const adjustment =
+                trainingDraftNotes.trim() ||
+                t(
+                    "Mejora este borrador y devuélvelo más limpio y estructurado.",
+                    "Improve this draft and return it cleaner and structured."
+                );
+            const userText = t(
+                `Revisar borrador: ${adjustment}`,
+                `Revise draft: ${adjustment}`
+            );
+            const draftPayload = JSON.stringify(parsed, null, 2);
+            const instruction = [
+                "MODO ENTRENAMIENTO SANDBOX (NO aplicar cambios reales).",
+                `Ajustes del usuario: ${adjustment}`,
+                "Borrador actual de acciones (JSON):",
+                "```json",
+                draftPayload,
+                "```",
+                "Devuelve un reply corto y acciones actualizadas para seguir editando en el chat.",
+            ].join("\n\n");
+
+            const userMessage = makeMessage("user", userText);
+            const nextMessages = [...messages, userMessage];
+            setMessages(nextMessages);
+            setLoading(true);
+            setError(null);
+            setTrainingDraftError(null);
+
+            await runAssistantRequest({ instruction, nextMessages });
+        } catch (err: unknown) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : t(
+                          "Error revisando el borrador.",
+                          "Error reviewing draft."
+                      );
+            setError(message);
+            setMessages((prev) => [...prev, makeMessage("assistant", message)]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function handleClearTrainingDraft() {
+        if (loading) return;
+        setTrainingDraft(createEmptyTrainingItemDraft());
+        setTrainingDraftTargetCharacterId(selectedCharacterId ?? undefined);
+        setTrainingDraftNotes("");
+        setTrainingDraftError(null);
+    }
+
+    function handleTrainingDraftFieldChange(
+        field: Exclude<keyof TrainingItemDraft, "attachments">,
+        value: string | boolean
+    ) {
+        setTrainingDraft((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    }
+
+    function handleTrainingAttachmentChange(
+        attachmentId: string,
+        field: keyof Omit<TrainingAttachmentDraft, "id">,
+        value: string | boolean
+    ) {
+        setTrainingDraft((prev) => ({
+            ...prev,
+            attachments: prev.attachments.map((entry) =>
+                entry.id === attachmentId
+                    ? (() => {
+                          if (field === "type" && typeof value === "string") {
+                              const nextType = normalizeDraftAttachmentType(value);
+                              const nextLevel =
+                                  nextType === "cantrip"
+                                      ? "0"
+                                      : entry.level === "0"
+                                        ? ""
+                                        : entry.level;
+                              const nextActionType = isTrainingDraftAbilityLike(nextType)
+                                  ? entry.actionType || "action"
+                                  : "";
+                              return {
+                                  ...entry,
+                                  type: nextType,
+                                  level: nextLevel,
+                                  actionType: nextActionType,
+                              };
+                          }
+                          return {
+                              ...entry,
+                              [field]: value,
+                          };
+                      })()
+                    : entry
+            ),
+        }));
+    }
+
+    function handleAddTrainingAttachment() {
+        setTrainingDraft((prev) => ({
+            ...prev,
+            attachments: [...prev.attachments, createEmptyTrainingAttachmentDraft()],
+        }));
+    }
+
+    function handleRemoveTrainingAttachment(attachmentId: string) {
+        setTrainingDraft((prev) => {
+            const next = prev.attachments.filter((entry) => entry.id !== attachmentId);
+            return {
+                ...prev,
+                attachments:
+                    next.length > 0 ? next : [createEmptyTrainingAttachmentDraft()],
+            };
+        });
+    }
+
+    async function handleApproveTrainingDraft() {
+        if (loading || !isTraining) return;
+        const approvalInstruction = t(
+            "Está correcto, ejercicio validado.",
+            "It is correct, exercise validated."
+        );
+        const userMessage = makeMessage("user", approvalInstruction);
+        const nextMessages = [...messages, userMessage];
+        setMessages(nextMessages);
+        setLoading(true);
+        setError(null);
+        setTrainingDraftError(null);
+        try {
+            await runAssistantRequest({
+                instruction: approvalInstruction,
+                nextMessages,
+            });
+        } catch (err: unknown) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : t("Error ejecutando el asistente.", "Error running assistant.");
+            setError(message);
+            setMessages((prev) => [...prev, makeMessage("assistant", message)]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     return (
         <>
             {!open && (
                 <button
+                    ref={floatingButtonRef}
                     type="button"
-                    onClick={() => onOpenChange(true)}
-                    className="fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-l-xl border border-r-0 border-accent/40 bg-panel/95 px-3 py-3 shadow-[0_10px_24px_rgba(45,29,12,0.2)] hover:bg-white"
+                    onMouseDown={handleFloatingButtonMouseDown}
+                    onClick={() => {
+                        if (skipNextFloatingButtonClickRef.current) {
+                            skipNextFloatingButtonClickRef.current = false;
+                            return;
+                        }
+                        onOpenChange(true);
+                    }}
+                    className={`fixed z-40 rounded-xl border border-accent/40 bg-panel/95 px-3 py-3 shadow-[0_10px_24px_rgba(45,29,12,0.2)] hover:bg-white ${
+                        floatingButtonPosition ? "" : "right-0 top-1/2 -translate-y-1/2"
+                    } ${draggingFloatingButton ? "cursor-grabbing" : "cursor-grab"}`}
+                    style={
+                        floatingButtonPosition
+                            ? {
+                                  left: `${floatingButtonPosition.left}px`,
+                                  top: `${floatingButtonPosition.top}px`,
+                                  right: "auto",
+                                  transform: "none",
+                              }
+                            : undefined
+                    }
                     aria-label={t("Abrir chat de IA", "Open AI chat")}
-                    title={t("Chat IA", "AI chat")}
+                    title={t(
+                        "Chat IA (arrastra para mover)",
+                        "AI chat (drag to move)"
+                    )}
                 >
                     <span className="inline-flex items-center gap-2 text-xs font-medium text-ink">
                         <Sparkles className="h-4 w-4 text-accent" />
@@ -718,11 +2364,22 @@ export default function AIAssistantPanel({
             )}
 
             <aside
-                className={`fixed inset-y-0 right-0 z-50 w-full max-w-[420px] border-l border-ring bg-panel/95 shadow-[-12px_0_28px_rgba(45,29,12,0.2)] transition-transform duration-200 ${
+                className={`fixed inset-y-0 right-0 z-50 w-full md:w-auto border-l border-ring bg-panel/95 shadow-[-12px_0_28px_rgba(45,29,12,0.2)] transition-transform duration-200 ${
                     open ? "translate-x-0" : "translate-x-full pointer-events-none"
                 }`}
+                style={isDesktopViewport ? { width: clampPanelWidth(panelWidth) } : undefined}
                 aria-hidden={!open}
             >
+                <div
+                    className={`absolute left-0 top-0 hidden h-full w-2 -translate-x-1/2 cursor-col-resize md:block ${
+                        resizing ? "bg-accent/20" : "bg-transparent"
+                    }`}
+                    onMouseDown={handleResizeMouseDown}
+                    aria-hidden
+                    title={t("Redimensionar panel", "Resize panel")}
+                >
+                    <div className="mx-auto mt-2 h-12 w-1 rounded-full bg-ring/80" />
+                </div>
                 <div className="flex h-full flex-col">
                     <header className="border-b border-ring px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
@@ -764,6 +2421,127 @@ export default function AIAssistantPanel({
                             <p className="mt-2 text-[11px] text-ink-muted">
                                 {t("Objetivo actual:", "Current target:")} <span className="font-medium text-ink">{selectedLabel}</span>
                             </p>
+                        )}
+                        <div className="mt-2 inline-flex rounded-md border border-ring bg-white/70 p-0.5">
+                            <button
+                                type="button"
+                                onClick={() => handleAssistantModeChange("normal")}
+                                disabled={loading}
+                                className={`rounded px-2 py-1 text-[11px] ${
+                                    assistantMode === "normal"
+                                        ? "bg-accent/20 text-ink"
+                                        : "text-ink-muted hover:bg-white/80"
+                                } disabled:opacity-60`}
+                            >
+                                {t("Normal", "Normal")}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleAssistantModeChange("training")}
+                                disabled={loading}
+                                className={`rounded px-2 py-1 text-[11px] ${
+                                    assistantMode === "training"
+                                        ? "bg-accent/20 text-ink"
+                                        : "text-ink-muted hover:bg-white/80"
+                                } disabled:opacity-60`}
+                            >
+                                {t("Entrenamiento", "Training")}
+                            </button>
+                        </div>
+                        <p className="mt-1 text-[11px] text-ink-muted">
+                            {assistantMode === "training"
+                                ? t(
+                                      "Te ayudo a mejorar prompts y a estructurar cambios antes de aplicarlos.",
+                                      "I help you improve prompts and structure changes before applying them."
+                                  )
+                                : t(
+                                      "Flujo directo para proponer cambios listos para confirmar.",
+                                      "Direct flow to propose changes ready to confirm."
+                                  )}
+                        </p>
+                        {!aiNoticeAcknowledged && (
+                            <div className="mt-2 rounded-md border border-amber-300/70 bg-amber-50 px-2 py-2 text-[11px] text-amber-900">
+                                <p>
+                                    {t(
+                                        "Aviso IA: las respuestas pueden contener errores. Si activas compartir entrenamiento, tus prompts se guardarán para mejora global.",
+                                        "AI notice: responses may contain mistakes. If you enable training sharing, your prompts will be stored for global improvement."
+                                    )}
+                                </p>
+                                <div className="mt-1 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={handleAcknowledgeAiNotice}
+                                        className="rounded border border-amber-400 bg-white px-2 py-0.5 text-[11px] text-amber-900 hover:bg-amber-100"
+                                    >
+                                        {t("Entendido", "Understood")}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        <label className="mt-2 flex items-start gap-2 rounded-md border border-ring bg-white/70 px-2 py-2 text-[11px] text-ink">
+                            <input
+                                type="checkbox"
+                                checked={globalTrainingConsent}
+                                onChange={(event) =>
+                                    handleGlobalTrainingConsentToggle(event.target.checked)
+                                }
+                                disabled={loading}
+                                className="mt-0.5"
+                            />
+                            <span>
+                                {t(
+                                    "Compartir datos de entrenamiento (opcional): tus prompts se usarán para mejorar la IA global de esta web.",
+                                    "Share training data (optional): your prompts will be used to improve this app global AI."
+                                )}
+                            </span>
+                        </label>
+                        {assistantMode === "training" && (
+                            <div className="mt-2 rounded-md border border-ring bg-white/70 px-2 py-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-ink">
+                                    {t("Menú entrenamiento", "Training menu")}
+                                </p>
+                                <div className="mt-1 inline-flex rounded-md border border-ring bg-white p-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleTrainingSubmodeChange("ai_prompt")
+                                        }
+                                        disabled={loading}
+                                        className={`rounded px-2 py-1 text-[11px] ${
+                                            trainingSubmode === "ai_prompt"
+                                                ? "bg-accent/20 text-ink"
+                                                : "text-ink-muted hover:bg-slate-50"
+                                        } disabled:opacity-60`}
+                                    >
+                                        {t("IA propone prompt", "AI gives prompt")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleTrainingSubmodeChange("sandbox_object")
+                                        }
+                                        disabled={loading}
+                                        className={`rounded px-2 py-1 text-[11px] ${
+                                            trainingSubmode === "sandbox_object"
+                                                ? "bg-accent/20 text-ink"
+                                                : "text-ink-muted hover:bg-slate-50"
+                                        } disabled:opacity-60`}
+                                    >
+                                        {t("Sandbox en chat", "Chat sandbox")}
+                                    </button>
+                                </div>
+                                <p className="mt-1 text-[11px] text-ink-muted">
+                                    {trainingSubmode === "ai_prompt"
+                                        ? t(
+                                              "La IA te da el prompt/ejercicio y una plantilla del objeto para editarla.",
+                                              "AI gives you the prompt/challenge and an item template to edit."
+                                          )
+                                        : t(
+                                              "La IA genera un borrador y tú lo modificas en este chat sin aplicar nada real.",
+                                              "AI generates a draft and you modify it in this chat without applying real changes."
+                                          )}
+                                </p>
+                            </div>
                         )}
                     </header>
 
@@ -832,18 +2610,33 @@ export default function AIAssistantPanel({
                             </div>
                         )}
 
-                        {pendingPlan && (
+                        {!isTraining && pendingPlan && (
                             <div className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                <p>
-                                    {t(
-                                        `Hay ${pendingPlan.proposedActions.length} cambio(s) pendiente(s). Confirma para aplicar.`,
-                                        `${pendingPlan.proposedActions.length} pending change(s). Confirm to apply.`
+                                <div className="flex items-center justify-between gap-2">
+                                    <p>
+                                        {pendingPlanUsesTrainingEditor
+                                            ? t(
+                                                  `Hay ${pendingPlan.originalProposedActions.length} cambio(s) pendiente(s). Edítalos con el editor de estructura y luego confirma.`,
+                                                  `${pendingPlan.originalProposedActions.length} pending change(s). Edit them with the structure editor and then confirm.`
+                                              )
+                                            : t(
+                                                  `Hay ${pendingPlan.editorDrafts.length} cambio(s) pendiente(s). Puedes editarlos antes de aplicar.`,
+                                                  `${pendingPlan.editorDrafts.length} pending change(s). You can edit them before applying.`
+                                              )}
+                                    </p>
+                                    {pendingPlanHasUserEdits && (
+                                        <span className="rounded border border-amber-400/70 bg-white px-1.5 py-0.5 text-[11px] font-medium text-amber-900">
+                                            {t("Editado", "Edited")}
+                                        </span>
                                     )}
-                                </p>
+                                </div>
                                 <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto pr-1 styled-scrollbar">
-                                    {pendingPlan.proposedActions.map((entry, index) => (
+                                    {(pendingPlanUsesTrainingEditor
+                                        ? pendingPlanTrainingPreviewActions
+                                        : pendingPlan.originalProposedActions
+                                    ).map((entry, index) => (
                                         <ProposedActionPreview
-                                            key={`pending-${entry.operation}-${entry.characterId ?? "none"}-${index}`}
+                                            key={`pending-preview-${entry.operation}-${entry.characterId ?? "none"}-${index}`}
                                             action={entry}
                                             t={t}
                                         />
@@ -872,15 +2665,1149 @@ export default function AIAssistantPanel({
                             </div>
                         )}
 
+                        {showTrainingLikeStructureEditor && (
+                            <div className="rounded-md border border-sky-300/70 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p className="font-medium">
+                                            {isTraining
+                                                ? t(
+                                                      "Editor de estructura (entrenamiento, no se aplica en campaña)",
+                                                      "Structure editor (training, never applied to campaign)"
+                                                  )
+                                                : t(
+                                                      "Editor de estructura de la propuesta",
+                                                      "Proposal structure editor"
+                                                  )}
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-sky-900/90">
+                                            {isTraining && trainingSubmode === "ai_prompt"
+                                                ? t(
+                                                      "La IA inventa un objeto ficticio y su estructura. Modifícala aquí o marca que está correcta.",
+                                                      "AI invents a fictional object and structure. Edit it here or mark it as correct."
+                                                  )
+                                                : isTraining
+                                                  ? t(
+                                                      "Usa este editor para iterar el borrador con revisiones de la IA.",
+                                                      "Use this editor to iterate the draft with AI revisions."
+                                                  )
+                                                : t(
+                                                      "Este es el mismo editor del modo entrenamiento, pero aquí sí se aplicará al confirmar.",
+                                                      "This is the same editor as training mode, but here changes will be applied when confirmed."
+                                                  )}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setTrainingEditorCompact((prev) => !prev)
+                                            }
+                                            disabled={loading}
+                                            className="rounded border border-sky-300 bg-white px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-100 disabled:opacity-60"
+                                        >
+                                            {trainingEditorCompact
+                                                ? t("Normal", "Normal")
+                                                : t("Compacto", "Compact")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setTrainingEditorCollapsed((prev) => !prev)
+                                            }
+                                            disabled={loading}
+                                            className="rounded border border-sky-300 bg-white px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-100 disabled:opacity-60"
+                                        >
+                                            {trainingEditorCollapsed
+                                                ? t("Expandir", "Expand")
+                                                : t("Reducir", "Collapse")}
+                                        </button>
+                                    </div>
+                                </div>
+                                {trainingDraftError && (
+                                    <p className="mt-1 rounded border border-red-300/70 bg-red-50 px-2 py-1 text-red-700">
+                                        {trainingDraftError}
+                                    </p>
+                                )}
+                                {!trainingEditorCollapsed && (
+                                    <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                                        <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1 styled-scrollbar">
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <label className="sm:col-span-2">
+                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                            {t("Nombre del objeto", "Item name")}
+                                        </span>
+                                        <input
+                                            value={trainingDraft.targetItemName}
+                                            onChange={(event) =>
+                                                handleTrainingDraftFieldChange(
+                                                    "targetItemName",
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={loading}
+                                            placeholder={t(
+                                                "Ej: Semilla del Velo Dormido",
+                                                "Ex: Seed of the Sleeping Veil"
+                                            )}
+                                            className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-1.5 text-[12px] text-ink outline-none focus:border-sky-400"
+                                        />
+                                    </label>
+                                    <label>
+                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                            {t("Categoría", "Category")}
+                                        </span>
+                                        <select
+                                            value={trainingDraft.category}
+                                            onChange={(event) =>
+                                                handleTrainingDraftFieldChange(
+                                                    "category",
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={loading}
+                                            className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-1.5 text-[12px] text-ink outline-none focus:border-sky-400"
+                                        >
+                                            {ITEM_CATEGORY_OPTIONS.map((option) => (
+                                                <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {t(option.es, option.en)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label>
+                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                            {t("Rareza", "Rarity")}
+                                        </span>
+                                        <input
+                                            value={trainingDraft.rarity}
+                                            onChange={(event) =>
+                                                handleTrainingDraftFieldChange(
+                                                    "rarity",
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={loading}
+                                            placeholder={t("raro", "rare")}
+                                            className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-1.5 text-[12px] text-ink outline-none focus:border-sky-400"
+                                        />
+                                    </label>
+                                    <div className="sm:col-span-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+                                        <label className="inline-flex items-center gap-1 text-[11px]">
+                                            <input
+                                                type="checkbox"
+                                                checked={trainingDraft.createIfMissing}
+                                                onChange={(event) =>
+                                                    handleTrainingDraftFieldChange(
+                                                        "createIfMissing",
+                                                        event.target.checked
+                                                    )
+                                                }
+                                                disabled={loading}
+                                            />
+                                            {t("Crear si no existe", "Create if missing")}
+                                        </label>
+                                        <label className="inline-flex items-center gap-1 text-[11px]">
+                                            <input
+                                                type="checkbox"
+                                                checked={trainingDraft.equippable}
+                                                onChange={(event) =>
+                                                    handleTrainingDraftFieldChange(
+                                                        "equippable",
+                                                        event.target.checked
+                                                    )
+                                                }
+                                                disabled={loading}
+                                            />
+                                            {t("Equipable", "Equippable")}
+                                        </label>
+                                        <label className="inline-flex items-center gap-1 text-[11px]">
+                                            <input
+                                                type="checkbox"
+                                                checked={trainingDraft.equipped}
+                                                onChange={(event) =>
+                                                    handleTrainingDraftFieldChange(
+                                                        "equipped",
+                                                        event.target.checked
+                                                    )
+                                                }
+                                                disabled={loading}
+                                            />
+                                            {t("Equipado", "Equipped")}
+                                        </label>
+                                    </div>
+                                    <label className="sm:col-span-2">
+                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                            {t("Descripción base", "Base description")}
+                                        </span>
+                                        <textarea
+                                            value={trainingDraft.description}
+                                            onChange={(event) =>
+                                                handleTrainingDraftFieldChange(
+                                                    "description",
+                                                    event.target.value
+                                                )
+                                            }
+                                            rows={draftDescriptionRows}
+                                            disabled={loading}
+                                            placeholder={t(
+                                                "Describe el lore del objeto sin repetir mecánicas de adjuntos.",
+                                                "Describe item lore without repeating attachment mechanics."
+                                            )}
+                                            className="mt-1 w-full rounded-md border border-sky-200 bg-white px-2 py-2 text-[12px] text-ink outline-none focus:border-sky-400"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="mt-2 rounded-md border border-sky-200 bg-white/70 px-2 py-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/80">
+                                            {t("Adjuntos del objeto", "Item attachments")}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddTrainingAttachment}
+                                            disabled={loading}
+                                            className="rounded border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] text-sky-900 hover:bg-sky-200 disabled:opacity-60"
+                                        >
+                                            {t("Añadir adjunto", "Add attachment")}
+                                        </button>
+                                    </div>
+                                    <div className={`mt-2 space-y-2 overflow-y-auto pr-1 styled-scrollbar ${attachmentsMaxHeightClass}`}>
+                                        {trainingDraft.attachments.map((attachment, index) => {
+                                            const isSpellLikeAttachment =
+                                                isTrainingDraftSpellLike(attachment.type);
+                                            const isAbilityLikeAttachment =
+                                                isTrainingDraftAbilityLike(attachment.type);
+                                            const showsRollAndDamage =
+                                                isSpellLikeAttachment || isAbilityLikeAttachment;
+                                            const trimmedCastingTime =
+                                                attachment.castingTime.trim();
+                                            const hasCustomCastingTime =
+                                                trimmedCastingTime.length > 0 &&
+                                                !SPELL_CASTING_TIME_OPTIONS.includes(
+                                                    trimmedCastingTime
+                                                );
+                                            return (
+                                            <div
+                                                key={attachment.id}
+                                                className="rounded border border-sky-200 bg-white px-2 py-2"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-[11px] font-medium text-sky-900">
+                                                        {t("Adjunto", "Attachment")} {index + 1}
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleRemoveTrainingAttachment(
+                                                                attachment.id
+                                                            )
+                                                        }
+                                                        disabled={loading}
+                                                        className="rounded border border-red-300 px-1.5 py-0.5 text-[10px] text-red-700 hover:bg-red-50 disabled:opacity-60"
+                                                    >
+                                                        {t("Eliminar", "Delete")}
+                                                    </button>
+                                                </div>
+                                                <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+                                                    <label>
+                                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                            {t("Tipo", "Type")}
+                                                        </span>
+                                                        <select
+                                                            value={attachment.type}
+                                                            onChange={(event) =>
+                                                                handleTrainingAttachmentChange(
+                                                                    attachment.id,
+                                                                    "type",
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            disabled={loading}
+                                                            className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                        >
+                                                            {ATTACHMENT_TYPE_OPTIONS.map(
+                                                                (option) => (
+                                                                    <option
+                                                                        key={option.value}
+                                                                        value={option.value}
+                                                                    >
+                                                                        {t(
+                                                                            option.es,
+                                                                            option.en
+                                                                        )}
+                                                                    </option>
+                                                                )
+                                                            )}
+                                                        </select>
+                                                    </label>
+                                                    <label className="sm:col-span-2">
+                                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                            {t("Nombre", "Name")}
+                                                        </span>
+                                                        <input
+                                                            value={attachment.name}
+                                                            onChange={(event) =>
+                                                                handleTrainingAttachmentChange(
+                                                                    attachment.id,
+                                                                    "name",
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            disabled={loading}
+                                                            className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                        />
+                                                    </label>
+                                                    {(isSpellLikeAttachment ||
+                                                        isAbilityLikeAttachment) && (
+                                                        <label>
+                                                            <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                {t(
+                                                                    "Nivel (opcional)",
+                                                                    "Level (optional)"
+                                                                )}
+                                                            </span>
+                                                            <input
+                                                                type="number"
+                                                                min={0}
+                                                                max={20}
+                                                                value={attachment.level}
+                                                                onChange={(event) =>
+                                                                    handleTrainingAttachmentChange(
+                                                                        attachment.id,
+                                                                        "level",
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                disabled={loading}
+                                                                placeholder={
+                                                                    attachment.type === "cantrip"
+                                                                        ? "0"
+                                                                        : "1"
+                                                                }
+                                                                className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                            />
+                                                        </label>
+                                                    )}
+                                                    <label className="sm:col-span-3">
+                                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                            {t("Descripción", "Description")}
+                                                        </span>
+                                                        <textarea
+                                                            value={attachment.description}
+                                                            onChange={(event) =>
+                                                                handleTrainingAttachmentChange(
+                                                                    attachment.id,
+                                                                    "description",
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            rows={attachmentDescriptionRows}
+                                                            disabled={loading}
+                                                            className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1.5 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                {isAbilityLikeAttachment && (
+                                                    <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                                        <label>
+                                                            <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                {t("Tipo de acción", "Action type")}
+                                                            </span>
+                                                            <select
+                                                                value={attachment.actionType}
+                                                                onChange={(event) =>
+                                                                    handleTrainingAttachmentChange(
+                                                                        attachment.id,
+                                                                        "actionType",
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                disabled={loading}
+                                                                className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                            >
+                                                                <option value="">
+                                                                    {t(
+                                                                        "Sin tipo",
+                                                                        "No action type"
+                                                                    )}
+                                                                </option>
+                                                                {FEATURE_ACTION_OPTIONS.map((option) => (
+                                                                    <option
+                                                                        key={option.value}
+                                                                        value={option.value}
+                                                                    >
+                                                                        {t(option.es, option.en)}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </label>
+                                                        <label>
+                                                            <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                {t("Requisitos", "Requirements")}
+                                                            </span>
+                                                            <input
+                                                                value={attachment.requirements}
+                                                                onChange={(event) =>
+                                                                    handleTrainingAttachmentChange(
+                                                                        attachment.id,
+                                                                        "requirements",
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                disabled={loading}
+                                                                className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                            />
+                                                        </label>
+                                                        <label className="sm:col-span-2">
+                                                            <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                {t("Efecto", "Effect")}
+                                                            </span>
+                                                            <textarea
+                                                                value={attachment.effect}
+                                                                onChange={(event) =>
+                                                                    handleTrainingAttachmentChange(
+                                                                        attachment.id,
+                                                                        "effect",
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                                rows={2}
+                                                                disabled={loading}
+                                                                className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1.5 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                )}
+
+                                                {isSpellLikeAttachment && (
+                                                    <>
+                                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Escuela", "School")}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.school}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "school",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Alcance", "Range")}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.range}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "range",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t(
+                                                                        "Tiempo de lanzamiento",
+                                                                        "Casting time"
+                                                                    )}
+                                                                </span>
+                                                                <select
+                                                                    value={attachment.castingTime}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "castingTime",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                >
+                                                                    <option value="">
+                                                                        {t(
+                                                                            "Seleccionar",
+                                                                            "Select"
+                                                                        )}
+                                                                    </option>
+                                                                    {SPELL_CASTING_TIME_OPTIONS.map((option) => (
+                                                                        <option
+                                                                            key={option}
+                                                                            value={option}
+                                                                        >
+                                                                            {option}
+                                                                        </option>
+                                                                    ))}
+                                                                    {hasCustomCastingTime && (
+                                                                        <option
+                                                                            value={trimmedCastingTime}
+                                                                        >
+                                                                            {trimmedCastingTime}
+                                                                        </option>
+                                                                    )}
+                                                                </select>
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Duración", "Duration")}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.duration}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "duration",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label className="sm:col-span-2">
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t(
+                                                                        "Nota de lanzamiento",
+                                                                        "Casting note"
+                                                                    )}
+                                                                </span>
+                                                                <input
+                                                                    value={
+                                                                        attachment.castingTimeNote
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "castingTimeNote",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                        <div className="mt-2 rounded border border-sky-200 bg-sky-50/40 px-2 py-2">
+                                                            <p className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                {t("Componentes", "Components")}
+                                                            </p>
+                                                            <div className="mt-1 flex flex-wrap gap-3">
+                                                                <label className="inline-flex items-center gap-1 text-[11px] text-sky-950">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={
+                                                                            attachment.componentVerbal
+                                                                        }
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "componentVerbal",
+                                                                                event.target.checked
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                    />
+                                                                    V
+                                                                </label>
+                                                                <label className="inline-flex items-center gap-1 text-[11px] text-sky-950">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={
+                                                                            attachment.componentSomatic
+                                                                        }
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "componentSomatic",
+                                                                                event.target.checked
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                    />
+                                                                    S
+                                                                </label>
+                                                                <label className="inline-flex items-center gap-1 text-[11px] text-sky-950">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={
+                                                                            attachment.componentMaterial
+                                                                        }
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "componentMaterial",
+                                                                                event.target.checked
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                    />
+                                                                    M
+                                                                </label>
+                                                            </div>
+                                                            {attachment.componentMaterial && (
+                                                                <label className="mt-1 block">
+                                                                    <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                        {t("Materiales", "Materials")}
+                                                                    </span>
+                                                                    <input
+                                                                        value={attachment.materials}
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "materials",
+                                                                                event.target.value
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                        className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                    />
+                                                                </label>
+                                                            )}
+                                                            <div className="mt-1 flex flex-wrap gap-3">
+                                                                <label className="inline-flex items-center gap-1 text-[11px] text-sky-950">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={attachment.concentration}
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "concentration",
+                                                                                event.target.checked
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                    />
+                                                                    {t(
+                                                                        "Concentración",
+                                                                        "Concentration"
+                                                                    )}
+                                                                </label>
+                                                                <label className="inline-flex items-center gap-1 text-[11px] text-sky-950">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={attachment.ritual}
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "ritual",
+                                                                                event.target.checked
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                    />
+                                                                    {t("Ritual", "Ritual")}
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {showsRollAndDamage && (
+                                                    <details className="mt-2 rounded border border-sky-200 bg-sky-50/30 px-2 py-1.5">
+                                                        <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-sky-900/90">
+                                                            {t("Coste / recursos", "Cost / resources")}
+                                                        </summary>
+                                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                                            <label className="sm:col-span-2 inline-flex items-center gap-1 text-[11px] text-sky-950">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={attachment.usesSpellSlot}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "usesSpellSlot",
+                                                                            event.target.checked
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                />
+                                                                {t(
+                                                                    "Usa espacio de conjuro",
+                                                                    "Use spell slot"
+                                                                )}
+                                                            </label>
+                                                            {attachment.usesSpellSlot && (
+                                                                <label>
+                                                                    <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                        {t(
+                                                                            "Nivel de espacio",
+                                                                            "Slot level"
+                                                                        )}
+                                                                    </span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={9}
+                                                                        value={attachment.slotLevel}
+                                                                        onChange={(event) =>
+                                                                            handleTrainingAttachmentChange(
+                                                                                attachment.id,
+                                                                                "slotLevel",
+                                                                                event.target.value
+                                                                            )
+                                                                        }
+                                                                        disabled={loading}
+                                                                        className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                    />
+                                                                </label>
+                                                            )}
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Cargas", "Charges")}
+                                                                </span>
+                                                                <input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    value={attachment.charges}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "charges",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Recarga", "Recharge")}
+                                                                </span>
+                                                                <select
+                                                                    value={attachment.recharge}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "recharge",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                >
+                                                                    <option value="">
+                                                                        {t(
+                                                                            "Sin recarga",
+                                                                            "No recharge"
+                                                                        )}
+                                                                    </option>
+                                                                    {ATTACHMENT_RECHARGE_OPTIONS.map((option) => (
+                                                                        <option
+                                                                            key={option.value}
+                                                                            value={option.value}
+                                                                        >
+                                                                            {t(option.es, option.en)}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t(
+                                                                        "Etiqueta de puntos",
+                                                                        "Points label"
+                                                                    )}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.pointsLabel}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "pointsLabel",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Puntos", "Points")}
+                                                                </span>
+                                                                <input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    value={attachment.points}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "points",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </details>
+                                                )}
+
+                                                {showsRollAndDamage && (
+                                                    <details className="mt-2 rounded border border-sky-200 bg-sky-50/30 px-2 py-1.5">
+                                                        <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-sky-900/90">
+                                                            {t("Tirada / salvación", "Roll / save")}
+                                                        </summary>
+                                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                                            <label className="sm:col-span-2">
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Tipo", "Type")}
+                                                                </span>
+                                                                <select
+                                                                    value={attachment.saveType}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "saveType",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                >
+                                                                    {ATTACHMENT_SAVE_TYPE_OPTIONS.map((option) => (
+                                                                        <option
+                                                                            key={option.value}
+                                                                            value={option.value}
+                                                                        >
+                                                                            {t(option.es, option.en)}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </label>
+                                                            {attachment.saveType === "save" && (
+                                                                <>
+                                                                    <label>
+                                                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                            {t("Atributo", "Attribute")}
+                                                                        </span>
+                                                                        <select
+                                                                            value={attachment.saveAbility}
+                                                                            onChange={(event) =>
+                                                                                handleTrainingAttachmentChange(
+                                                                                    attachment.id,
+                                                                                    "saveAbility",
+                                                                                    event.target.value
+                                                                                )
+                                                                            }
+                                                                            disabled={loading}
+                                                                            className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                        >
+                                                                            <option value="">
+                                                                                {t(
+                                                                                    "Sin atributo",
+                                                                                    "No attribute"
+                                                                                )}
+                                                                            </option>
+                                                                            {ATTACHMENT_ABILITY_OPTIONS.map((option) => (
+                                                                                <option
+                                                                                    key={option.value}
+                                                                                    value={option.value}
+                                                                                >
+                                                                                    {t(
+                                                                                        option.es,
+                                                                                        option.en
+                                                                                    )}{" "}
+                                                                                    ({option.value})
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </label>
+                                                                    <label>
+                                                                        <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                            CD
+                                                                        </span>
+                                                                        <select
+                                                                            value={attachment.dcType}
+                                                                            onChange={(event) =>
+                                                                                handleTrainingAttachmentChange(
+                                                                                    attachment.id,
+                                                                                    "dcType",
+                                                                                    event.target.value
+                                                                                )
+                                                                            }
+                                                                            disabled={loading}
+                                                                            className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                        >
+                                                                            <option value="">
+                                                                                {t("Sin CD", "No DC")}
+                                                                            </option>
+                                                                            {ATTACHMENT_DC_TYPE_OPTIONS.map((option) => (
+                                                                                <option
+                                                                                    key={option.value}
+                                                                                    value={option.value}
+                                                                                >
+                                                                                    {t(option.es, option.en)}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </label>
+                                                                    {attachment.dcType === "fixed" && (
+                                                                        <label>
+                                                                            <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                                {t("CD fija", "Fixed DC")}
+                                                                            </span>
+                                                                            <input
+                                                                                type="number"
+                                                                                min={0}
+                                                                                max={99}
+                                                                                value={attachment.dcValue}
+                                                                                onChange={(event) =>
+                                                                                    handleTrainingAttachmentChange(
+                                                                                        attachment.id,
+                                                                                        "dcValue",
+                                                                                        event.target.value
+                                                                                    )
+                                                                                }
+                                                                                disabled={loading}
+                                                                                className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                            />
+                                                                        </label>
+                                                                    )}
+                                                                    {attachment.dcType === "stat" && (
+                                                                        <label>
+                                                                            <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                                {t(
+                                                                                    "Atributo base",
+                                                                                    "Base stat"
+                                                                                )}
+                                                                            </span>
+                                                                            <select
+                                                                                value={attachment.dcStat}
+                                                                                onChange={(event) =>
+                                                                                    handleTrainingAttachmentChange(
+                                                                                        attachment.id,
+                                                                                        "dcStat",
+                                                                                        event.target.value
+                                                                                    )
+                                                                                }
+                                                                                disabled={loading}
+                                                                                className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                            >
+                                                                                <option value="">
+                                                                                    {t(
+                                                                                        "Sin atributo",
+                                                                                        "No attribute"
+                                                                                    )}
+                                                                                </option>
+                                                                                {ATTACHMENT_ABILITY_OPTIONS.map((option) => (
+                                                                                    <option
+                                                                                        key={option.value}
+                                                                                        value={option.value}
+                                                                                    >
+                                                                                        {t(
+                                                                                            option.es,
+                                                                                            option.en
+                                                                                        )}{" "}
+                                                                                        ({option.value})
+                                                                                    </option>
+                                                                                ))}
+                                                                            </select>
+                                                                        </label>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </details>
+                                                )}
+
+                                                {showsRollAndDamage && (
+                                                    <details className="mt-2 rounded border border-sky-200 bg-sky-50/30 px-2 py-1.5">
+                                                        <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-sky-900/90">
+                                                            {t("Daño", "Damage")}
+                                                        </summary>
+                                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Tipo de daño", "Damage type")}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.damageType}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "damageType",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label>
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Dados", "Dice")}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.damageDice}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "damageDice",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                            <label className="sm:col-span-2">
+                                                                <span className="text-[10px] uppercase tracking-wide text-sky-900/80">
+                                                                    {t("Escalado", "Scaling")}
+                                                                </span>
+                                                                <input
+                                                                    value={attachment.damageScaling}
+                                                                    onChange={(event) =>
+                                                                        handleTrainingAttachmentChange(
+                                                                            attachment.id,
+                                                                            "damageScaling",
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    disabled={loading}
+                                                                    className="mt-1 w-full rounded border border-sky-200 bg-white px-2 py-1 text-[11px] text-ink outline-none focus:border-sky-400"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </details>
+                                                )}
+                                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                {isTraining ? (
+                                    <>
+                                        <input
+                                            value={trainingDraftNotes}
+                                            onChange={(event) =>
+                                                setTrainingDraftNotes(event.target.value)
+                                            }
+                                            disabled={loading}
+                                            placeholder={t(
+                                                "Ajuste para el borrador: ej. cambia rareza a épica y añade 1 acción bonus.",
+                                                "Draft adjustment: e.g. change rarity to epic and add 1 bonus action."
+                                            )}
+                                            className="mt-2 w-full rounded-md border border-sky-200 bg-white px-2 py-1.5 text-[11px] text-ink outline-none focus:border-sky-400"
+                                        />
+                                        <div className="mt-2 flex flex-wrap justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleClearTrainingDraft}
+                                                disabled={loading}
+                                                className="rounded-md border border-sky-300 bg-white px-2 py-1 text-[11px] text-sky-800 hover:bg-sky-100 disabled:opacity-60"
+                                            >
+                                                {t("Limpiar borrador", "Clear draft")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handlePreviewTrainingDraft}
+                                                disabled={loading}
+                                                className="rounded-md border border-sky-400 bg-sky-100 px-2 py-1 text-[11px] text-sky-900 hover:bg-sky-200 disabled:opacity-60"
+                                            >
+                                                {t("Ver preview en chat", "Preview in chat")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleRequestTrainingDraftRevision}
+                                                disabled={loading}
+                                                className="rounded-md border border-sky-500 bg-sky-200 px-2 py-1 text-[11px] text-sky-950 hover:bg-sky-300 disabled:opacity-60"
+                                            >
+                                                {loading
+                                                    ? t("Revisando...", "Reviewing...")
+                                                    : t("Pedir revisión IA", "Ask AI revision")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleApproveTrainingDraft}
+                                                disabled={loading}
+                                                className="rounded-md border border-emerald-500 bg-emerald-100 px-2 py-1 text-[11px] text-emerald-900 hover:bg-emerald-200 disabled:opacity-60"
+                                            >
+                                                {loading
+                                                    ? t("Validando...", "Validating...")
+                                                    : t("Está correcto", "Looks correct")}
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="mt-2 flex flex-wrap justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleResetPendingPlanStructureEditor}
+                                            disabled={loading || !pendingPlanHasUserEdits}
+                                            className="rounded-md border border-sky-300 bg-white px-2 py-1 text-[11px] text-sky-800 hover:bg-sky-100 disabled:opacity-60"
+                                        >
+                                            {t(
+                                                "Restablecer editor",
+                                                "Reset editor"
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handlePreviewPendingPlanStructureDraft}
+                                            disabled={loading}
+                                            className="rounded-md border border-sky-400 bg-sky-100 px-2 py-1 text-[11px] text-sky-900 hover:bg-sky-200 disabled:opacity-60"
+                                        >
+                                            {t("Ver preview en chat", "Preview in chat")}
+                                        </button>
+                                    </div>
+                                )}
+                                        </div>
+                                        {isTraining && (
+                                            <div className="max-h-[52vh] rounded-md border border-sky-200 bg-white/80 px-2 py-2">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/80">
+                                                    {t(
+                                                        "Prompt de referencia",
+                                                        "Reference prompt"
+                                                    )}
+                                                </p>
+                                                <p className="mt-0.5 text-[10px] text-sky-900/90">
+                                                    {t(
+                                                        "Edita a la izquierda y consulta el prompt completo a la derecha.",
+                                                        "Edit on the left and keep the full prompt visible on the right."
+                                                    )}
+                                                </p>
+                                                <div className="mt-2 max-h-[44vh] overflow-y-auto rounded border border-sky-100 bg-sky-50/60 px-2 py-2 styled-scrollbar">
+                                                    <p className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-sky-950">
+                                                        {activeTrainingReference ||
+                                                            t(
+                                                                "Aquí aparecerá el prompt que propone la IA para que puedas usarlo como referencia mientras editas.",
+                                                                "The AI proposed prompt will appear here so you can use it as reference while editing."
+                                                            )}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <textarea
                             value={prompt}
                             onChange={(event) => setPrompt(event.target.value)}
                             rows={3}
-                            disabled={loading || !!pendingPlan}
-                            placeholder={t(
-                                "Ejemplo: crea un companion lobo nivel 2 y añade nota de trasfondo.",
-                                "Example: create a level 2 wolf companion and add a backstory note."
-                            )}
+                            disabled={loading || blocksByPendingPlan}
+                            placeholder={promptPlaceholder}
                             className="w-full rounded-md border border-ring bg-white/80 px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                         />
 
@@ -888,13 +3815,13 @@ export default function AIAssistantPanel({
                             <button
                                 type="button"
                                 onClick={handleRunAssistant}
-                                disabled={loading || !!pendingPlan}
+                                disabled={loading || blocksByPendingPlan}
                                 className="inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs text-ink hover:bg-accent/20 disabled:opacity-60"
                             >
                                 <SendHorizontal className="h-3.5 w-3.5 text-accent" />
                                 {loading
                                     ? t("Enviando...", "Sending...")
-                                    : t("Proponer cambios", "Propose changes")}
+                                    : sendLabel}
                             </button>
                         </div>
                     </footer>

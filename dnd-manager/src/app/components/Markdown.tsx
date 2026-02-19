@@ -67,7 +67,7 @@ export function Markdown({ content, className }: MarkdownProps) {
 
   return (
     <div
-      className={`markdown text-sm leading-relaxed break-words [overflow-wrap:anywhere] [&_strong]:text-accent-strong [&_strong]:font-semibold ${className ?? ""}`.trim()}
+      className={`markdown text-sm leading-relaxed break-words [overflow-wrap:anywhere] [&_strong]:text-accent-strong [&_strong]:font-semibold [&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_li]:pl-1 [&_li>ul]:mt-1 [&_li>ul]:list-disc [&_li>ul]:pl-5 [&_li>ol]:mt-1 [&_li>ol]:list-decimal [&_li>ol]:pl-6 ${className ?? ""}`.trim()}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]}>
         {highlightedDiceContent}

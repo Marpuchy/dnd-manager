@@ -2,10 +2,18 @@
 
 import React, { useMemo, useState } from "react";
 import type {
+    AbilityKey,
+    AbilityResourceCost,
     CharacterItem,
+    ItemConfiguration,
     ItemAttachmentEntry,
     ItemCategory,
     ItemModifier,
+    SpellCastingTime,
+    SpellComponentSet,
+    SpellDamageConfig,
+    SpellResourceCost,
+    SpellSaveConfig,
 } from "@/lib/types/dnd";
 import {
     MODIFIER_TARGETS,
@@ -14,6 +22,10 @@ import {
     normalizeLocalizedText,
     normalizeTarget,
 } from "@/lib/character/items";
+import {
+    formatItemAttachmentMarkdown,
+    getItemAttachmentTypeLabel,
+} from "@/lib/character/itemAttachments";
 import Markdown from "@/app/components/Markdown";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
@@ -39,6 +51,47 @@ const ATTACHMENT_TYPE_OPTIONS: Array<{
     { value: "cantrip", es: "Truco", en: "Cantrip" },
     { value: "classFeature", es: "Rasgo de clase", en: "Class feature" },
     { value: "other", es: "Otro", en: "Other" },
+];
+
+const SPELL_SCHOOLS = [
+    "Abjuracion",
+    "Adivinacion",
+    "Conjuracion",
+    "Encantamiento",
+    "Evocacion",
+    "Ilusion",
+    "Nigromancia",
+    "Transmutacion",
+];
+
+const CASTING_TIME_OPTIONS = [
+    { es: "Accion", en: "Action" },
+    { es: "Accion adicional", en: "Bonus action" },
+    { es: "Reaccion", en: "Reaction" },
+    { es: "1 minuto", en: "1 minute" },
+    { es: "10 minutos", en: "10 minutes" },
+    { es: "1 hora", en: "1 hour" },
+    { es: "Especial", en: "Special" },
+];
+
+const SAVE_ABILITIES: { value: AbilityKey; es: string; en: string }[] = [
+    { value: "STR", es: "Fuerza (STR)", en: "Strength (STR)" },
+    { value: "DEX", es: "Destreza (DEX)", en: "Dexterity (DEX)" },
+    { value: "CON", es: "Constitucion (CON)", en: "Constitution (CON)" },
+    { value: "INT", es: "Inteligencia (INT)", en: "Intelligence (INT)" },
+    { value: "WIS", es: "Sabiduria (WIS)", en: "Wisdom (WIS)" },
+    { value: "CHA", es: "Carisma (CHA)", en: "Charisma (CHA)" },
+];
+
+const ATTACHMENT_ACTION_TYPES: Array<{
+    value: NonNullable<ItemAttachmentEntry["actionType"]>;
+    es: string;
+    en: string;
+}> = [
+    { value: "action", es: "Accion", en: "Action" },
+    { value: "bonus", es: "Accion bonus", en: "Bonus action" },
+    { value: "reaction", es: "Reaccion", en: "Reaction" },
+    { value: "passive", es: "Pasiva", en: "Passive" },
 ];
 
 const TARGET_LABEL_EN: Record<string, string> = {
@@ -93,13 +146,15 @@ function getTargetLabel(target: string, locale: string) {
     return targetLabelMap.get(normalized) ?? target;
 }
 
-function getAttachmentTypeLabel(
-    type: ItemAttachmentEntry["type"],
-    locale: string
-) {
-    const option = ATTACHMENT_TYPE_OPTIONS.find((entry) => entry.value === type);
-    if (!option) return type;
-    return locale === "en" ? option.en : option.es;
+function getAttachmentTypeLabel(type: ItemAttachmentEntry["type"], locale: string) {
+    return getItemAttachmentTypeLabel(type, locale);
+}
+
+function buildItemConfigurationBase(name = "Configuracion A"): ItemConfiguration {
+    return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+    };
 }
 
 type ItemManagerSectionProps = {
@@ -128,16 +183,124 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
     const [modNote, setModNote] = useState("");
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const [attachments, setAttachments] = useState<ItemAttachmentEntry[]>([]);
+    const [configurations, setConfigurations] = useState<ItemConfiguration[]>([]);
+    const [activeConfigurationId, setActiveConfigurationId] = useState("");
+    const [attachmentTargetId, setAttachmentTargetId] = useState("item");
     const [attachmentType, setAttachmentType] =
         useState<ItemAttachmentEntry["type"]>("action");
     const [attachmentName, setAttachmentName] = useState("");
     const [attachmentLevel, setAttachmentLevel] = useState("");
     const [attachmentDescription, setAttachmentDescription] = useState("");
+    const [attachmentSchool, setAttachmentSchool] = useState("");
+    const [attachmentCastingTime, setAttachmentCastingTime] = useState(
+        CASTING_TIME_OPTIONS[0]?.es ?? "Accion"
+    );
+    const [attachmentCastingTimeNote, setAttachmentCastingTimeNote] = useState("");
+    const [attachmentRange, setAttachmentRange] = useState("");
+    const [attachmentDuration, setAttachmentDuration] = useState("");
+    const [attachmentComponents, setAttachmentComponents] = useState<SpellComponentSet>({
+        verbal: false,
+        somatic: false,
+        material: false,
+    });
+    const [attachmentMaterials, setAttachmentMaterials] = useState("");
+    const [attachmentConcentration, setAttachmentConcentration] = useState(false);
+    const [attachmentRitual, setAttachmentRitual] = useState(false);
+    const [attachmentSpellUsesSlot, setAttachmentSpellUsesSlot] = useState(false);
+    const [attachmentSpellSlotLevel, setAttachmentSpellSlotLevel] = useState(1);
+    const [attachmentSpellCharges, setAttachmentSpellCharges] = useState("");
+    const [attachmentSpellPoints, setAttachmentSpellPoints] = useState("");
+    const [attachmentSaveType, setAttachmentSaveType] = useState<"attack" | "save" | "none">(
+        "none"
+    );
+    const [attachmentSaveAbility, setAttachmentSaveAbility] = useState<AbilityKey>("WIS");
+    const [attachmentDcType, setAttachmentDcType] = useState<"fixed" | "stat">("stat");
+    const [attachmentDcValue, setAttachmentDcValue] = useState("");
+    const [attachmentDcStat, setAttachmentDcStat] = useState<AbilityKey>("WIS");
+    const [attachmentDamageType, setAttachmentDamageType] = useState("");
+    const [attachmentDamageDice, setAttachmentDamageDice] = useState("");
+    const [attachmentDamageScaling, setAttachmentDamageScaling] = useState("");
+    const [attachmentActionType, setAttachmentActionType] = useState<
+        NonNullable<ItemAttachmentEntry["actionType"]>
+    >("action");
+    const [attachmentAbilityUsesSlot, setAttachmentAbilityUsesSlot] = useState(false);
+    const [attachmentAbilitySlotLevel, setAttachmentAbilitySlotLevel] = useState(1);
+    const [attachmentAbilityCharges, setAttachmentAbilityCharges] = useState("");
+    const [attachmentAbilityRecharge, setAttachmentAbilityRecharge] = useState<"short" | "long">(
+        "short"
+    );
+    const [attachmentAbilityPointsLabel, setAttachmentAbilityPointsLabel] = useState("");
+    const [attachmentAbilityPoints, setAttachmentAbilityPoints] = useState("");
+    const [attachmentRequirements, setAttachmentRequirements] = useState("");
+    const [attachmentEffect, setAttachmentEffect] = useState("");
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
 
+    const isAttachmentSpellLike =
+        attachmentType === "spell" || attachmentType === "cantrip";
+    const isAttachmentAbilityLike =
+        attachmentType === "action" ||
+        attachmentType === "ability" ||
+        attachmentType === "classFeature";
+    const attachmentTargetOptions = useMemo(
+        () => [
+            { id: "item", label: t("Objeto base", "Base item") },
+            ...configurations.map((config) => ({
+                id: config.id,
+                label: `${t("Configuración", "Configuration")}: ${config.name}`,
+            })),
+        ],
+        [configurations, t]
+    );
+    const selectedAttachmentList =
+        attachmentTargetId === "item"
+            ? attachments
+            : configurations.find((config) => config.id === attachmentTargetId)
+                  ?.attachments ?? [];
+
     const applyItemOrder = (list: CharacterItem[]) =>
         list.map((item, index) => ({ ...item, sortOrder: index }));
+
+    function resetAttachmentEditor() {
+        setAttachmentType("action");
+        setAttachmentName("");
+        setAttachmentLevel("");
+        setAttachmentDescription("");
+        setAttachmentSchool("");
+        setAttachmentCastingTime(CASTING_TIME_OPTIONS[0]?.es ?? "Accion");
+        setAttachmentCastingTimeNote("");
+        setAttachmentRange("");
+        setAttachmentDuration("");
+        setAttachmentComponents({
+            verbal: false,
+            somatic: false,
+            material: false,
+        });
+        setAttachmentMaterials("");
+        setAttachmentConcentration(false);
+        setAttachmentRitual(false);
+        setAttachmentSpellUsesSlot(false);
+        setAttachmentSpellSlotLevel(1);
+        setAttachmentSpellCharges("");
+        setAttachmentSpellPoints("");
+        setAttachmentSaveType("none");
+        setAttachmentSaveAbility("WIS");
+        setAttachmentDcType("stat");
+        setAttachmentDcValue("");
+        setAttachmentDcStat("WIS");
+        setAttachmentDamageType("");
+        setAttachmentDamageDice("");
+        setAttachmentDamageScaling("");
+        setAttachmentActionType("action");
+        setAttachmentAbilityUsesSlot(false);
+        setAttachmentAbilitySlotLevel(1);
+        setAttachmentAbilityCharges("");
+        setAttachmentAbilityRecharge("short");
+        setAttachmentAbilityPointsLabel("");
+        setAttachmentAbilityPoints("");
+        setAttachmentRequirements("");
+        setAttachmentEffect("");
+    }
 
     function resetForm() {
         setEditingId(null);
@@ -155,10 +318,10 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         setModNote("");
         setAdvancedOpen(false);
         setAttachments([]);
-        setAttachmentType("action");
-        setAttachmentName("");
-        setAttachmentLevel("");
-        setAttachmentDescription("");
+        setConfigurations([]);
+        setActiveConfigurationId("");
+        setAttachmentTargetId("item");
+        resetAttachmentEditor();
     }
 
     function openEditItem(item: CharacterItem) {
@@ -173,6 +336,23 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         setTags(Array.isArray(item.tags) ? item.tags.join(", ") : "");
         setModifiers(Array.isArray(item.modifiers) ? item.modifiers : []);
         setAttachments(Array.isArray(item.attachments) ? item.attachments : []);
+        const itemConfigurations = Array.isArray(item.configurations)
+            ? item.configurations.map((config, index) => ({
+                  ...config,
+                  id: config.id ?? `${item.id}-cfg-${index}`,
+                  name: config.name ?? `${t("Configuración", "Configuration")} ${index + 1}`,
+                  attachments: Array.isArray(config.attachments)
+                      ? config.attachments
+                      : [],
+              }))
+            : [];
+        setConfigurations(itemConfigurations);
+        setActiveConfigurationId(
+            typeof item.activeConfigurationId === "string"
+                ? item.activeConfigurationId
+                : itemConfigurations[0]?.id ?? ""
+        );
+        setAttachmentTargetId("item");
         setIsFormOpen(true);
     }
 
@@ -203,6 +383,35 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
             rarity: rarity.trim() || undefined,
             tags: parsedTags.length > 0 ? parsedTags : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
+            configurations:
+                configurations.length > 0
+                    ? configurations.map((config) => ({
+                          ...config,
+                          description: normalizeLocalizedText(
+                              getLocalizedText(config.description, locale),
+                              locale
+                          ),
+                          usage: config.usage?.trim() || undefined,
+                          damage: config.damage?.trim() || undefined,
+                          range: config.range?.trim() || undefined,
+                          magicBonus:
+                              typeof config.magicBonus === "number" &&
+                              Number.isFinite(config.magicBonus)
+                                  ? config.magicBonus
+                                  : undefined,
+                          attachments:
+                              Array.isArray(config.attachments) &&
+                              config.attachments.length > 0
+                                  ? config.attachments
+                                  : undefined,
+                      }))
+                    : undefined,
+            activeConfigurationId:
+                configurations.length > 0 &&
+                activeConfigurationId &&
+                configurations.some((config) => config.id === activeConfigurationId)
+                    ? activeConfigurationId
+                    : configurations[0]?.id,
         };
 
         if (editingId) {
@@ -271,6 +480,83 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         setModNote("");
     }
 
+    function setConfigurationField(
+        configId: string,
+        field: keyof Omit<ItemConfiguration, "id" | "attachments">,
+        value: string
+    ) {
+        setConfigurations((prev) =>
+            prev.map((config) => {
+                if (config.id !== configId) return config;
+                if (field === "magicBonus") {
+                    const trimmed = value.trim();
+                    if (!trimmed) {
+                        return {
+                            ...config,
+                            magicBonus: undefined,
+                        };
+                    }
+                    const parsed = Number(trimmed);
+                    return {
+                        ...config,
+                        magicBonus: Number.isFinite(parsed) ? parsed : undefined,
+                    };
+                }
+                if (field === "description") {
+                    return {
+                        ...config,
+                        description: normalizeLocalizedText(value, locale),
+                    };
+                }
+                return {
+                    ...config,
+                    [field]: value,
+                };
+            })
+        );
+    }
+
+    function addConfiguration() {
+        const nextIndex = configurations.length + 1;
+        const next = buildItemConfigurationBase(
+            `${t("Configuración", "Configuration")} ${nextIndex}`
+        );
+        setConfigurations((prev) => [...prev, next]);
+        setActiveConfigurationId(next.id);
+        setAttachmentTargetId(next.id);
+    }
+
+    function removeConfiguration(configId: string) {
+        setConfigurations((prev) => {
+            const next = prev.filter((config) => config.id !== configId);
+            const fallbackId = next[0]?.id ?? "";
+            setActiveConfigurationId((active) =>
+                active === configId ? fallbackId : active
+            );
+            setAttachmentTargetId((target) => {
+                if (target !== configId) return target;
+                return fallbackId || "item";
+            });
+            return next;
+        });
+    }
+
+    function setConfigurationAttachments(
+        configId: string,
+        nextAttachments: ItemAttachmentEntry[]
+    ) {
+        setConfigurations((prev) =>
+            prev.map((config) =>
+                config.id === configId
+                    ? {
+                          ...config,
+                          attachments: nextAttachments,
+                      }
+                    : config
+            )
+        );
+    }
+
     function addAttachment() {
         const trimmedName = attachmentName.trim();
         const trimmedDescription = attachmentDescription.trim();
@@ -281,7 +567,8 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
             (attachmentType === "spell" ||
                 attachmentType === "cantrip" ||
                 attachmentType === "ability" ||
-                attachmentType === "classFeature") &&
+                attachmentType === "classFeature" ||
+                attachmentType === "action") &&
             Number.isFinite(parsedLevel);
 
         const normalizedLevel =
@@ -291,22 +578,163 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                 ? Math.max(0, Math.min(20, Math.floor(parsedLevel)))
                 : undefined;
 
+        const parseOptionalNumber = (value: string) => {
+            const trimmed = value.trim();
+            if (!trimmed) return undefined;
+            const numeric = Number(trimmed);
+            if (!Number.isFinite(numeric)) return undefined;
+            return numeric;
+        };
+
+        const spellCostCharges = parseOptionalNumber(attachmentSpellCharges);
+        const spellCostPoints = parseOptionalNumber(attachmentSpellPoints);
+        const spellResourceCost: SpellResourceCost | undefined =
+            attachmentSpellUsesSlot ||
+            spellCostCharges != null ||
+            spellCostPoints != null
+                ? {
+                      usesSpellSlot: attachmentSpellUsesSlot || undefined,
+                      slotLevel: attachmentSpellUsesSlot
+                          ? Number(attachmentSpellSlotLevel) || (normalizedLevel ?? 1)
+                          : undefined,
+                      charges: spellCostCharges,
+                      points: spellCostPoints,
+                  }
+                : undefined;
+
+        const spellComponents: SpellComponentSet | undefined =
+            attachmentComponents.verbal ||
+            attachmentComponents.somatic ||
+            attachmentComponents.material
+                ? { ...attachmentComponents }
+                : undefined;
+
+        const spellCastingTime: SpellCastingTime | undefined =
+            attachmentCastingTime || attachmentCastingTimeNote
+                ? {
+                      value: attachmentCastingTime || (CASTING_TIME_OPTIONS[0]?.es ?? "Accion"),
+                      note: attachmentCastingTimeNote.trim() || undefined,
+                  }
+                : undefined;
+
+        const spellSave: SpellSaveConfig | undefined =
+            attachmentSaveType === "none"
+                ? undefined
+                : {
+                      type: attachmentSaveType,
+                      saveAbility: attachmentSaveType === "save" ? attachmentSaveAbility : undefined,
+                      dcType: attachmentSaveType === "save" ? attachmentDcType : undefined,
+                      dcValue:
+                          attachmentSaveType === "save" && attachmentDcType === "fixed"
+                              ? parseOptionalNumber(attachmentDcValue)
+                              : undefined,
+                      dcStat:
+                          attachmentSaveType === "save" && attachmentDcType === "stat"
+                              ? attachmentDcStat
+                              : undefined,
+                  };
+
+        const spellDamage: SpellDamageConfig | undefined =
+            attachmentDamageType.trim() ||
+            attachmentDamageDice.trim() ||
+            attachmentDamageScaling.trim()
+                ? {
+                      damageType: attachmentDamageType.trim() || undefined,
+                      dice: attachmentDamageDice.trim() || undefined,
+                      scaling: attachmentDamageScaling.trim() || undefined,
+                  }
+                : undefined;
+
+        const abilityCharges = parseOptionalNumber(attachmentAbilityCharges);
+        const abilityPoints = parseOptionalNumber(attachmentAbilityPoints);
+        const abilityCost: AbilityResourceCost | undefined =
+            attachmentAbilityUsesSlot ||
+            abilityCharges != null ||
+            abilityPoints != null ||
+            attachmentAbilityPointsLabel.trim()
+                ? {
+                      usesSpellSlot: attachmentAbilityUsesSlot || undefined,
+                      slotLevel: attachmentAbilityUsesSlot
+                          ? Number(attachmentAbilitySlotLevel) || undefined
+                          : undefined,
+                      charges: abilityCharges,
+                      recharge: attachmentAbilityUsesSlot
+                          ? undefined
+                          : attachmentAbilityRecharge,
+                      pointsLabel: attachmentAbilityPointsLabel.trim() || undefined,
+                      points: abilityPoints,
+                  }
+                : undefined;
+
         const entry: ItemAttachmentEntry = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             type: attachmentType,
             name: trimmedName,
             level: normalizedLevel,
             description: normalizeLocalizedText(trimmedDescription, locale),
+            school: isAttachmentSpellLike ? attachmentSchool.trim() || undefined : undefined,
+            castingTime: isAttachmentSpellLike ? spellCastingTime : undefined,
+            range: isAttachmentSpellLike ? attachmentRange.trim() || undefined : undefined,
+            components: isAttachmentSpellLike ? spellComponents : undefined,
+            materials:
+                isAttachmentSpellLike && attachmentComponents.material
+                    ? attachmentMaterials.trim() || undefined
+                    : undefined,
+            duration: isAttachmentSpellLike ? attachmentDuration.trim() || undefined : undefined,
+            concentration: isAttachmentSpellLike ? attachmentConcentration || undefined : undefined,
+            ritual: isAttachmentSpellLike ? attachmentRitual || undefined : undefined,
+            save: isAttachmentSpellLike ? spellSave : undefined,
+            damage: isAttachmentSpellLike ? spellDamage : undefined,
+            actionType: isAttachmentAbilityLike ? attachmentActionType : undefined,
+            resourceCost: isAttachmentSpellLike
+                ? spellResourceCost
+                : isAttachmentAbilityLike
+                ? abilityCost
+                : undefined,
+            requirements: isAttachmentAbilityLike
+                ? attachmentRequirements.trim() || undefined
+                : undefined,
+            effect: isAttachmentAbilityLike ? attachmentEffect.trim() || undefined : undefined,
         };
 
-        setAttachments((prev) => [...prev, entry]);
-        setAttachmentName("");
-        setAttachmentLevel("");
-        setAttachmentDescription("");
+        if (attachmentTargetId === "item") {
+            setAttachments((prev) => [...prev, entry]);
+        } else {
+            const target = configurations.find((config) => config.id === attachmentTargetId);
+            if (!target) {
+                setAttachments((prev) => [...prev, entry]);
+            } else {
+                const currentAttachments = Array.isArray(target.attachments)
+                    ? target.attachments
+                    : [];
+                setConfigurationAttachments(attachmentTargetId, [
+                    ...currentAttachments,
+                    entry,
+                ]);
+            }
+        }
+        const keepType = attachmentType;
+        resetAttachmentEditor();
+        setAttachmentType(keepType);
+        if (keepType === "cantrip") {
+            setAttachmentLevel("0");
+        }
     }
 
     function removeAttachment(id: string) {
-        setAttachments((prev) => prev.filter((entry) => entry.id !== id));
+        if (attachmentTargetId === "item") {
+            setAttachments((prev) => prev.filter((entry) => entry.id !== id));
+            return;
+        }
+        const target = configurations.find((config) => config.id === attachmentTargetId);
+        if (!target) {
+            setAttachments((prev) => prev.filter((entry) => entry.id !== id));
+            return;
+        }
+        setConfigurationAttachments(
+            attachmentTargetId,
+            (target.attachments ?? []).filter((entry) => entry.id !== id)
+        );
     }
 
     return (
@@ -498,14 +926,206 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                     <div className="rounded-xl border border-ring bg-white/80 p-3 space-y-3">
                         <div className="flex items-center justify-between gap-2">
                             <p className="text-xs font-semibold text-ink">
+                                {t("Configuraciones modulares", "Modular configurations")}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={addConfiguration}
+                                className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
+                            >
+                                {t("Añadir configuración", "Add configuration")}
+                            </button>
+                        </div>
+                        <p className="text-[11px] text-ink-muted">
+                            {t(
+                                "Úsalo para armas u objetos con modos A/B (cada configuración tiene sus propios adjuntos).",
+                                "Use this for A/B weapon or item modes (each configuration has its own attachments)."
+                            )}
+                        </p>
+                        {configurations.length === 0 ? (
+                            <p className="text-[11px] text-ink-muted">
+                                {t(
+                                    "Este objeto no tiene configuraciones modulares.",
+                                    "This item has no modular configurations."
+                                )}
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {configurations.map((config, index) => (
+                                    <details
+                                        key={config.id}
+                                        className="rounded-lg border border-ring bg-panel/80 p-2"
+                                        open={activeConfigurationId === config.id}
+                                    >
+                                        <summary className="cursor-pointer list-none">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div>
+                                                    <p className="text-xs font-semibold text-ink">
+                                                        {config.name || `${t("Configuración", "Configuration")} ${index + 1}`}
+                                                    </p>
+                                                    <p className="text-[11px] text-ink-muted">
+                                                        {(config.attachments?.length ?? 0)}{" "}
+                                                        {t("adjuntos", "attachments")}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            event.preventDefault();
+                                                            setActiveConfigurationId(config.id);
+                                                            setAttachmentTargetId(config.id);
+                                                        }}
+                                                        className={`text-[10px] px-2 py-1 rounded-md border ${
+                                                            activeConfigurationId === config.id
+                                                                ? "border-emerald-500/70 text-emerald-700 bg-emerald-50"
+                                                                : "border-ring bg-white/70 hover:bg-white"
+                                                        }`}
+                                                    >
+                                                        {activeConfigurationId === config.id
+                                                            ? t("Activa", "Active")
+                                                            : t("Activar", "Set active")}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            event.preventDefault();
+                                                            removeConfiguration(config.id);
+                                                        }}
+                                                        className="text-[10px] px-2 py-1 rounded-md border border-red-400/70 text-red-600 bg-red-50 hover:bg-red-100"
+                                                    >
+                                                        {t("Eliminar", "Delete")}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </summary>
+
+                                        <div className="mt-2 space-y-2">
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Nombre", "Name")}
+                                                </label>
+                                                <input
+                                                    value={config.name}
+                                                    onChange={(event) =>
+                                                        setConfigurationField(
+                                                            config.id,
+                                                            "name",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] text-ink-muted">
+                                                        {t("Uso", "Usage")}
+                                                    </label>
+                                                    <input
+                                                        value={config.usage ?? ""}
+                                                        onChange={(event) =>
+                                                            setConfigurationField(
+                                                                config.id,
+                                                                "usage",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                        placeholder={t("Ej. dos manos", "e.g. two-handed")}
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] text-ink-muted">
+                                                        {t("Daño", "Damage")}
+                                                    </label>
+                                                    <input
+                                                        value={config.damage ?? ""}
+                                                        onChange={(event) =>
+                                                            setConfigurationField(
+                                                                config.id,
+                                                                "damage",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                        placeholder="2d6 contundente"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] text-ink-muted">
+                                                        {t("Alcance", "Range")}
+                                                    </label>
+                                                    <input
+                                                        value={config.range ?? ""}
+                                                        onChange={(event) =>
+                                                            setConfigurationField(
+                                                                config.id,
+                                                                "range",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                        placeholder={t("Ej. 3 m", "e.g. 10 ft")}
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] text-ink-muted">
+                                                        {t("Bono mágico", "Magic bonus")}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={
+                                                            typeof config.magicBonus === "number"
+                                                                ? config.magicBonus
+                                                                : ""
+                                                        }
+                                                        onChange={(event) =>
+                                                            setConfigurationField(
+                                                                config.id,
+                                                                "magicBonus",
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Descripción", "Description")}
+                                                </label>
+                                                <textarea
+                                                    rows={3}
+                                                    value={getLocalizedText(config.description, locale)}
+                                                    onChange={(event) =>
+                                                        setConfigurationField(
+                                                            config.id,
+                                                            "description",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                        </div>
+                                    </details>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="rounded-xl border border-ring bg-white/80 p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-ink">
                                 {t(
                                     "Contenido adjunto al objeto",
                                     "Content attached to item"
                                 )}
                             </p>
                             <span className="text-[11px] text-ink-muted">
-                                {attachments.length}{" "}
-                                {attachments.length === 1
+                                {selectedAttachmentList.length}{" "}
+                                {selectedAttachmentList.length === 1
                                     ? t("adjunto", "attachment")
                                     : t("adjuntos", "attachments")}
                             </span>
@@ -517,7 +1137,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             )}
                         </p>
 
-                        {attachments.length === 0 ? (
+                        {selectedAttachmentList.length === 0 ? (
                             <p className="text-[11px] text-ink-muted">
                                 {t(
                                     "Aun no has anadido contenido adjunto.",
@@ -526,9 +1146,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             </p>
                         ) : (
                             <div className="space-y-2">
-                                {attachments.map((attachment) => {
-                                    const attachmentDescription = getLocalizedText(
-                                        attachment.description,
+                                {selectedAttachmentList.map((attachment) => {
+                                    const attachmentMarkdown = formatItemAttachmentMarkdown(
+                                        attachment,
                                         locale
                                     );
                                     return (
@@ -564,10 +1184,10 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                                     </button>
                                                 </div>
                                             </summary>
-                                            {attachmentDescription && (
+                                            {attachmentMarkdown && (
                                                 <div className="mt-2">
                                                     <Markdown
-                                                        content={attachmentDescription}
+                                                        content={attachmentMarkdown}
                                                         className="text-ink-muted text-xs"
                                                     />
                                                 </div>
@@ -578,18 +1198,42 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             </div>
                         )}
 
-                        <div className="grid gap-2 md:grid-cols-3">
+                        <div className="grid gap-2 md:grid-cols-4">
+                            <div className="space-y-1">
+                                <label className="text-[11px] text-ink-muted">
+                                    {t("Destino", "Target")}
+                                </label>
+                                <select
+                                    value={attachmentTargetId}
+                                    onChange={(event) => setAttachmentTargetId(event.target.value)}
+                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                >
+                                    {attachmentTargetOptions.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                             <div className="space-y-1">
                                 <label className="text-[11px] text-ink-muted">
                                     {t("Tipo", "Type")}
                                 </label>
                                 <select
                                     value={attachmentType}
-                                    onChange={(event) =>
-                                        setAttachmentType(
-                                            event.target.value as ItemAttachmentEntry["type"]
-                                        )
-                                    }
+                                    onChange={(event) => {
+                                        const nextType =
+                                            event.target.value as ItemAttachmentEntry["type"];
+                                        setAttachmentType(nextType);
+                                        if (nextType === "cantrip") {
+                                            setAttachmentLevel("0");
+                                        } else if (attachmentLevel === "0") {
+                                            setAttachmentLevel("1");
+                                        }
+                                        if (nextType === "action") {
+                                            setAttachmentActionType("action");
+                                        }
+                                    }}
                                     className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
                                 >
                                     {ATTACHMENT_TYPE_OPTIONS.map((option) => (
@@ -613,25 +1257,573 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                     )}
                                 />
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-[11px] text-ink-muted">
-                                    {t("Nivel (opcional)", "Level (optional)")}
-                                </label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={20}
-                                    value={attachmentLevel}
-                                    onChange={(event) =>
-                                        setAttachmentLevel(event.target.value)
-                                    }
-                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
-                                    placeholder={
-                                        attachmentType === "cantrip" ? "0" : "1"
-                                    }
-                                />
-                            </div>
+                            {(isAttachmentSpellLike || isAttachmentAbilityLike) && (
+                                <div className="space-y-1">
+                                    <label className="text-[11px] text-ink-muted">
+                                        {t("Nivel (opcional)", "Level (optional)")}
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        value={attachmentLevel}
+                                        onChange={(event) =>
+                                            setAttachmentLevel(event.target.value)
+                                        }
+                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        placeholder={
+                                            attachmentType === "cantrip" ? "0" : "1"
+                                        }
+                                    />
+                                </div>
+                            )}
                         </div>
+                        {isAttachmentAbilityLike && (
+                            <>
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Tipo de accion", "Action type")}
+                                        </label>
+                                        <select
+                                            value={attachmentActionType}
+                                            onChange={(event) =>
+                                                setAttachmentActionType(
+                                                    event.target
+                                                        .value as NonNullable<ItemAttachmentEntry["actionType"]>
+                                                )
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        >
+                                            {ATTACHMENT_ACTION_TYPES.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {t(option.es, option.en)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Requisitos", "Requirements")}
+                                        </label>
+                                        <input
+                                            value={attachmentRequirements}
+                                            onChange={(event) =>
+                                                setAttachmentRequirements(event.target.value)
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] text-ink-muted">
+                                        {t("Efecto", "Effect")}
+                                    </label>
+                                    <input
+                                        value={attachmentEffect}
+                                        onChange={(event) =>
+                                            setAttachmentEffect(event.target.value)
+                                        }
+                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                    />
+                                </div>
+                                <details className="rounded-lg border border-ring bg-white/85 p-2">
+                                    <summary className="cursor-pointer text-[11px] text-ink-muted">
+                                        {t("Coste / recursos", "Cost / resources")}
+                                    </summary>
+                                    <div className="mt-2 space-y-2">
+                                        <label className="flex items-center gap-2 text-[11px] text-ink">
+                                            <input
+                                                type="checkbox"
+                                                checked={attachmentAbilityUsesSlot}
+                                                onChange={(event) =>
+                                                    setAttachmentAbilityUsesSlot(event.target.checked)
+                                                }
+                                            />
+                                            {t("Usa espacio de conjuro", "Use spell slot")}
+                                        </label>
+                                        {attachmentAbilityUsesSlot && (
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Nivel de espacio", "Slot level")}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={9}
+                                                    value={attachmentAbilitySlotLevel}
+                                                    onChange={(event) =>
+                                                        setAttachmentAbilitySlotLevel(
+                                                            Number(event.target.value) || 0
+                                                        )
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Cargas", "Charges")}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={attachmentAbilityCharges}
+                                                    onChange={(event) =>
+                                                        setAttachmentAbilityCharges(event.target.value)
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Recarga", "Recharge")}
+                                                </label>
+                                                <select
+                                                    value={attachmentAbilityRecharge}
+                                                    onChange={(event) =>
+                                                        setAttachmentAbilityRecharge(
+                                                            event.target.value as "short" | "long"
+                                                        )
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                >
+                                                    <option value="short">
+                                                        {t("Descanso corto", "Short rest")}
+                                                    </option>
+                                                    <option value="long">
+                                                        {t("Descanso largo", "Long rest")}
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Etiqueta de puntos", "Points label")}
+                                                </label>
+                                                <input
+                                                    value={attachmentAbilityPointsLabel}
+                                                    onChange={(event) =>
+                                                        setAttachmentAbilityPointsLabel(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                    placeholder={t(
+                                                        "ki, mana...",
+                                                        "ki, mana..."
+                                                    )}
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Puntos", "Points")}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={attachmentAbilityPoints}
+                                                    onChange={(event) =>
+                                                        setAttachmentAbilityPoints(event.target.value)
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
+                            </>
+                        )}
+                        {isAttachmentSpellLike && (
+                            <>
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Escuela", "School")}
+                                        </label>
+                                        <input
+                                            list="item-attachment-schools"
+                                            value={attachmentSchool}
+                                            onChange={(event) =>
+                                                setAttachmentSchool(event.target.value)
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        />
+                                        <datalist id="item-attachment-schools">
+                                            {SPELL_SCHOOLS.map((school) => (
+                                                <option key={school} value={school} />
+                                            ))}
+                                        </datalist>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Alcance", "Range")}
+                                        </label>
+                                        <input
+                                            value={attachmentRange}
+                                            onChange={(event) =>
+                                                setAttachmentRange(event.target.value)
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                            placeholder={t("9 m / 30 ft", "30 ft / 9 m")}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Tiempo de lanzamiento", "Casting time")}
+                                        </label>
+                                        <select
+                                            value={attachmentCastingTime}
+                                            onChange={(event) =>
+                                                setAttachmentCastingTime(event.target.value)
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        >
+                                            {CASTING_TIME_OPTIONS.map((option) => (
+                                                <option key={option.es} value={option.es}>
+                                                    {t(option.es, option.en)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Nota de lanzamiento", "Casting note")}
+                                        </label>
+                                        <input
+                                            value={attachmentCastingTimeNote}
+                                            onChange={(event) =>
+                                                setAttachmentCastingTimeNote(event.target.value)
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] text-ink-muted">
+                                        {t("Duracion", "Duration")}
+                                    </label>
+                                    <input
+                                        value={attachmentDuration}
+                                        onChange={(event) =>
+                                            setAttachmentDuration(event.target.value)
+                                        }
+                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                    />
+                                </div>
+                                <div className="grid gap-2 md:grid-cols-3">
+                                    <label className="flex items-center gap-2 text-[11px] text-ink">
+                                        <input
+                                            type="checkbox"
+                                            checked={!!attachmentComponents.verbal}
+                                            onChange={(event) =>
+                                                setAttachmentComponents((prev) => ({
+                                                    ...prev,
+                                                    verbal: event.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        V
+                                    </label>
+                                    <label className="flex items-center gap-2 text-[11px] text-ink">
+                                        <input
+                                            type="checkbox"
+                                            checked={!!attachmentComponents.somatic}
+                                            onChange={(event) =>
+                                                setAttachmentComponents((prev) => ({
+                                                    ...prev,
+                                                    somatic: event.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        S
+                                    </label>
+                                    <label className="flex items-center gap-2 text-[11px] text-ink">
+                                        <input
+                                            type="checkbox"
+                                            checked={!!attachmentComponents.material}
+                                            onChange={(event) =>
+                                                setAttachmentComponents((prev) => ({
+                                                    ...prev,
+                                                    material: event.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        M
+                                    </label>
+                                </div>
+                                {attachmentComponents.material && (
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] text-ink-muted">
+                                            {t("Materiales", "Materials")}
+                                        </label>
+                                        <input
+                                            value={attachmentMaterials}
+                                            onChange={(event) =>
+                                                setAttachmentMaterials(event.target.value)
+                                            }
+                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                        />
+                                    </div>
+                                )}
+                                <div className="grid gap-2 md:grid-cols-2">
+                                    <label className="flex items-center gap-2 text-[11px] text-ink">
+                                        <input
+                                            type="checkbox"
+                                            checked={attachmentConcentration}
+                                            onChange={(event) =>
+                                                setAttachmentConcentration(event.target.checked)
+                                            }
+                                        />
+                                        {t("Concentracion", "Concentration")}
+                                    </label>
+                                    <label className="flex items-center gap-2 text-[11px] text-ink">
+                                        <input
+                                            type="checkbox"
+                                            checked={attachmentRitual}
+                                            onChange={(event) =>
+                                                setAttachmentRitual(event.target.checked)
+                                            }
+                                        />
+                                        {t("Ritual", "Ritual")}
+                                    </label>
+                                </div>
+
+                                <details className="rounded-lg border border-ring bg-white/85 p-2">
+                                    <summary className="cursor-pointer text-[11px] text-ink-muted">
+                                        {t("Coste / recursos", "Cost / resources")}
+                                    </summary>
+                                    <div className="mt-2 space-y-2">
+                                        <label className="flex items-center gap-2 text-[11px] text-ink">
+                                            <input
+                                                type="checkbox"
+                                                checked={attachmentSpellUsesSlot}
+                                                onChange={(event) =>
+                                                    setAttachmentSpellUsesSlot(event.target.checked)
+                                                }
+                                            />
+                                            {t("Usa espacio de conjuro", "Use spell slot")}
+                                        </label>
+                                        {attachmentSpellUsesSlot && (
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Nivel de espacio", "Slot level")}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    max={9}
+                                                    value={attachmentSpellSlotLevel}
+                                                    onChange={(event) =>
+                                                        setAttachmentSpellSlotLevel(
+                                                            Number(event.target.value) || 0
+                                                        )
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Cargas", "Charges")}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={attachmentSpellCharges}
+                                                    onChange={(event) =>
+                                                        setAttachmentSpellCharges(event.target.value)
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] text-ink-muted">
+                                                    {t("Puntos", "Points")}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={attachmentSpellPoints}
+                                                    onChange={(event) =>
+                                                        setAttachmentSpellPoints(event.target.value)
+                                                    }
+                                                    className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details className="rounded-lg border border-ring bg-white/85 p-2">
+                                    <summary className="cursor-pointer text-[11px] text-ink-muted">
+                                        {t("Tirada / salvacion", "Roll / save")}
+                                    </summary>
+                                    <div className="mt-2 space-y-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] text-ink-muted">
+                                                {t("Tipo", "Type")}
+                                            </label>
+                                            <select
+                                                value={attachmentSaveType}
+                                                onChange={(event) =>
+                                                    setAttachmentSaveType(
+                                                        event.target.value as "attack" | "save" | "none"
+                                                    )
+                                                }
+                                                className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                            >
+                                                <option value="none">{t("Ninguno", "None")}</option>
+                                                <option value="attack">{t("Ataque", "Attack")}</option>
+                                                <option value="save">
+                                                    {t("Salvacion", "Saving throw")}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        {attachmentSaveType === "save" && (
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] text-ink-muted">
+                                                        {t("Atributo", "Attribute")}
+                                                    </label>
+                                                    <select
+                                                        value={attachmentSaveAbility}
+                                                        onChange={(event) =>
+                                                            setAttachmentSaveAbility(
+                                                                event.target.value as AbilityKey
+                                                            )
+                                                        }
+                                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                    >
+                                                        {SAVE_ABILITIES.map((ability) => (
+                                                            <option
+                                                                key={ability.value}
+                                                                value={ability.value}
+                                                            >
+                                                                {t(ability.es, ability.en)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[11px] text-ink-muted">
+                                                        CD
+                                                    </label>
+                                                    <select
+                                                        value={attachmentDcType}
+                                                        onChange={(event) =>
+                                                            setAttachmentDcType(
+                                                                event.target.value as "fixed" | "stat"
+                                                            )
+                                                        }
+                                                        className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                    >
+                                                        <option value="stat">
+                                                            {t("Basada en stat", "Based on stat")}
+                                                        </option>
+                                                        <option value="fixed">
+                                                            {t("Fija", "Fixed")}
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                                {attachmentDcType === "fixed" && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[11px] text-ink-muted">
+                                                            {t("CD fija", "Fixed DC")}
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={attachmentDcValue}
+                                                            onChange={(event) =>
+                                                                setAttachmentDcValue(
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {attachmentDcType === "stat" && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-[11px] text-ink-muted">
+                                                            {t("Stat base", "Base stat")}
+                                                        </label>
+                                                        <select
+                                                            value={attachmentDcStat}
+                                                            onChange={(event) =>
+                                                                setAttachmentDcStat(
+                                                                    event.target.value as AbilityKey
+                                                                )
+                                                            }
+                                                            className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                                        >
+                                                            {SAVE_ABILITIES.map((ability) => (
+                                                                <option
+                                                                    key={ability.value}
+                                                                    value={ability.value}
+                                                                >
+                                                                    {t(ability.es, ability.en)}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </details>
+
+                                <details className="rounded-lg border border-ring bg-white/85 p-2">
+                                    <summary className="cursor-pointer text-[11px] text-ink-muted">
+                                        {t("Dano", "Damage")}
+                                    </summary>
+                                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] text-ink-muted">
+                                                {t("Tipo de dano", "Damage type")}
+                                            </label>
+                                            <input
+                                                value={attachmentDamageType}
+                                                onChange={(event) =>
+                                                    setAttachmentDamageType(event.target.value)
+                                                }
+                                                className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] text-ink-muted">
+                                                {t("Dados", "Dice")}
+                                            </label>
+                                            <input
+                                                value={attachmentDamageDice}
+                                                onChange={(event) =>
+                                                    setAttachmentDamageDice(event.target.value)
+                                                }
+                                                className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                            />
+                                        </div>
+                                        <div className="space-y-1 md:col-span-2">
+                                            <label className="text-[11px] text-ink-muted">
+                                                {t("Escalado", "Scaling")}
+                                            </label>
+                                            <input
+                                                value={attachmentDamageScaling}
+                                                onChange={(event) =>
+                                                    setAttachmentDamageScaling(event.target.value)
+                                                }
+                                                className="w-full rounded-md bg-white/90 border border-ring px-2 py-1 text-xs text-ink outline-none focus:border-accent"
+                                            />
+                                        </div>
+                                    </div>
+                                </details>
+                            </>
+                        )}
                         <div className="space-y-1">
                             <label className="text-[11px] text-ink-muted">
                                 {t("Descripcion (Markdown)", "Description (Markdown)")}
@@ -719,6 +1911,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                 const itemAttachments = Array.isArray(item.attachments)
                                     ? item.attachments
                                     : [];
+                                const itemConfigurations = Array.isArray(item.configurations)
+                                    ? item.configurations
+                                    : [];
                                 return (
                                     <details
                                         key={item.id}
@@ -756,15 +1951,128 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                             </div>
                                         )}
                                         {desc && <Markdown content={desc} className="mt-2 text-ink-muted text-xs" />}
+                                        {itemConfigurations.length > 0 && (
+                                            <div className="mt-2 space-y-2">
+                                                <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                                                    {t("Configuraciones", "Configurations")}
+                                                </p>
+                                                {itemConfigurations.map((config) => {
+                                                    const configDescription = getLocalizedText(
+                                                        config.description,
+                                                        locale
+                                                    );
+                                                    const configAttachments = Array.isArray(
+                                                        config.attachments
+                                                    )
+                                                        ? config.attachments
+                                                        : [];
+                                                    const isActive =
+                                                        item.activeConfigurationId === config.id;
+                                                    return (
+                                                        <div
+                                                            key={config.id}
+                                                            className={`rounded-md border p-2 ${
+                                                                isActive
+                                                                    ? "border-emerald-500/60 bg-emerald-50/60"
+                                                                    : "border-ring bg-panel/70"
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <p className="text-xs font-semibold text-ink">
+                                                                    {config.name}
+                                                                </p>
+                                                                {isActive && (
+                                                                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700">
+                                                                        {t("Activa", "Active")}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {(config.usage ||
+                                                                config.damage ||
+                                                                config.range ||
+                                                                typeof config.magicBonus ===
+                                                                    "number") && (
+                                                                <p className="mt-1 text-[11px] text-ink-muted">
+                                                                    {[
+                                                                        config.usage
+                                                                            ? `${t("Uso", "Usage")}: ${config.usage}`
+                                                                            : null,
+                                                                        config.damage
+                                                                            ? `${t("Daño", "Damage")}: ${config.damage}`
+                                                                            : null,
+                                                                        config.range
+                                                                            ? `${t("Alcance", "Range")}: ${config.range}`
+                                                                            : null,
+                                                                        typeof config.magicBonus ===
+                                                                        "number"
+                                                                            ? `${t("Bono", "Bonus")}: ${
+                                                                                  config.magicBonus >= 0
+                                                                                      ? `+${config.magicBonus}`
+                                                                                      : config.magicBonus
+                                                                              }`
+                                                                            : null,
+                                                                    ]
+                                                                        .filter(Boolean)
+                                                                        .join(" · ")}
+                                                                </p>
+                                                            )}
+                                                            {configDescription && (
+                                                                <Markdown
+                                                                    content={configDescription}
+                                                                    className="mt-1 text-ink-muted text-xs"
+                                                                />
+                                                            )}
+                                                            {configAttachments.length > 0 && (
+                                                                <div className="mt-2 space-y-2">
+                                                                    {configAttachments.map((attachment) => {
+                                                                        const attachmentMarkdown =
+                                                                            formatItemAttachmentMarkdown(
+                                                                                attachment,
+                                                                                locale
+                                                                            );
+                                                                        return (
+                                                                            <div
+                                                                                key={attachment.id}
+                                                                                className="rounded-md border border-ring bg-white/80 p-2"
+                                                                            >
+                                                                                <p className="text-xs font-semibold text-ink">
+                                                                                    {attachment.name}
+                                                                                    {typeof attachment.level ===
+                                                                                    "number"
+                                                                                        ? ` · ${t("Nivel", "Level")} ${attachment.level}`
+                                                                                        : ""}
+                                                                                </p>
+                                                                                <p className="text-[11px] text-ink-muted">
+                                                                                    {getAttachmentTypeLabel(
+                                                                                        attachment.type,
+                                                                                        locale
+                                                                                    )}
+                                                                                </p>
+                                                                                {attachmentMarkdown && (
+                                                                                    <Markdown
+                                                                                        content={attachmentMarkdown}
+                                                                                        className="mt-1 text-ink-muted text-xs"
+                                                                                    />
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                         {itemAttachments.length > 0 && (
                                             <div className="mt-2 space-y-2">
                                                 <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
                                                     {t("Adjuntos", "Attachments")}
                                                 </p>
                                                 {itemAttachments.map((attachment) => {
-                                                    const attachmentDescription =
-                                                        getLocalizedText(
-                                                            attachment.description,
+                                                    const attachmentMarkdown =
+                                                        formatItemAttachmentMarkdown(
+                                                            attachment,
                                                             locale
                                                         );
                                                     return (
@@ -784,9 +2092,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                                                     locale
                                                                 )}
                                                             </p>
-                                                            {attachmentDescription && (
+                                                            {attachmentMarkdown && (
                                                                 <Markdown
-                                                                    content={attachmentDescription}
+                                                                    content={attachmentMarkdown}
                                                                     className="mt-1 text-ink-muted text-xs"
                                                                 />
                                                             )}
@@ -818,6 +2126,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                 const mods = Array.isArray(item.modifiers) ? item.modifiers : [];
                                 const itemAttachments = Array.isArray(item.attachments)
                                     ? item.attachments
+                                    : [];
+                                const itemConfigurations = Array.isArray(item.configurations)
+                                    ? item.configurations
                                     : [];
                                 return (
                                     <details
@@ -894,15 +2205,128 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                             </div>
                                         )}
                                         {desc && <Markdown content={desc} className="mt-2 text-ink-muted text-xs" />}
+                                        {itemConfigurations.length > 0 && (
+                                            <div className="mt-2 space-y-2">
+                                                <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+                                                    {t("Configuraciones", "Configurations")}
+                                                </p>
+                                                {itemConfigurations.map((config) => {
+                                                    const configDescription = getLocalizedText(
+                                                        config.description,
+                                                        locale
+                                                    );
+                                                    const configAttachments = Array.isArray(
+                                                        config.attachments
+                                                    )
+                                                        ? config.attachments
+                                                        : [];
+                                                    const isActive =
+                                                        item.activeConfigurationId === config.id;
+                                                    return (
+                                                        <div
+                                                            key={config.id}
+                                                            className={`rounded-md border p-2 ${
+                                                                isActive
+                                                                    ? "border-emerald-500/60 bg-emerald-50/60"
+                                                                    : "border-ring bg-panel/70"
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <p className="text-xs font-semibold text-ink">
+                                                                    {config.name}
+                                                                </p>
+                                                                {isActive && (
+                                                                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700">
+                                                                        {t("Activa", "Active")}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {(config.usage ||
+                                                                config.damage ||
+                                                                config.range ||
+                                                                typeof config.magicBonus ===
+                                                                    "number") && (
+                                                                <p className="mt-1 text-[11px] text-ink-muted">
+                                                                    {[
+                                                                        config.usage
+                                                                            ? `${t("Uso", "Usage")}: ${config.usage}`
+                                                                            : null,
+                                                                        config.damage
+                                                                            ? `${t("Daño", "Damage")}: ${config.damage}`
+                                                                            : null,
+                                                                        config.range
+                                                                            ? `${t("Alcance", "Range")}: ${config.range}`
+                                                                            : null,
+                                                                        typeof config.magicBonus ===
+                                                                        "number"
+                                                                            ? `${t("Bono", "Bonus")}: ${
+                                                                                  config.magicBonus >= 0
+                                                                                      ? `+${config.magicBonus}`
+                                                                                      : config.magicBonus
+                                                                              }`
+                                                                            : null,
+                                                                    ]
+                                                                        .filter(Boolean)
+                                                                        .join(" · ")}
+                                                                </p>
+                                                            )}
+                                                            {configDescription && (
+                                                                <Markdown
+                                                                    content={configDescription}
+                                                                    className="mt-1 text-ink-muted text-xs"
+                                                                />
+                                                            )}
+                                                            {configAttachments.length > 0 && (
+                                                                <div className="mt-2 space-y-2">
+                                                                    {configAttachments.map((attachment) => {
+                                                                        const attachmentMarkdown =
+                                                                            formatItemAttachmentMarkdown(
+                                                                                attachment,
+                                                                                locale
+                                                                            );
+                                                                        return (
+                                                                            <div
+                                                                                key={attachment.id}
+                                                                                className="rounded-md border border-ring bg-white/80 p-2"
+                                                                            >
+                                                                                <p className="text-xs font-semibold text-ink">
+                                                                                    {attachment.name}
+                                                                                    {typeof attachment.level ===
+                                                                                    "number"
+                                                                                        ? ` · ${t("Nivel", "Level")} ${attachment.level}`
+                                                                                        : ""}
+                                                                                </p>
+                                                                                <p className="text-[11px] text-ink-muted">
+                                                                                    {getAttachmentTypeLabel(
+                                                                                        attachment.type,
+                                                                                        locale
+                                                                                    )}
+                                                                                </p>
+                                                                                {attachmentMarkdown && (
+                                                                                    <Markdown
+                                                                                        content={attachmentMarkdown}
+                                                                                        className="mt-1 text-ink-muted text-xs"
+                                                                                    />
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                         {itemAttachments.length > 0 && (
                                             <div className="mt-2 space-y-2">
                                                 <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
                                                     {t("Adjuntos", "Attachments")}
                                                 </p>
                                                 {itemAttachments.map((attachment) => {
-                                                    const attachmentDescription =
-                                                        getLocalizedText(
-                                                            attachment.description,
+                                                    const attachmentMarkdown =
+                                                        formatItemAttachmentMarkdown(
+                                                            attachment,
                                                             locale
                                                         );
                                                     return (
@@ -922,9 +2346,9 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                                                     locale
                                                                 )}
                                                             </p>
-                                                            {attachmentDescription && (
+                                                            {attachmentMarkdown && (
                                                                 <Markdown
-                                                                    content={attachmentDescription}
+                                                                    content={attachmentMarkdown}
                                                                     className="mt-1 text-ink-muted text-xs"
                                                                 />
                                                             )}

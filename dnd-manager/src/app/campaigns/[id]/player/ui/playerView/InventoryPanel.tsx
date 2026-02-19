@@ -9,6 +9,10 @@ import {
   getLocalizedText,
   normalizeTarget,
 } from "@/lib/character/items";
+import {
+  formatItemAttachmentMarkdown,
+  getItemAttachmentTypeLabel,
+} from "@/lib/character/itemAttachments";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
 
@@ -88,21 +92,6 @@ function getCategoryLabel(category: string | undefined, locale: string) {
   return locale === "en" ? entry.en : entry.es;
 }
 
-function getAttachmentTypeLabel(type: string, locale: string) {
-  const map: Record<string, { es: string; en: string }> = {
-    action: { es: "Accion", en: "Action" },
-    ability: { es: "Habilidad", en: "Ability" },
-    trait: { es: "Rasgo", en: "Trait" },
-    spell: { es: "Hechizo", en: "Spell" },
-    cantrip: { es: "Truco", en: "Cantrip" },
-    classFeature: { es: "Rasgo de clase", en: "Class feature" },
-    other: { es: "Otro", en: "Other" },
-  };
-  const entry = map[type];
-  if (!entry) return type;
-  return locale === "en" ? entry.en : entry.es;
-}
-
 function ItemCard({
   item,
   locale,
@@ -115,6 +104,9 @@ function ItemCard({
   const description = getLocalizedText(item.description, locale);
   const modifiers = Array.isArray(item.modifiers) ? item.modifiers : [];
   const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+  const configurations = Array.isArray(item.configurations)
+    ? item.configurations
+    : [];
   const tags = [
     item.category ? getCategoryLabel(item.category, locale) : null,
     item.rarity ? item.rarity : null,
@@ -181,14 +173,116 @@ function ItemCard({
 
         {description && <Markdown content={description} className="text-ink-muted text-xs" />}
 
+        {configurations.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
+              {tr(locale, "Configuraciones", "Configurations")}
+            </p>
+            {configurations.map((config: any) => {
+              const configAttachments = Array.isArray(config.attachments)
+                ? config.attachments
+                : [];
+              const configDescription = getLocalizedText(config.description, locale);
+              const isActive = item.activeConfigurationId === config.id;
+              return (
+                <div
+                  key={config.id}
+                  className={`rounded-md border p-2 ${
+                    isActive
+                      ? "border-emerald-500/50 bg-emerald-50/60"
+                      : "border-ring bg-panel/70"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-ink">{config.name}</p>
+                    {isActive && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/50 text-emerald-700">
+                        {tr(locale, "Activa", "Active")}
+                      </span>
+                    )}
+                  </div>
+                  {(config.usage ||
+                    config.damage ||
+                    config.range ||
+                    typeof config.magicBonus === "number") && (
+                    <p className="mt-1 text-[11px] text-ink-muted">
+                      {[
+                        config.usage
+                          ? `${tr(locale, "Uso", "Usage")}: ${config.usage}`
+                          : null,
+                        config.damage
+                          ? `${tr(locale, "Daño", "Damage")}: ${config.damage}`
+                          : null,
+                        config.range
+                          ? `${tr(locale, "Alcance", "Range")}: ${config.range}`
+                          : null,
+                        typeof config.magicBonus === "number"
+                          ? `${tr(locale, "Bono", "Bonus")}: ${
+                              config.magicBonus >= 0
+                                ? `+${config.magicBonus}`
+                                : config.magicBonus
+                            }`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
+                  {configDescription && (
+                    <Markdown
+                      content={configDescription}
+                      className="mt-1 text-ink-muted text-xs"
+                    />
+                  )}
+                  {configAttachments.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {configAttachments.map((attachment: any) => {
+                        const attachmentMarkdown = formatItemAttachmentMarkdown(
+                          attachment,
+                          locale
+                        );
+                        return (
+                          <div
+                            key={attachment.id}
+                            className="rounded-md border border-ring bg-white/80 p-2"
+                          >
+                            <p className="text-xs font-semibold text-ink">
+                              {attachment.name}
+                              {typeof attachment.level === "number"
+                                ? ` · ${tr(locale, "Nivel", "Level")} ${attachment.level}`
+                                : ""}
+                            </p>
+                            <p className="text-[11px] text-ink-muted">
+                              {getItemAttachmentTypeLabel(
+                                String(attachment.type ?? "other"),
+                                locale
+                              )}
+                            </p>
+                            {attachmentMarkdown && (
+                              <Markdown
+                                content={attachmentMarkdown}
+                                className="mt-1 text-ink-muted text-xs"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {attachments.length > 0 && (
           <div className="space-y-2">
             <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
               {tr(locale, "Adjuntos", "Attachments")}
             </p>
             {attachments.map((attachment: any) => {
-              const attachmentDescription = getLocalizedText(
-                attachment.description,
+              const attachmentMarkdown = formatItemAttachmentMarkdown(
+                attachment,
                 locale
               );
               return (
@@ -203,11 +297,14 @@ function ItemCard({
                       : ""}
                   </p>
                   <p className="text-[11px] text-ink-muted">
-                    {getAttachmentTypeLabel(String(attachment.type ?? "other"), locale)}
+                    {getItemAttachmentTypeLabel(
+                      String(attachment.type ?? "other"),
+                      locale
+                    )}
                   </p>
-                  {attachmentDescription && (
+                  {attachmentMarkdown && (
                     <Markdown
-                      content={attachmentDescription}
+                      content={attachmentMarkdown}
                       className="mt-1 text-ink-muted text-xs"
                     />
                   )}

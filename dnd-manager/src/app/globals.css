@@ -90,6 +90,14 @@ input,
 textarea,
 select {
   font-family: inherit;
+  color: var(--ink);
+  caret-color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.95;
 }
 
 :root[data-animations="off"] *,

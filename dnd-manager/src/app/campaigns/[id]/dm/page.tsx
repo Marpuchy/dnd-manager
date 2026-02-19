@@ -15,6 +15,7 @@ import AIAssistantPanel, {
 } from "../player/ui/AIAssistantPanel";
 import { useCharacterForm } from "../player/hooks/useCharacterForm";
 import type { Character, Details, Tab } from "../player/playerShared";
+import StoryManagerPanel from "./StoryManagerPanel";
 
 type MembershipRow = {
     role: "PLAYER" | "DM";
@@ -56,14 +57,7 @@ export default function CampaignDMPage() {
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [characters, setCharacters] = useState<Character[]>([]);
 
-    const [storyDraft, setStoryDraft] = useState("");
-    const [storySaved, setStorySaved] = useState(false);
     const { fields: formFields, loadFromCharacter } = useCharacterForm();
-
-    const storyStorageKey = useMemo(
-        () => `dnd-manager:dm-story:${String(params.id ?? "")}`,
-        [params.id]
-    );
 
     const menuEntries: MenuEntry[] = [
         {
@@ -91,12 +85,6 @@ export default function CampaignDMPage() {
             en: "Campaign character manager",
         },
     ];
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const cached = window.localStorage.getItem(storyStorageKey);
-        if (cached) setStoryDraft(cached);
-    }, [storyStorageKey]);
 
     async function loadPanelData(campaignId: string): Promise<Character[]> {
         const [campaignRes, charsRes] = await Promise.all([
@@ -204,13 +192,6 @@ export default function CampaignDMPage() {
             }
         }
     }, [characters, editingCharacterId]);
-
-    function saveStory() {
-        if (typeof window === "undefined") return;
-        window.localStorage.setItem(storyStorageKey, storyDraft);
-        setStorySaved(true);
-        window.setTimeout(() => setStorySaved(false), 1200);
-    }
 
     const editingCharacter =
         characters.find((character) => character.id === editingCharacterId) ?? null;
@@ -901,41 +882,7 @@ export default function CampaignDMPage() {
                 )}
 
                 {activeSection === "story" && (
-                    <div className="space-y-3">
-                        <h1 className="text-xl font-semibold text-ink">
-                            {t("Gestor de historia", "Story manager")}
-                        </h1>
-                        <p className="text-sm text-ink-muted">
-                            {t(
-                                "Notas privadas del master (guardado local en este navegador).",
-                                "Private master notes (saved locally in this browser)."
-                            )}
-                        </p>
-                        <textarea
-                            value={storyDraft}
-                            onChange={(event) => setStoryDraft(event.target.value)}
-                            rows={12}
-                            className="w-full rounded-md border border-ring bg-white/80 px-3 py-2 text-sm outline-none focus:border-accent"
-                            placeholder={t(
-                                "Eventos, escenas, NPCs, pistas...",
-                                "Events, scenes, NPCs, clues..."
-                            )}
-                        />
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={saveStory}
-                                className="text-xs px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
-                            >
-                                {t("Guardar historia", "Save story")}
-                            </button>
-                            {storySaved && (
-                                <span className="text-xs text-emerald-700">
-                                    {t("Guardado", "Saved")}
-                                </span>
-                            )}
-                        </div>
-                    </div>
+                    <StoryManagerPanel campaignId={String(params.id)} locale={locale} />
                 )}
 
                 {activeSection === "bestiary" && (
@@ -1026,10 +973,23 @@ export default function CampaignDMPage() {
                 selectedCharacterName={editingCharacter?.name ?? null}
                 assistantContext={assistantContext}
                 onApplied={async () => {
-                    await loadPanelData(String(params.id));
+                    const refreshed = await loadPanelData(String(params.id));
+                    if (playerPanelMode !== "edit") return;
+                    if (!editingCharacterId) return;
+
+                    const freshCharacter = refreshed.find(
+                        (entry) => entry.id === editingCharacterId
+                    );
+                    if (!freshCharacter) return;
+                    loadFromCharacter(freshCharacter);
                 }}
             />
-            <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <SettingsPanel
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                campaignId={String(params.id)}
+                canManageZoneTrash
+            />
         </main>
     );
 }
