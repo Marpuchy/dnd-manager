@@ -8,6 +8,7 @@ import { tr } from "@/lib/i18n/translate";
 type MutationResult = {
     operation: "create" | "update";
     characterId?: string;
+    bestiaryEntryId?: string;
     status: "applied" | "blocked" | "skipped" | "error";
     message: string;
 };
@@ -251,7 +252,7 @@ type AIAssistantPanelProps = {
     selectedCharacterId?: string | null;
     selectedCharacterName?: string | null;
     assistantContext?: AIAssistantClientContext;
-    onApplied?: () => Promise<void> | void;
+    onApplied?: (context?: { results: MutationResult[] }) => Promise<void> | void;
 };
 
 type TranslateFn = (es: string, en: string) => string;
@@ -327,6 +328,15 @@ function ProposedActionPreview({
     t: TranslateFn;
 }) {
     const data = isRecord(action.data) ? action.data : undefined;
+    const bestiaryPatch =
+        data && isRecord(data.bestiary_patch) ? data.bestiary_patch : null;
+    const bestiaryTargetId = asString(bestiaryPatch?.target_entry_id, 80);
+    const bestiaryName = asString(bestiaryPatch?.name, 140);
+    const previewTargetLabel =
+        action.characterId ??
+        bestiaryName ??
+        bestiaryTargetId ??
+        t("sin objetivo", "no target");
     const sections: Array<{ title: string; lines: string[] }> = [];
 
     if (data) {
@@ -579,12 +589,155 @@ function ProposedActionPreview({
                 });
             }
         }
+
+        if (bestiaryPatch) {
+            const lines: string[] = [];
+            const sourceType = asString(bestiaryPatch.source_type, 32);
+            const creatureType = asString(bestiaryPatch.creature_type, 120);
+            const creatureSize = asString(bestiaryPatch.creature_size, 80);
+            const alignment = asString(bestiaryPatch.alignment, 120);
+            const cr = asNumber(bestiaryPatch.challenge_rating);
+            const xp = asNumber(bestiaryPatch.xp);
+            const pb = asNumber(bestiaryPatch.proficiency_bonus);
+            const ac = asNumber(bestiaryPatch.armor_class);
+            const hp = asNumber(bestiaryPatch.hit_points);
+            const hitDice = asString(bestiaryPatch.hit_dice, 80);
+            const speedRecord = isRecord(bestiaryPatch.speed)
+                ? bestiaryPatch.speed
+                : null;
+            const speedLine = speedRecord
+                ? Object.entries(speedRecord)
+                      .map(([key, value]) => {
+                          const parsed =
+                              typeof value === "number"
+                                  ? value
+                                  : typeof value === "string"
+                                    ? Number(value)
+                                    : NaN;
+                          if (!Number.isFinite(parsed)) return null;
+                          return `${key}: ${Math.round(parsed)}`;
+                      })
+                      .filter((entry): entry is string => !!entry)
+                      .join(", ")
+                : "";
+            const visible = boolLabel(asBoolean(bestiaryPatch.is_player_visible), t);
+            if (bestiaryTargetId) {
+                lines.push(`ID: ${bestiaryTargetId}`);
+            }
+            if (bestiaryName) {
+                lines.push(`${t("Nombre", "Name")}: ${bestiaryName}`);
+            }
+            if (sourceType) {
+                lines.push(`${t("Origen", "Source")}: ${sourceType}`);
+            }
+            if (creatureType) {
+                lines.push(`${t("Tipo", "Type")}: ${creatureType}`);
+            }
+            if (creatureSize) {
+                lines.push(`${t("Tamaño", "Size")}: ${creatureSize}`);
+            }
+            if (alignment) {
+                lines.push(`${t("Alineamiento", "Alignment")}: ${alignment}`);
+            }
+            if (typeof cr === "number") {
+                lines.push(`CR: ${cr}`);
+            }
+            if (typeof xp === "number") {
+                lines.push(`XP: ${xp}`);
+            }
+            if (typeof pb === "number") {
+                lines.push(`PB: ${pb >= 0 ? `+${pb}` : pb}`);
+            }
+            if (typeof ac === "number") {
+                lines.push(`AC: ${ac}`);
+            }
+            if (typeof hp === "number") {
+                lines.push(`HP: ${hp}`);
+            }
+            if (hitDice) {
+                lines.push(`${t("Dados de golpe", "Hit dice")}: ${hitDice}`);
+            }
+            if (speedLine) {
+                lines.push(`${t("Velocidad", "Speed")}: ${speedLine}`);
+            }
+            if (visible) {
+                lines.push(`${t("Visible a jugadores", "Visible to players")}: ${visible}`);
+            }
+
+            const abilityScores = isRecord(bestiaryPatch.ability_scores)
+                ? bestiaryPatch.ability_scores
+                : null;
+            if (abilityScores) {
+                const abilityLine = ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
+                    .map((key) => {
+                        const score = asNumber(abilityScores[key]);
+                        return typeof score === "number" ? `${key} ${score}` : null;
+                    })
+                    .filter((entry): entry is string => !!entry)
+                    .join(" · ");
+                if (abilityLine) {
+                    lines.push(abilityLine);
+                }
+            }
+
+            const traitCount = Array.isArray(bestiaryPatch.traits)
+                ? bestiaryPatch.traits.length
+                : 0;
+            const actionCount = Array.isArray(bestiaryPatch.actions)
+                ? bestiaryPatch.actions.length
+                : 0;
+            const bonusCount = Array.isArray(bestiaryPatch.bonus_actions)
+                ? bestiaryPatch.bonus_actions.length
+                : 0;
+            const reactionCount = Array.isArray(bestiaryPatch.reactions)
+                ? bestiaryPatch.reactions.length
+                : 0;
+            const legendaryCount = Array.isArray(bestiaryPatch.legendary_actions)
+                ? bestiaryPatch.legendary_actions.length
+                : 0;
+            const lairCount = Array.isArray(bestiaryPatch.lair_actions)
+                ? bestiaryPatch.lair_actions.length
+                : 0;
+            if (
+                traitCount > 0 ||
+                actionCount > 0 ||
+                bonusCount > 0 ||
+                reactionCount > 0 ||
+                legendaryCount > 0 ||
+                lairCount > 0
+            ) {
+                const blockParts = [
+                    traitCount > 0 ? `${t("Rasgos", "Traits")}: ${traitCount}` : null,
+                    actionCount > 0 ? `${t("Acciones", "Actions")}: ${actionCount}` : null,
+                    bonusCount > 0
+                        ? `${t("Bonus", "Bonus actions")}: ${bonusCount}`
+                        : null,
+                    reactionCount > 0
+                        ? `${t("Reacciones", "Reactions")}: ${reactionCount}`
+                        : null,
+                    legendaryCount > 0
+                        ? `${t("Legendarias", "Legendary")}: ${legendaryCount}`
+                        : null,
+                    lairCount > 0 ? `${t("Guarida", "Lair")}: ${lairCount}` : null,
+                ]
+                    .filter((entry): entry is string => !!entry)
+                    .join(" · ");
+                if (blockParts) lines.push(blockParts);
+            }
+
+            if (lines.length > 0) {
+                sections.push({
+                    title: t("Criatura de bestiario", "Bestiary creature"),
+                    lines,
+                });
+            }
+        }
     }
 
     return (
         <div className="rounded-xl border border-ring bg-panel/90 px-2.5 py-2 text-ink shadow-[0_6px_16px_rgba(45,29,12,0.07)]">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-                {action.operation} · {action.characterId ?? t("sin objetivo", "no target")}
+                {action.operation} · {previewTargetLabel}
             </p>
             <p className="mt-1 text-[11px] leading-relaxed">
                 {action.note ??
@@ -2750,7 +2903,7 @@ export default function AIAssistantPanel({
 
             const hasApplied = results.some((entry) => entry.status === "applied");
             if (hasApplied) {
-                await onApplied?.();
+                await onApplied?.({ results });
             }
         } catch (err: unknown) {
             const message =
@@ -3501,6 +3654,16 @@ export default function AIAssistantPanel({
                                 </div>
                             </div>
                         ))}
+
+                        {loading && (
+                            <div className="ai-chat-row flex justify-start">
+                                <div className="ai-chat-bubble ai-chat-bubble-assistant max-w-[87%] rounded-2xl rounded-bl-md border border-ring/70 bg-white/70 px-3 py-2 text-[12px] leading-[1.35] text-ink-muted shadow-[0_4px_12px_rgba(45,29,12,0.06)]">
+                                    <p className="whitespace-pre-wrap break-words italic text-ink-muted/90">
+                                        {t("Pensando...", "Thinking...")}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         <div ref={messagesEndRef} />
                     </div>

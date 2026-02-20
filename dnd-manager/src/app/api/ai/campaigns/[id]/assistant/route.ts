@@ -36,6 +36,39 @@ type CharacterSummaryRow = {
     details?: unknown;
 };
 
+type BestiarySourceType = "CUSTOM" | "SRD" | "IMPORTED";
+type BestiaryEntryKind =
+    | "ENCOUNTER"
+    | "BOSS"
+    | "ENEMY"
+    | "NPC"
+    | "HAZARD"
+    | "BEAST"
+    | "CUSTOM";
+
+type BestiarySummaryRow = {
+    id: string;
+    name: string;
+    source_type?: BestiarySourceType | null;
+    entry_kind?: BestiaryEntryKind | null;
+    creature_type?: string | null;
+    creature_size?: string | null;
+    alignment?: string | null;
+    challenge_rating?: number | null;
+    armor_class?: number | null;
+    hit_points?: number | null;
+    hit_dice?: string | null;
+    traits?: unknown;
+    actions?: unknown;
+    bonus_actions?: unknown;
+    reactions?: unknown;
+    legendary_actions?: unknown;
+    lair_actions?: unknown;
+    notes?: string | null;
+    flavor?: string | null;
+    is_player_visible?: boolean;
+};
+
 type CharacterMutationRow = {
     id: string;
     user_id: string;
@@ -46,6 +79,15 @@ type CharacterMutationRow = {
 
 type StatKey = "str" | "dex" | "con" | "int" | "wis" | "cha";
 const STAT_KEYS: readonly StatKey[] = ["str", "dex", "con", "int", "wis", "cha"];
+type BestiaryAbilityKey = "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+const BESTIARY_ABILITY_KEYS: readonly BestiaryAbilityKey[] = [
+    "STR",
+    "DEX",
+    "CON",
+    "INT",
+    "WIS",
+    "CHA",
+];
 
 type DetailPatchKey =
     | "notes"
@@ -82,7 +124,43 @@ const DETAIL_PATCH_KEYS: readonly DetailPatchKey[] = [
 
 type StatsObject = Record<StatKey, number>;
 type StatsPatch = Partial<Record<StatKey, number>>;
+type BestiaryAbilityScoresPatch = Partial<Record<BestiaryAbilityKey, number>>;
 type DetailsPatch = Partial<Record<DetailPatchKey, string | null>>;
+type BestiaryBlockPatch = {
+    name?: string;
+    desc?: string;
+};
+type BestiaryEntryPatch = {
+    target_entry_id?: string;
+    name?: string;
+    source_type?: BestiarySourceType;
+    source_index?: string | null;
+    entry_kind?: BestiaryEntryKind;
+    creature_type?: string | null;
+    creature_size?: string | null;
+    alignment?: string | null;
+    challenge_rating?: number;
+    xp?: number;
+    proficiency_bonus?: number;
+    armor_class?: number;
+    hit_points?: number;
+    hit_dice?: string | null;
+    ability_scores?: BestiaryAbilityScoresPatch;
+    speed?: Record<string, unknown>;
+    senses?: Record<string, unknown>;
+    languages?: string | null;
+    flavor?: string | null;
+    notes?: string | null;
+    traits?: BestiaryBlockPatch[];
+    actions?: BestiaryBlockPatch[];
+    bonus_actions?: BestiaryBlockPatch[];
+    reactions?: BestiaryBlockPatch[];
+    legendary_actions?: BestiaryBlockPatch[];
+    lair_actions?: BestiaryBlockPatch[];
+    image_url?: string | null;
+    is_player_visible?: boolean;
+    sort_order?: number;
+};
 type ItemCategory = "weapon" | "armor" | "accessory" | "consumable" | "tool" | "misc";
 type ItemAttachmentType =
     | "action"
@@ -253,6 +331,7 @@ type SanitizedActionData = {
     learned_spell_patch?: LearnedSpellPatch;
     custom_spell_patch?: CustomSpellPatch;
     custom_feature_patch?: CustomFeaturePatch;
+    bestiary_patch?: BestiaryEntryPatch;
 };
 
 type SanitizedAction = {
@@ -265,6 +344,7 @@ type SanitizedAction = {
 type MutationResult = {
     operation: Operation;
     characterId?: string;
+    bestiaryEntryId?: string;
     status: MutationStatus;
     message: string;
 };
@@ -999,6 +1079,136 @@ const ASSISTANT_PLAN_SCHEMA: Record<string, unknown> = {
                                 },
                                 required: ["target_feature_name"],
                             },
+                            bestiary_patch: {
+                                type: "object",
+                                additionalProperties: false,
+                                properties: {
+                                    target_entry_id: { type: "string" },
+                                    name: { type: "string" },
+                                    source_type: {
+                                        type: "string",
+                                        enum: ["CUSTOM", "SRD", "IMPORTED"],
+                                    },
+                                    source_index: { type: ["string", "null"] },
+                                    entry_kind: {
+                                        type: "string",
+                                        enum: [
+                                            "ENCOUNTER",
+                                            "BOSS",
+                                            "ENEMY",
+                                            "NPC",
+                                            "HAZARD",
+                                            "BEAST",
+                                            "CUSTOM",
+                                        ],
+                                    },
+                                    creature_type: { type: ["string", "null"] },
+                                    creature_size: { type: ["string", "null"] },
+                                    alignment: { type: ["string", "null"] },
+                                    challenge_rating: { type: "number" },
+                                    xp: { type: "integer" },
+                                    proficiency_bonus: { type: "integer" },
+                                    armor_class: { type: "integer" },
+                                    hit_points: { type: "integer" },
+                                    hit_dice: { type: ["string", "null"] },
+                                    ability_scores: {
+                                        type: "object",
+                                        additionalProperties: false,
+                                        properties: {
+                                            STR: { type: "number" },
+                                            DEX: { type: "number" },
+                                            CON: { type: "number" },
+                                            INT: { type: "number" },
+                                            WIS: { type: "number" },
+                                            CHA: { type: "number" },
+                                        },
+                                    },
+                                    speed: {
+                                        type: "object",
+                                    },
+                                    senses: {
+                                        type: "object",
+                                    },
+                                    languages: { type: ["string", "null"] },
+                                    flavor: { type: ["string", "null"] },
+                                    notes: { type: ["string", "null"] },
+                                    traits: {
+                                        type: "array",
+                                        maxItems: 40,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                desc: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                    actions: {
+                                        type: "array",
+                                        maxItems: 40,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                desc: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                    bonus_actions: {
+                                        type: "array",
+                                        maxItems: 24,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                desc: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                    reactions: {
+                                        type: "array",
+                                        maxItems: 24,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                desc: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                    legendary_actions: {
+                                        type: "array",
+                                        maxItems: 24,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                desc: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                    lair_actions: {
+                                        type: "array",
+                                        maxItems: 24,
+                                        items: {
+                                            type: "object",
+                                            additionalProperties: false,
+                                            properties: {
+                                                name: { type: "string" },
+                                                desc: { type: "string" },
+                                            },
+                                        },
+                                    },
+                                    image_url: { type: ["string", "null"] },
+                                    is_player_visible: { type: "boolean" },
+                                    sort_order: { type: "integer" },
+                                },
+                            },
                         },
                         required: [],
                     },
@@ -1086,6 +1296,32 @@ function asInteger(value: unknown, min: number, max: number): number | undefined
     return Math.round(clampNumber(parsed, min, max));
 }
 
+function parseChallengeRatingValue(value: unknown): number | undefined {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return clampNumber(value, 0, 30);
+    }
+    if (typeof value !== "string") return undefined;
+    const raw = value.trim();
+    if (!raw) return undefined;
+
+    const fraction = raw.match(/^(\d+)\s*\/\s*(\d+)$/);
+    if (fraction) {
+        const numerator = Number(fraction[1]);
+        const denominator = Number(fraction[2]);
+        if (
+            Number.isFinite(numerator) &&
+            Number.isFinite(denominator) &&
+            denominator > 0
+        ) {
+            return clampNumber(numerator / denominator, 0, 30);
+        }
+    }
+
+    const parsed = Number(raw.replace(",", "."));
+    if (!Number.isFinite(parsed)) return undefined;
+    return clampNumber(parsed, 0, 30);
+}
+
 function asBooleanFlag(value: unknown): boolean | undefined {
     return typeof value === "boolean" ? value : undefined;
 }
@@ -1094,6 +1330,73 @@ function asContextString(value: unknown, maxLen = 100): string | undefined {
     const parsed = asTrimmedString(value, maxLen);
     if (!parsed) return undefined;
     return parsed.replace(/\s+/g, " ");
+}
+
+const BESTIARY_EMOJI_REGEX =
+    /[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
+
+function stripBestiaryEmoji(value: string) {
+    return value.replace(BESTIARY_EMOJI_REGEX, "");
+}
+
+function isBestiaryMetaInstructionLine(value: string) {
+    const normalized = normalizeForMatch(value);
+    if (!normalized) return false;
+    const compact = normalized.replace(/\s+/g, " ").trim();
+    if (
+        /^(?:crea(?:r)?|genera(?:r)?|generame|modifica(?:r)?|actualiza(?:r)?|edita(?:r)?|ajusta(?:r)?|establece(?:r)?|pon(?:er)?|asigna(?:r)?)(?:\s|$)/i.test(
+            compact
+        )
+    ) {
+        return true;
+    }
+    if (/^(?:create|update|delete)\s*[·.\-:]/i.test(compact)) return true;
+    if (compact.includes("fallback local")) return true;
+    if (
+        compact.includes("soy tu asistente ia") ||
+        compact.includes("te propondre cambios y tu confirmas si se aplican") ||
+        compact.includes("i am your ai assistant") ||
+        compact.includes("i will propose changes and you confirm")
+    ) {
+        return true;
+    }
+    if (
+        compact.startsWith("he preparado una propuesta local") ||
+        compact.startsWith("vista previa sin detalle estructurado") ||
+        compact.startsWith("creacion heuristica de criatura de bestiario") ||
+        compact.startsWith("actualizacion heuristica de criatura de bestiario")
+    ) {
+        return true;
+    }
+    return (
+        normalized === "crea esta criatura" ||
+        normalized === "crear esta criatura" ||
+        normalized === "genera esta criatura" ||
+        normalized === "genera la criatura" ||
+        normalized === "generame esta criatura" ||
+        normalized === "generame la criatura" ||
+        normalized === "generate this creature" ||
+        normalized === "aplica los cambios" ||
+        normalized === "aplica en su hoja" ||
+        normalized === "aplicar cambios" ||
+        normalized.includes("sin reemplazar o cambiar") ||
+        normalized.includes("sin reemplazar ni cambiar") ||
+        normalized.includes("sin cambiar las estadisticas originales") ||
+        normalized.includes("sin modificar las estadisticas originales") ||
+        normalized.includes("las que te paso como base no las modifiques") ||
+        normalized.includes("las que te paso como base no las cambies")
+    );
+}
+
+function sanitizeBestiaryFreeText(value: string, maxLen: number) {
+    if (isBestiaryMetaInstructionLine(value)) return undefined;
+    const noEmoji = stripBestiaryEmoji(value)
+        .replace(/^[\s*•\-–—]+/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!noEmoji) return undefined;
+    const bounded = noEmoji.length > maxLen ? noEmoji.slice(0, maxLen) : noEmoji;
+    return isBestiaryMetaInstructionLine(bounded) ? undefined : bounded;
 }
 
 function asContextStringArray(value: unknown, maxItems: number, maxLen: number) {
@@ -2668,6 +2971,191 @@ function sanitizeDetailsPatch(value: unknown): DetailsPatch | undefined {
     return Object.keys(patch).length > 0 ? patch : undefined;
 }
 
+function sanitizeBestiaryAbilityScoresPatch(
+    value: unknown
+): BestiaryAbilityScoresPatch | undefined {
+    if (!isRecord(value)) return undefined;
+    const patch: BestiaryAbilityScoresPatch = {};
+    for (const key of BESTIARY_ABILITY_KEYS) {
+        const parsed = asInteger(value[key], 1, 40);
+        if (typeof parsed === "number") {
+            patch[key] = parsed;
+        }
+    }
+    return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
+function sanitizeBestiaryLooseRecord(
+    value: unknown,
+    maxKeys = 24
+): Record<string, unknown> | undefined {
+    if (!isRecord(value)) return undefined;
+    const next: Record<string, unknown> = {};
+    for (const [key, rawValue] of Object.entries(value).slice(0, maxKeys)) {
+        const cleanKey = asTrimmedString(key, 48);
+        if (!cleanKey) continue;
+        if (
+            typeof rawValue === "string" ||
+            typeof rawValue === "number" ||
+            typeof rawValue === "boolean"
+        ) {
+            next[cleanKey] = rawValue;
+        } else if (rawValue === null) {
+            next[cleanKey] = null;
+        }
+    }
+    return Object.keys(next).length > 0 ? next : {};
+}
+
+function sanitizeBestiaryBlocks(
+    value: unknown,
+    maxItems: number
+): BestiaryBlockPatch[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const output: BestiaryBlockPatch[] = [];
+    for (const entry of value.slice(0, maxItems)) {
+        if (typeof entry === "string") {
+            const desc = sanitizeBestiaryFreeText(entry, 4000);
+            if (!desc) continue;
+            output.push({ desc });
+            continue;
+        }
+        if (!isRecord(entry)) continue;
+        const name =
+            typeof entry.name === "string"
+                ? sanitizeBestiaryFreeText(entry.name, 180)
+                : undefined;
+        const desc =
+            typeof entry.desc === "string"
+                ? sanitizeBestiaryFreeText(entry.desc, 4000)
+                : typeof entry.description === "string"
+                  ? sanitizeBestiaryFreeText(entry.description, 4000)
+                  : undefined;
+        if (!name && !desc) continue;
+        output.push({
+            ...(name ? { name } : {}),
+            ...(desc ? { desc } : {}),
+        });
+    }
+    return output.length > 0 ? output : undefined;
+}
+
+function sanitizeBestiaryPatch(value: unknown): BestiaryEntryPatch | undefined {
+    if (!isRecord(value)) return undefined;
+    const patch: BestiaryEntryPatch = {};
+
+    const targetEntryId = asTrimmedString(value.target_entry_id, 64);
+    const name =
+        typeof value.name === "string"
+            ? sanitizeBestiaryFreeText(value.name, 140)
+            : undefined;
+    const sourceTypeRaw = asTrimmedString(value.source_type, 24)?.toUpperCase();
+    const sourceType: BestiarySourceType | undefined =
+        sourceTypeRaw === "CUSTOM" ||
+        sourceTypeRaw === "SRD" ||
+        sourceTypeRaw === "IMPORTED"
+            ? sourceTypeRaw
+            : undefined;
+    const sourceIndex = asNullableString(value.source_index, 220);
+    const entryKindRaw = asTrimmedString(value.entry_kind, 24)?.toUpperCase();
+    const entryKind: BestiaryEntryKind | undefined =
+        entryKindRaw === "ENCOUNTER" ||
+        entryKindRaw === "BOSS" ||
+        entryKindRaw === "ENEMY" ||
+        entryKindRaw === "NPC" ||
+        entryKindRaw === "HAZARD" ||
+        entryKindRaw === "BEAST" ||
+        entryKindRaw === "CUSTOM"
+            ? entryKindRaw
+            : undefined;
+    const creatureType =
+        value.creature_type === null
+            ? null
+            : typeof value.creature_type === "string"
+              ? sanitizeBestiaryFreeText(value.creature_type, 120)
+              : undefined;
+    const creatureSize =
+        value.creature_size === null
+            ? null
+            : typeof value.creature_size === "string"
+              ? sanitizeBestiaryFreeText(value.creature_size, 60)
+              : undefined;
+    const alignment =
+        value.alignment === null
+            ? null
+            : typeof value.alignment === "string"
+              ? sanitizeBestiaryFreeText(value.alignment, 120)
+              : undefined;
+    const challengeRating = parseChallengeRatingValue(value.challenge_rating);
+    const xp = asInteger(value.xp, 0, 10000000);
+    const proficiencyBonus = asInteger(value.proficiency_bonus, -5, 20);
+    const armorClass = asInteger(value.armor_class, 0, 80);
+    const hitPoints = asInteger(value.hit_points, 0, 100000);
+    const hitDice = asNullableString(value.hit_dice, 120);
+    const abilityScores = sanitizeBestiaryAbilityScoresPatch(value.ability_scores);
+    const speed = sanitizeBestiaryLooseRecord(value.speed, 24);
+    const senses = sanitizeBestiaryLooseRecord(value.senses, 24);
+    const languages =
+        value.languages === null
+            ? null
+            : typeof value.languages === "string"
+              ? sanitizeBestiaryFreeText(value.languages, 600)
+              : undefined;
+    const flavor =
+        value.flavor === null
+            ? null
+            : typeof value.flavor === "string"
+              ? sanitizeBestiaryFreeText(value.flavor, 4000)
+              : undefined;
+    const notes =
+        value.notes === null
+            ? null
+            : typeof value.notes === "string"
+              ? sanitizeBestiaryFreeText(value.notes, 4000)
+              : undefined;
+    const traits = sanitizeBestiaryBlocks(value.traits, 40);
+    const actions = sanitizeBestiaryBlocks(value.actions, 40);
+    const bonusActions = sanitizeBestiaryBlocks(value.bonus_actions, 24);
+    const reactions = sanitizeBestiaryBlocks(value.reactions, 24);
+    const legendaryActions = sanitizeBestiaryBlocks(value.legendary_actions, 24);
+    const lairActions = sanitizeBestiaryBlocks(value.lair_actions, 24);
+    const imageUrl = asNullableString(value.image_url, 1800);
+    const isPlayerVisible = asBooleanFlag(value.is_player_visible);
+    const sortOrder = asInteger(value.sort_order, -100000, 100000);
+
+    if (targetEntryId) patch.target_entry_id = targetEntryId;
+    if (name) patch.name = name;
+    if (sourceType) patch.source_type = sourceType;
+    if (sourceIndex !== undefined) patch.source_index = sourceIndex;
+    if (entryKind) patch.entry_kind = entryKind;
+    if (creatureType !== undefined) patch.creature_type = creatureType;
+    if (creatureSize !== undefined) patch.creature_size = creatureSize;
+    if (alignment !== undefined) patch.alignment = alignment;
+    if (typeof challengeRating === "number") patch.challenge_rating = challengeRating;
+    if (typeof xp === "number") patch.xp = xp;
+    if (typeof proficiencyBonus === "number") patch.proficiency_bonus = proficiencyBonus;
+    if (typeof armorClass === "number") patch.armor_class = armorClass;
+    if (typeof hitPoints === "number") patch.hit_points = hitPoints;
+    if (hitDice !== undefined) patch.hit_dice = hitDice;
+    if (abilityScores) patch.ability_scores = abilityScores;
+    if (speed) patch.speed = speed;
+    if (senses) patch.senses = senses;
+    if (languages !== undefined) patch.languages = languages;
+    if (flavor !== undefined) patch.flavor = flavor;
+    if (notes !== undefined) patch.notes = notes;
+    if (traits) patch.traits = traits;
+    if (actions) patch.actions = actions;
+    if (bonusActions) patch.bonus_actions = bonusActions;
+    if (reactions) patch.reactions = reactions;
+    if (legendaryActions) patch.legendary_actions = legendaryActions;
+    if (lairActions) patch.lair_actions = lairActions;
+    if (imageUrl !== undefined) patch.image_url = imageUrl;
+    if (typeof isPlayerVisible === "boolean") patch.is_player_visible = isPlayerVisible;
+    if (typeof sortOrder === "number") patch.sort_order = sortOrder;
+
+    return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
 function sanitizeActionData(value: unknown): SanitizedActionData | undefined {
     if (!isRecord(value)) return undefined;
 
@@ -2690,6 +3178,7 @@ function sanitizeActionData(value: unknown): SanitizedActionData | undefined {
     const customFeaturePatch = sanitizeCustomFeaturePatch(
         value.custom_feature_patch
     );
+    const bestiaryPatch = sanitizeBestiaryPatch(value.bestiary_patch);
 
     if (name) data.name = name;
     if (className !== undefined) data.class = className;
@@ -2710,6 +3199,7 @@ function sanitizeActionData(value: unknown): SanitizedActionData | undefined {
     if (learnedSpellPatch) data.learned_spell_patch = learnedSpellPatch;
     if (customSpellPatch) data.custom_spell_patch = customSpellPatch;
     if (customFeaturePatch) data.custom_feature_patch = customFeaturePatch;
+    if (bestiaryPatch) data.bestiary_patch = bestiaryPatch;
 
     return Object.keys(data).length > 0 ? data : {};
 }
@@ -2726,9 +3216,12 @@ function sanitizeActions(actions: unknown[], targetCharacterId?: string): Saniti
 
         const note = asTrimmedString(action.note, 500);
         const actionCharacterId = asTrimmedString(action.characterId, 64);
+        const hasBestiaryPatch = Boolean(data.bestiary_patch);
         const resolvedCharacterId =
             operation === "update"
-                ? actionCharacterId ?? asTrimmedString(targetCharacterId, 64)
+                ? hasBestiaryPatch
+                    ? actionCharacterId
+                    : actionCharacterId ?? asTrimmedString(targetCharacterId, 64)
                 : actionCharacterId;
 
         output.push({
@@ -2760,6 +3253,66 @@ function normalizeStats(value: unknown): StatsObject {
         }
     }
     return next;
+}
+
+const DEFAULT_BESTIARY_ABILITY_SCORES: Record<BestiaryAbilityKey, number> = {
+    STR: 10,
+    DEX: 10,
+    CON: 10,
+    INT: 10,
+    WIS: 10,
+    CHA: 10,
+};
+
+function normalizeBestiaryAbilityScores(
+    value: unknown
+): Record<BestiaryAbilityKey, number> {
+    const base = { ...DEFAULT_BESTIARY_ABILITY_SCORES };
+    if (!isRecord(value)) return base;
+
+    const aliasMap: Record<BestiaryAbilityKey, string[]> = {
+        STR: ["STR", "str", "strength", "fuerza", "FUE"],
+        DEX: ["DEX", "dex", "dexterity", "destreza", "DES"],
+        CON: ["CON", "con", "constitution", "constitucion"],
+        INT: ["INT", "int", "intelligence", "inteligencia"],
+        WIS: ["WIS", "wis", "wisdom", "sabiduria", "SAB"],
+        CHA: ["CHA", "cha", "charisma", "carisma", "CAR"],
+    };
+
+    for (const key of BESTIARY_ABILITY_KEYS) {
+        let parsedValue: number | undefined;
+        for (const alias of aliasMap[key]) {
+            const parsed = asInteger(value[alias], 1, 40);
+            if (typeof parsed === "number") {
+                parsedValue = parsed;
+                break;
+            }
+        }
+        if (typeof parsedValue === "number") base[key] = parsedValue;
+    }
+
+    return base;
+}
+
+function mergeBestiaryAbilityScores(
+    existing: unknown,
+    patch?: BestiaryAbilityScoresPatch
+): Record<BestiaryAbilityKey, number> {
+    const base = normalizeBestiaryAbilityScores(existing);
+    if (!patch || Object.keys(patch).length === 0) return base;
+
+    for (const key of BESTIARY_ABILITY_KEYS) {
+        const nextValue = patch[key];
+        if (typeof nextValue === "number") {
+            base[key] = Math.round(clampNumber(nextValue, 1, 40));
+        }
+    }
+    return base;
+}
+
+function hasBestiaryWriteFields(patch: BestiaryEntryPatch | undefined) {
+    if (!patch) return false;
+    return Object.keys(patch).some((key) => key !== "target_entry_id");
 }
 
 function mergeStats(existing: unknown, patch?: StatsPatch): StatsObject | undefined {
@@ -4029,11 +4582,12 @@ function buildAssistantUserPayload(
                   }
                 : undefined,
         parsing_priorities: [
-            "resolver personaje objetivo",
-            "extraer entidad principal (objeto/hechizo/rasgo/estadistica)",
+            "resolver objetivo (personaje o criatura de bestiario)",
+            "extraer entidad principal (personaje/criatura/objeto/hechizo/rasgo/estadistica)",
             "separar narrativa vs mecanica",
             "mapear mecanicas a estructuras del esquema",
             "devolver cambios minimos pero completos",
+            "si el usuario pide improvisación, completar campos faltantes de forma coherente",
         ],
         character_creation_contract: {
             parse_dense_parameter_lists: true,
@@ -4080,7 +4634,7 @@ function buildAssistantUserPayload(
             detect_configuration_modes: true,
         },
         output_quality_gate: [
-            "Hay personaje objetivo resoluble o inferido",
+            "Hay objetivo resoluble o inferido (personaje o criatura de bestiario)",
             "Cada accion es create/update valido",
             "No hay texto duplicado descripcion/adjuntos",
             "Nombre de objeto limpio sin precio ni decoradores",
@@ -4095,7 +4649,7 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
     const basePrompt = [
         "ROL",
         "Eres un asistente experto en estructurar cambios para una web de campaña DnD.",
-        "Tu tarea es convertir texto libre en acciones create/update válidas para personajes.",
+        "Tu tarea es convertir texto libre en acciones create/update válidas para personajes y criaturas de bestiario.",
         "",
         "CONTRATO DE SALIDA",
         "Devuelve SOLO JSON válido con el esquema pedido: { reply, actions }.",
@@ -4104,7 +4658,7 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
         "Máximo 4 acciones por respuesta.",
         "",
         "FUENTES DE VERDAD",
-        "Prioriza context.visibleCharacters, inventorySnapshot y productKnowledge sobre suposiciones.",
+        "Prioriza context.visibleCharacters, context.visibleBestiaryEntries, inventorySnapshot y productKnowledge sobre suposiciones.",
         "Si existe clientContext.selectedCharacter y la orden no especifica objetivo, úsalo.",
         "Si la orden usa 'en X', 'para X' o 'a X', prioriza ese personaje.",
         "",
@@ -4115,6 +4669,19 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
         "Para hechizos personalizados usa custom_spell_patch.",
         "Para rasgos/habilidades personalizadas usa custom_feature_patch.",
         "Para aprender/olvidar hechizos por nivel usa learned_spell_patch.",
+        "Para crear/editar criaturas del bestiario usa data.bestiary_patch.",
+        "En update de bestiario incluye bestiary_patch.target_entry_id.",
+        "En create de bestiario no uses characterId.",
+        "En criaturas de bestiario normaliza ability_scores con STR, DEX, CON, INT, WIS, CHA (si faltan, usa 10).",
+        "Si el usuario pide completar/inventar estadísticas faltantes de criatura, rellena las faltantes sin cambiar las explícitas del usuario.",
+        "Cuando falten CR/XP/PB en bestiario, infiérelos de HP/AC/daño y completa valores coherentes.",
+        "Si se menciona velocidad compuesta (ej. caminar + nado), mapéala completa en speed (walk/swim/etc).",
+        "Si se mencionan debilidades/resistencias, inclúyelas en traits/notes y no las omitas.",
+        "Si el usuario corrige una criatura existente por nombre, prioriza update sobre create para no duplicar entradas.",
+        "Si el texto de criatura incluye ataques/rasgos/pasivas, mapéalos a actions/traits/reactions/etc y no los omitas.",
+        "Nunca devuelvas actions vacío cuando hay ataques explícitos en el prompt.",
+        "No copies instrucciones meta del usuario dentro de actions/traits/notes (ej: 'crea esta criatura', 'sin cambiar estadísticas').",
+        "No uses emojis en nombres de bloques de combate; guarda texto limpio.",
         "Si la petición es crear personaje/companion, rellena TODOS los campos detectables (nombre, clase, raza, nivel, xp, hp, ca, velocidad, stats y detalles).",
         "Cuando el usuario pase una lista de parámetros (líneas, comas, bullets o clave:valor), parsea cada campo válido y no dejes cambios fuera.",
         "No limites la respuesta a 1-2 estadísticas si hay más datos explícitos en la instrucción.",
@@ -4126,10 +4693,11 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
         "Modificador de atributo: floor((score - 10)/2).",
         "Bono de competencia orientativo por nivel: 1-4:+2, 5-8:+3, 9-12:+4, 13-16:+5, 17-20:+6.",
         "Diferencia bien action/bonus/reaction/passive al mapear habilidades.",
-        "Si faltan datos clave para un personaje nuevo, no inventes silenciosamente: explícitalo en reply y aun así devuelve acciones con lo que sí sea válido.",
+        "Si faltan datos clave para un personaje nuevo y el usuario pide improvisar/inventar/generar, completa campos faltantes con valores coherentes y dilo en reply.",
+        "Si faltan datos clave y NO pidió improvisación, no inventes silenciosamente: explícitalo en reply y aun así devuelve acciones con lo que sí sea válido.",
         "",
         "PROTOCOLO OPERATIVO (OBLIGATORIO)",
-        "1) Detecta personaje objetivo por: orden explícita > clientContext.selectedCharacter > coincidencia por nombre.",
+        "1) Detecta objetivo (personaje o criatura de bestiario) por: orden explícita > contexto seleccionado > coincidencia por nombre.",
         "2) Detecta la intención principal: crear, actualizar, equipar, aprender, olvidar, etc.",
         "3) Segmenta el texto del usuario en bloques semánticos antes de mapear al esquema.",
         "4) Distingue narrativa vs mecánica; solo la narrativa/base va a description.",
@@ -4190,7 +4758,7 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
         "CONTROL DE CALIDAD FINAL (OBLIGATORIO)",
         "Antes de responder, verifica internamente:",
         "- ¿Hay cambio accionable claro? Si sí, no devuelvas actions vacío.",
-        "- ¿Cada acción apunta a un target_character_id válido/inferible?",
+        "- ¿Cada acción apunta a un target válido (characterId o bestiary_patch.target_entry_id) cuando sea update?",
         "- ¿Los nombres están limpios y no contienen precio ni ruido?",
         "- ¿Description y attachments no duplican contenido?",
         "- ¿El tipo de attachment refleja su mecánica real?",
@@ -4212,6 +4780,7 @@ function buildAssistantSystemPrompt(mode: AssistantMode = "normal") {
             "- sandbox_object: puedes devolver actions como borrador de entrenamiento editable en chat.",
             "Si la orden parece petición de ayuda de prompt (no mutación concreta), devuelve actions: [] y reply con guía práctica.",
             "Cuando sí haya mutación clara, incluye acciones válidas y en reply añade una versión de prompt recomendada para futuras órdenes.",
+            "En entrenamiento, genera ejercicios también para criaturas de bestiario y para creación de personajes completos.",
             "No apliques cambios por tu cuenta: solo propones acciones para confirmación."
         );
     }
@@ -4276,6 +4845,10 @@ function classifyAssistantIntent(
         "crea",
         "crear",
         "creame",
+        "fabrica",
+        "fabricar",
+        "genera",
+        "generar",
         "añade",
         "anade",
         "agrega",
@@ -4345,12 +4918,35 @@ function classifyAssistantIntent(
         "truco",
         "accion",
         "action",
+        "bestiario",
+        "enemigo",
+        "criatura",
+        "monstruo",
+        "monster",
     ];
 
     const hasMutationSignal = mutationSignals.some((token) =>
         normalized.includes(token)
     );
     if (hasMutationSignal) return "mutation";
+    const hasCharacterCreationHint =
+        (normalized.includes("personaje") || normalized.includes("character")) &&
+        (normalized.includes("quiero") ||
+            normalized.includes("hazme") ||
+            normalized.includes("me haces") ||
+            normalized.includes("improvisa") ||
+            normalized.includes("inventa") ||
+            normalized.includes("genera"));
+    const hasBestiaryHint =
+        (normalized.includes("bestiario") ||
+            normalized.includes("criatura") ||
+            normalized.includes("enemigo")) &&
+        (normalized.includes("quiero") ||
+            normalized.includes("crea") ||
+            normalized.includes("genera") ||
+            normalized.includes("fabrica") ||
+            normalized.includes("actualiza"));
+    if (hasCharacterCreationHint || hasBestiaryHint) return "mutation";
     if (targetCharacterId && normalized.length >= 12) return "mutation";
     return "chat";
 }
@@ -4428,8 +5024,49 @@ function isTrainingPromptRequest(prompt: string) {
         "como debería pedirlo",
         "dame un prompt",
         "pasa un prompt",
+        "bestiario",
+        "criatura",
+        "enemigo",
+        "personaje",
+        "improvisa",
+        "inventa",
     ];
     return patterns.some((pattern) => normalized.includes(pattern));
+}
+
+function looksLikeBestiaryInstruction(
+    instruction: string,
+    clientContext?: ClientContextPayload | null
+) {
+    const normalized = normalizeForMatch(instruction);
+    const inBestiarySection = normalizeForMatch(clientContext?.section ?? "").includes(
+        "bestiary"
+    );
+    return (
+        inBestiarySection ||
+        normalized.includes("bestiario") ||
+        normalized.includes("criatura") ||
+        normalized.includes("enemigo") ||
+        normalized.includes("monstruo") ||
+        normalized.includes("monster") ||
+        normalized.includes("bestia") ||
+        normalized.includes("challenge rating") ||
+        /\bcr\s*[0-9]/.test(normalized)
+    );
+}
+
+function looksLikeCharacterInstruction(instruction: string) {
+    const normalized = normalizeForMatch(instruction);
+    return (
+        normalized.includes("personaje") ||
+        normalized.includes("character") ||
+        normalized.includes("companion") ||
+        normalized.includes("companero") ||
+        normalized.includes("compañero") ||
+        normalized.includes("familiar") ||
+        normalized.includes("clase") ||
+        normalized.includes("raza")
+    );
 }
 
 function buildTrainingPromptTemplate({
@@ -4444,6 +5081,8 @@ function buildTrainingPromptTemplate({
     const selectedName =
         asTrimmedString(clientContext?.selectedCharacter?.name, 120) ??
         "<nombre del personaje>";
+    const looksLikeBestiary = looksLikeBestiaryInstruction(instruction, clientContext);
+    const looksLikeCharacter = looksLikeCharacterInstruction(instruction);
 
     const looksLikeObject =
         normalized.includes("objeto") ||
@@ -4465,6 +5104,38 @@ function buildTrainingPromptTemplate({
         normalized.includes("acción") ||
         normalized.includes("trait") ||
         normalized.includes("ability");
+
+    if (looksLikeBestiary) {
+        return [
+            "Acción: crear o actualizar criatura de bestiario de campaña",
+            "Nombre de criatura: <nombre>",
+            "entry_kind: ENCOUNTER|BOSS|ENEMY|NPC|HAZARD|BEAST|CUSTOM",
+            "Tipo/tamaño/alineamiento: <texto breve por campo>",
+            "CR / XP / PB / AC / HP / Hit Dice: <valores>",
+            "ability_scores (obligatorio): STR, DEX, CON, INT, WIS, CHA",
+            "Speed y Senses: <objeto simple, ej walk:30 / darkvision:60 ft>",
+            "Bloques narrativo-mecánicos:",
+            "- traits: [{ name, desc }]",
+            "- actions: [{ name, desc }]",
+            "- bonus_actions / reactions / legendary_actions / lair_actions (si aplica)",
+            "Visibilidad: is_player_visible true|false",
+            "Notas: separa flavor (lore) de notes (uso DM).",
+            "Instrucción final: crea/actualiza esta criatura en campaign_bestiary_entries.",
+        ].join("\n");
+    }
+
+    if (looksLikeCharacter) {
+        return [
+            "Acción: crear personaje o companion",
+            "Nombre: <nombre> (si quieres improvisación, indica 'improvisa nombre')",
+            "Clase / Raza / Nivel / XP: <valores>",
+            "Combate base: HP actual/max, AC, velocidad",
+            "Stats completas: STR DEX CON INT WIS CHA",
+            "Opcional details_patch: notas, trasfondo, alineamiento, idiomas, inventario, equipo",
+            "Si faltan campos y quieres auto-relleno, indícalo explícitamente: 'improvisa lo que falte'.",
+            "Instrucción final: crea/actualiza este personaje en la campaña.",
+        ].join("\n");
+    }
 
     if (looksLikeObject) {
         return [
@@ -4547,7 +5218,7 @@ function buildTrainingModeReply({
             : instruction;
     const roleScope =
         role === "DM"
-            ? "Como DM puedes entrenar prompts para cualquier personaje de la campaña."
+            ? "Como DM puedes entrenar prompts para personajes y criaturas del bestiario de la campaña."
             : "Como jugador, en entrenamiento solo puedes simular cambios sobre tus personajes (sin guardar).";
     const uiHint = describeUIContextHint(clientContext);
     const template = buildTrainingPromptTemplate({ prompt, clientContext });
@@ -4569,7 +5240,7 @@ function buildTrainingModeReply({
         "```txt",
         template,
         "```",
-        "Consejo: separa lore (descripción base) y mecánicas (adjuntos) para evitar duplicados.",
+        "Consejo: para bestiario, separa flavor/notes y define siempre STR/DEX/CON/INT/WIS/CHA.",
     ];
 
     return lines.filter((line): line is string => !!line).join("\n\n");
@@ -4589,6 +5260,7 @@ function buildTrainingSimulationResults(actions: SanitizedAction[]): MutationRes
     return actions.map((action) => ({
         operation: action.operation,
         characterId: action.characterId,
+        bestiaryEntryId: action.data.bestiary_patch?.target_entry_id,
         status: "skipped",
         message:
             "Modo entrenamiento: borrador simulado. No se aplicó ningún cambio real en la campaña.",
@@ -5139,6 +5811,360 @@ function buildUniqueTrainingGeneratedChallenge(theme?: string) {
     return fallback;
 }
 
+type TrainingGeneratedCreatureChallenge = {
+    name: string;
+    entryKind: BestiaryEntryKind;
+    creatureType: string;
+    creatureSize: string;
+    alignment: string;
+    challengeRating: number;
+    xp: number;
+    proficiencyBonus: number;
+    armorClass: number;
+    hitPoints: number;
+    hitDice: string;
+    abilityScores: Record<BestiaryAbilityKey, number>;
+    speed: Record<string, unknown>;
+    senses: Record<string, unknown>;
+    languages: string;
+    flavor: string;
+    notes: string;
+    traits: BestiaryBlockPatch[];
+    actions: BestiaryBlockPatch[];
+    isPlayerVisible: boolean;
+    sourceText: string;
+    signature: string;
+};
+
+function buildTrainingGeneratedCreatureChallenge(
+    theme?: string
+): TrainingGeneratedCreatureChallenge {
+    const creatureType = pickRandomTrainingValue([
+        "aberration",
+        "beast",
+        "construct",
+        "dragon",
+        "elemental",
+        "fiend",
+        "humanoid",
+        "monstrosity",
+        "undead",
+    ]);
+    const creatureSize = pickRandomTrainingValue([
+        "Tiny",
+        "Small",
+        "Medium",
+        "Large",
+        "Huge",
+    ]);
+    const alignment = pickRandomTrainingValue([
+        "lawful evil",
+        "neutral evil",
+        "chaotic evil",
+        "true neutral",
+        "neutral good",
+        "chaotic neutral",
+    ]);
+    const cr = pickRandomTrainingValue([0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8]);
+    const xpByCr: Record<string, number> = {
+        "0.25": 50,
+        "0.5": 100,
+        "1": 200,
+        "2": 450,
+        "3": 700,
+        "4": 1100,
+        "5": 1800,
+        "6": 2300,
+        "7": 2900,
+        "8": 3900,
+    };
+    const xp = xpByCr[String(cr)] ?? 450;
+    const pb = cr >= 5 ? 3 : 2;
+    const ac = randomTrainingInt(12, 18);
+    const hp = randomTrainingInt(28, 130);
+    const hitDice = `${Math.max(3, Math.round(hp / 8))}d8+${randomTrainingInt(0, 24)}`;
+    const abilityScores: Record<BestiaryAbilityKey, number> = {
+        STR: randomTrainingInt(8, 20),
+        DEX: randomTrainingInt(8, 20),
+        CON: randomTrainingInt(8, 20),
+        INT: randomTrainingInt(4, 18),
+        WIS: randomTrainingInt(6, 18),
+        CHA: randomTrainingInt(6, 18),
+    };
+    const walk = creatureSize === "Huge" ? 40 : 30;
+    const speed: Record<string, unknown> = maybeTraining(0.35)
+        ? { walk, fly: randomTrainingInt(30, 60) }
+        : { walk };
+    const senses: Record<string, unknown> = {
+        passive_perception: randomTrainingInt(10, 16),
+        ...(maybeTraining(0.4) ? { darkvision: "60 ft" } : {}),
+    };
+    const languages = pickRandomTrainingValue([
+        "Common",
+        "Common, Infernal",
+        "Common, Draconic",
+        "understands Common but can't speak",
+        "Deep Speech, telepathy 60 ft",
+    ]);
+    const themeTag = extractTrainingThemeToken(theme);
+    const baseName = pickRandomTrainingValue([
+        "Acechador",
+        "Guardián",
+        "Centinela",
+        "Devorador",
+        "Sabueso",
+        "Espectro",
+    ]);
+    const suffix = pickRandomTrainingValue([
+        "de Ceniza",
+        "del Umbral",
+        "de Niebla",
+        "Rúnico",
+        "de la Cripta",
+        "del Foso",
+    ]);
+    const name = `${baseName} ${suffix}${themeTag ? ` (${themeTag})` : ""}`;
+    const flavor = pickRandomTrainingValue([
+        "Criatura criada por magia residual y rituales incompletos.",
+        "Depredador territorial que protege ruinas antiguas.",
+        "Entidad inestable que responde a fuentes arcanas activas.",
+    ]);
+    const notes = pickRandomTrainingValue([
+        "Úsalo como enemigo táctico de primera línea.",
+        "Funciona mejor en espacios cerrados con coberturas.",
+        "Escala bien con apoyo de minions de bajo CR.",
+    ]);
+    const traits: BestiaryBlockPatch[] = [
+        {
+            name: "Sentidos de Caza",
+            desc: "Tiene ventaja en Percepción (WIS) para detectar criaturas heridas.",
+        },
+        {
+            name: "Resistencia Arcana",
+            desc: "Ventaja en salvaciones contra conjuros de nivel 2 o inferior.",
+        },
+    ];
+    const actions: BestiaryBlockPatch[] = [
+        {
+            name: "Garra",
+            desc: `Ataque cuerpo a cuerpo: +${pb + 2} al impacto, alcance 5 ft, daño ${pickRandomTrainingValue(
+                ["1d8+3", "2d6+2", "2d8+1"]
+            )}.`,
+        },
+        {
+            name: "Pulso Ruptor",
+            desc: "Cada criatura a 10 ft hace salvación DEX; con fallo recibe daño de fuerza y queda empujada 10 ft.",
+        },
+    ];
+    const isPlayerVisible = maybeTraining(0.5);
+    const signature = normalizeForMatch(
+        `${name}|${creatureType}|${creatureSize}|${alignment}|${cr}|${ac}|${hp}`
+    );
+    const sourceText = [
+        `${name}`,
+        "",
+        `Tipo: ${creatureType}`,
+        `Tamaño: ${creatureSize}`,
+        `Alineamiento: ${alignment}`,
+        `CR: ${cr} | XP: ${xp}`,
+        `PB: +${pb} | AC: ${ac} | HP: ${hp} (${hitDice})`,
+        `Velocidad: ${Object.entries(speed)
+            .map(([k, v]) => `${k} ${String(v)}`)
+            .join(", ")}`,
+        `Idiomas: ${languages}`,
+        `STR ${abilityScores.STR} DEX ${abilityScores.DEX} CON ${abilityScores.CON} INT ${abilityScores.INT} WIS ${abilityScores.WIS} CHA ${abilityScores.CHA}`,
+        "",
+        "RASGOS:",
+        ...traits.map((entry) => `- ${entry.name}: ${entry.desc}`),
+        "",
+        "ACCIONES:",
+        ...actions.map((entry) => `- ${entry.name}: ${entry.desc}`),
+        "",
+        `Flavour: ${flavor}`,
+        `Notas DM: ${notes}`,
+        `Visible a jugadores: ${isPlayerVisible ? "sí" : "no"}`,
+    ].join("\n");
+
+    return {
+        name,
+        entryKind: "ENEMY",
+        creatureType,
+        creatureSize,
+        alignment,
+        challengeRating: cr,
+        xp,
+        proficiencyBonus: pb,
+        armorClass: ac,
+        hitPoints: hp,
+        hitDice,
+        abilityScores,
+        speed,
+        senses,
+        languages,
+        flavor,
+        notes,
+        traits,
+        actions,
+        isPlayerVisible,
+        sourceText,
+        signature,
+    };
+}
+
+function buildUniqueTrainingGeneratedCreatureChallenge(theme?: string) {
+    let fallback = buildTrainingGeneratedCreatureChallenge(theme);
+    for (let attempt = 0; attempt < 42; attempt += 1) {
+        const candidate = buildTrainingGeneratedCreatureChallenge(theme);
+        fallback = candidate;
+        if (!hasRecentTrainingChallengeSignature(candidate.signature)) {
+            pushTrainingChallengeSignature(candidate.signature);
+            return candidate;
+        }
+    }
+    pushTrainingChallengeSignature(fallback.signature);
+    return fallback;
+}
+
+type TrainingGeneratedCharacterChallenge = {
+    name: string;
+    className: string;
+    race: string;
+    level: number;
+    xp: number;
+    armorClass: number;
+    speed: number;
+    currentHp: number;
+    maxHp: number;
+    stats: StatsPatch;
+    notes: string;
+    background: string;
+    alignment: string;
+    backstory: string;
+    sourceText: string;
+    signature: string;
+};
+
+function buildTrainingGeneratedCharacterChallenge(
+    theme?: string
+): TrainingGeneratedCharacterChallenge {
+    const className = pickRandomTrainingValue([
+        "Guerrero",
+        "Pícaro",
+        "Mago",
+        "Clérigo",
+        "Explorador",
+        "Paladín",
+        "Brujo",
+        "Bárbaro",
+        "Bardo",
+        "Druida",
+    ]);
+    const race = pickRandomTrainingValue([
+        "Humano",
+        "Elfo",
+        "Enano",
+        "Mediano",
+        "Tiefling",
+        "Dracónido",
+        "Semielfo",
+    ]);
+    const level = randomTrainingInt(1, 6);
+    const xp = pickRandomTrainingValue([0, 300, 900, 2700, 6500, 14000]);
+    const stats: StatsPatch = {
+        str: randomTrainingInt(8, 16),
+        dex: randomTrainingInt(8, 16),
+        con: randomTrainingInt(10, 16),
+        int: randomTrainingInt(8, 16),
+        wis: randomTrainingInt(8, 16),
+        cha: randomTrainingInt(8, 16),
+    };
+    const maxHp = randomTrainingInt(12, 48);
+    const currentHp = randomTrainingInt(Math.max(1, maxHp - 10), maxHp);
+    const armorClass = randomTrainingInt(12, 18);
+    const speed = pickRandomTrainingValue([25, 30, 35]);
+    const themeTag = extractTrainingThemeToken(theme);
+    const name = `${pickRandomTrainingValue([
+        "Arin",
+        "Lyra",
+        "Kael",
+        "Mira",
+        "Torvin",
+        "Selene",
+        "Darian",
+    ])} ${themeTag ? themeTag.slice(0, 12) : "Stone"}`.replace(/\s+/g, " ");
+    const alignment = pickRandomTrainingValue([
+        "Neutral Good",
+        "Chaotic Good",
+        "Lawful Neutral",
+        "True Neutral",
+        "Chaotic Neutral",
+    ]);
+    const notes = pickRandomTrainingValue([
+        "Tiene desconfianza hacia pactos infernales.",
+        "Prioriza proteger a aliados frágiles.",
+        "Busca reliquias antiguas para su orden.",
+    ]);
+    const background = pickRandomTrainingValue([
+        "Acolyte",
+        "Soldier",
+        "Criminal",
+        "Sage",
+        "Outlander",
+    ]);
+    const backstory = pickRandomTrainingValue([
+        "Sobrevivió a la caída de su aldea y juró no repetir esa derrota.",
+        "Fue aprendiz de un archivo arcano y escapó con conocimientos prohibidos.",
+        "Perdió a su mentor en una expedición y ahora persigue respuestas.",
+    ]);
+    const signature = normalizeForMatch(
+        `${name}|${className}|${race}|${level}|${armorClass}|${maxHp}`
+    );
+    const sourceText = [
+        `${name}`,
+        `Clase: ${className} | Raza: ${race}`,
+        `Nivel: ${level} | XP: ${xp}`,
+        `HP: ${currentHp}/${maxHp} | AC: ${armorClass} | Velocidad: ${speed}`,
+        `Stats: STR ${stats.str} DEX ${stats.dex} CON ${stats.con} INT ${stats.int} WIS ${stats.wis} CHA ${stats.cha}`,
+        `Alineamiento: ${alignment}`,
+        `Background: ${background}`,
+        `Notas: ${notes}`,
+        `Trasfondo: ${backstory}`,
+    ].join("\n");
+
+    return {
+        name,
+        className,
+        race,
+        level,
+        xp,
+        armorClass,
+        speed,
+        currentHp,
+        maxHp,
+        stats,
+        notes,
+        background,
+        alignment,
+        backstory,
+        sourceText,
+        signature,
+    };
+}
+
+function buildUniqueTrainingGeneratedCharacterChallenge(theme?: string) {
+    let fallback = buildTrainingGeneratedCharacterChallenge(theme);
+    for (let attempt = 0; attempt < 42; attempt += 1) {
+        const candidate = buildTrainingGeneratedCharacterChallenge(theme);
+        fallback = candidate;
+        if (!hasRecentTrainingChallengeSignature(candidate.signature)) {
+            pushTrainingChallengeSignature(candidate.signature);
+            return candidate;
+        }
+    }
+    pushTrainingChallengeSignature(fallback.signature);
+    return fallback;
+}
+
 function resolveTrainingTargetCharacterId({
     targetCharacterId,
     clientContext,
@@ -5181,7 +6207,12 @@ function buildTrainingFictionalDraft({
             ? asTrimmedString(instruction, 180)
             : undefined;
     const theme = rawTheme ?? undefined;
-    const generated = buildUniqueTrainingGeneratedChallenge(theme);
+    const bestiaryRequested = looksLikeBestiaryInstruction(
+        instruction,
+        clientContext
+    );
+    const characterRequested = looksLikeCharacterInstruction(instruction);
+
     const targetId = resolveTrainingTargetCharacterId({
         targetCharacterId,
         clientContext,
@@ -5191,11 +6222,148 @@ function buildTrainingFictionalDraft({
         visibleCharacters.find((entry) => entry.id === targetId)?.name ??
         clientContext?.selectedCharacter?.name ??
         "personaje seleccionado";
-
     const practiceId = `TR-${Date.now().toString(36).toUpperCase()}-${Math.random()
         .toString(36)
         .slice(2, 6)
         .toUpperCase()}`;
+
+    if (bestiaryRequested) {
+        const generatedCreature = buildUniqueTrainingGeneratedCreatureChallenge(theme);
+        const themedPrompt = [
+            "Quiero pasar una criatura en bruto al bestiario de campaña.",
+            "Interpreta el texto y crea una criatura completa de bestiario.",
+            "Reglas:",
+            "- Incluir STR/DEX/CON/INT/WIS/CHA.",
+            "- Separar flavor (lore) y notes (uso DM).",
+            "- Mapear rasgos y acciones a bloques name+desc.",
+            "- Añadir visibilidad para jugadores si el texto lo indica.",
+            theme ? `Tema solicitado por el usuario: ${theme}.` : null,
+            "",
+            `Texto fuente (papel) [${practiceId}]:`,
+            generatedCreature.sourceText,
+            "",
+            "Instrucción final:",
+            "\"Transcribe esta criatura al bestiario de campaña con estructura completa y coherente.\"",
+        ]
+            .filter((line): line is string => !!line)
+            .join("\n");
+
+        const actions: unknown[] = [
+            {
+                operation: "create",
+                note: "Borrador ficticio de entrenamiento de bestiario.",
+                data: {
+                    bestiary_patch: {
+                        name: generatedCreature.name,
+                        source_type: "CUSTOM",
+                        entry_kind: generatedCreature.entryKind,
+                        creature_type: generatedCreature.creatureType,
+                        creature_size: generatedCreature.creatureSize,
+                        alignment: generatedCreature.alignment,
+                        challenge_rating: generatedCreature.challengeRating,
+                        xp: generatedCreature.xp,
+                        proficiency_bonus: generatedCreature.proficiencyBonus,
+                        armor_class: generatedCreature.armorClass,
+                        hit_points: generatedCreature.hitPoints,
+                        hit_dice: generatedCreature.hitDice,
+                        ability_scores: generatedCreature.abilityScores,
+                        speed: generatedCreature.speed,
+                        senses: generatedCreature.senses,
+                        languages: generatedCreature.languages,
+                        flavor: generatedCreature.flavor,
+                        notes: generatedCreature.notes,
+                        traits: generatedCreature.traits,
+                        actions: generatedCreature.actions,
+                        is_player_visible: generatedCreature.isPlayerVisible,
+                    },
+                },
+            },
+        ];
+
+        const reply = [
+            "Reto de entrenamiento (ficticio) de criatura generado.",
+            "",
+            "Prompt de práctica:",
+            `\"${themedPrompt}\"`,
+            "",
+            "Criterios de validación sugeridos:",
+            "- Tiene las 6 stats base DnD.",
+            "- CR/AC/HP/Hit Dice están presentes y coherentes.",
+            "- Rasgos/acciones están en bloques estructurados.",
+            "- flavor y notes no se pisan entre sí.",
+            "",
+            "La estructura inicial ya está cargada para revisarla en chat.",
+            "Cuando esté bien, escribe \"está correcto\".",
+        ].join("\n");
+
+        return { reply, actions };
+    }
+
+    if (characterRequested) {
+        const generatedCharacter = buildUniqueTrainingGeneratedCharacterChallenge(theme);
+        const themedPrompt = [
+            `Quiero crear un personaje jugable para la campaña (objetivo actual: "${targetName}").`,
+            "Interpreta el texto y crea un personaje completo.",
+            "Reglas:",
+            "- Incluir nombre, clase, raza, nivel, XP, HP, AC, velocidad.",
+            "- Incluir STR/DEX/CON/INT/WIS/CHA.",
+            "- Si algo falta, improvisar con valores coherentes y explicarlo brevemente.",
+            theme ? `Tema solicitado por el usuario: ${theme}.` : null,
+            "",
+            `Texto fuente (papel) [${practiceId}]:`,
+            generatedCharacter.sourceText,
+            "",
+            "Instrucción final:",
+            "\"Crea este personaje en campaña con ficha completa y consistente.\"",
+        ]
+            .filter((line): line is string => !!line)
+            .join("\n");
+
+        const actions: unknown[] = [
+            {
+                operation: "create",
+                note: "Borrador ficticio de entrenamiento para creación de personaje.",
+                data: {
+                    name: generatedCharacter.name,
+                    class: generatedCharacter.className,
+                    race: generatedCharacter.race,
+                    level: generatedCharacter.level,
+                    experience: generatedCharacter.xp,
+                    armor_class: generatedCharacter.armorClass,
+                    speed: generatedCharacter.speed,
+                    current_hp: generatedCharacter.currentHp,
+                    max_hp: generatedCharacter.maxHp,
+                    stats: generatedCharacter.stats,
+                    details_patch: {
+                        notes: generatedCharacter.notes,
+                        background: generatedCharacter.background,
+                        alignment: generatedCharacter.alignment,
+                        backstory: generatedCharacter.backstory,
+                    },
+                },
+            },
+        ];
+
+        const reply = [
+            "Reto de entrenamiento (ficticio) de personaje generado.",
+            "",
+            "Prompt de práctica:",
+            `\"${themedPrompt}\"`,
+            "",
+            "Criterios de validación sugeridos:",
+            "- Incluye todos los campos base de ficha.",
+            "- Las 6 stats están completas.",
+            "- La propuesta mantiene coherencia entre clase/nivel/HP/AC.",
+            "- Si improvisa valores, lo deja claro en el reply.",
+            "",
+            "La estructura inicial ya está cargada para revisarla en chat.",
+            "Cuando esté bien, escribe \"está correcto\".",
+        ].join("\n");
+
+        return { reply, actions };
+    }
+
+    const generated = buildUniqueTrainingGeneratedChallenge(theme);
     const themedPrompt = [
         `Tengo un objeto en papel y quiero pasarlo a la web para el personaje "${targetName}".`,
         "Interpreta el texto completo y crea/actualiza un único objeto.",
@@ -7282,11 +8450,11 @@ function parseStatPatchFromInstruction(instruction: string): StatsPatch | undefi
         const aliases = STAT_ALIAS_MAP[key];
         const aliasSource = buildAliasRegex(aliases);
         const aliasBefore = new RegExp(
-            `\\b(?:${aliasSource})\\b[^\\d\\n]{0,14}(\\d{1,2})`,
+            `\\b(?:${aliasSource})\\b(?!\\s*(?:cd|dc)\\b)[^\\d\\n]{0,14}(\\d{1,2})`,
             "i"
         );
         const numberBefore = new RegExp(
-            `(\\d{1,2})[^\\n]{0,16}\\b(?:${aliasSource})\\b`,
+            `(\\d{1,2})[^\\n]{0,16}\\b(?:${aliasSource})\\b(?!\\s*(?:cd|dc)\\b)`,
             "i"
         );
         const value =
@@ -7404,7 +8572,12 @@ const RACE_KEYWORD_MAP: ReadonlyArray<{ pattern: RegExp; value: string }> = [
 function inferClassFromInstruction(instruction: string) {
     const normalized = normalizeForMatch(instruction);
     const createLikeIntent =
-        normalized.includes("crea") || normalized.includes("crear") || normalized.includes("create");
+        normalized.includes("crea") ||
+        normalized.includes("crear") ||
+        normalized.includes("create") ||
+        normalized.includes("genera") ||
+        normalized.includes("improvisa") ||
+        normalized.includes("inventa");
     const hasCharacterSignal =
         normalized.includes("personaje") ||
         normalized.includes("character") ||
@@ -7430,7 +8603,12 @@ function inferClassFromInstruction(instruction: string) {
 function inferRaceFromInstruction(instruction: string) {
     const normalized = normalizeForMatch(instruction);
     const createLikeIntent =
-        normalized.includes("crea") || normalized.includes("crear") || normalized.includes("create");
+        normalized.includes("crea") ||
+        normalized.includes("crear") ||
+        normalized.includes("create") ||
+        normalized.includes("genera") ||
+        normalized.includes("improvisa") ||
+        normalized.includes("inventa");
     const hasCharacterSignal =
         normalized.includes("personaje") ||
         normalized.includes("character") ||
@@ -7900,6 +9078,118 @@ function isGenericItemReference(normalizedValue: string) {
     );
 }
 
+const IMPROVISED_CHARACTER_CLASS_OPTIONS = [
+    "Guerrero",
+    "Pícaro",
+    "Mago",
+    "Clérigo",
+    "Explorador",
+    "Paladín",
+    "Brujo",
+    "Bardo",
+    "Druida",
+] as const;
+
+const IMPROVISED_CHARACTER_RACE_OPTIONS = [
+    "Humano",
+    "Elfo",
+    "Enano",
+    "Mediano",
+    "Tiefling",
+    "Dracónido",
+    "Semielfo",
+] as const;
+
+function hashInstructionSeed(value: string) {
+    let hash = 2166136261;
+    for (let index = 0; index < value.length; index += 1) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return Math.abs(hash | 0);
+}
+
+function pickDeterministicFromArray<T>(
+    values: readonly T[],
+    seed: number,
+    offset = 0
+): T {
+    return values[(Math.abs(seed + offset) % values.length) | 0];
+}
+
+function inferImprovisedStatsByClass(className?: string | null): StatsPatch {
+    const normalized = normalizeForMatch(className ?? "");
+    if (
+        normalized.includes("guerrero") ||
+        normalized.includes("paladin") ||
+        normalized.includes("barbar")
+    ) {
+        return { str: 16, dex: 12, con: 14, int: 10, wis: 11, cha: 10 };
+    }
+    if (normalized.includes("picaro") || normalized.includes("rogue")) {
+        return { str: 10, dex: 16, con: 13, int: 12, wis: 11, cha: 12 };
+    }
+    if (
+        normalized.includes("mago") ||
+        normalized.includes("wizard") ||
+        normalized.includes("artific")
+    ) {
+        return { str: 8, dex: 14, con: 13, int: 16, wis: 12, cha: 10 };
+    }
+    if (normalized.includes("clerigo") || normalized.includes("druida")) {
+        return { str: 10, dex: 12, con: 14, int: 10, wis: 16, cha: 11 };
+    }
+    if (normalized.includes("brujo") || normalized.includes("bard")) {
+        return { str: 8, dex: 14, con: 13, int: 11, wis: 10, cha: 16 };
+    }
+    return { str: 12, dex: 14, con: 13, int: 11, wis: 12, cha: 12 };
+}
+
+function buildImprovisedCharacterName({
+    instruction,
+    className,
+    race,
+    isCompanion,
+}: {
+    instruction: string;
+    className?: string | null;
+    race?: string | null;
+    isCompanion: boolean;
+}) {
+    const seed = hashInstructionSeed(instruction);
+    const givenNames = isCompanion
+        ? ["Bruma", "Colmillo", "Niebla", "Sombra", "Risco", "Ascuas"]
+        : ["Arin", "Lyra", "Kael", "Mira", "Darian", "Selene", "Torvin"];
+    const surnames = isCompanion
+        ? ["del Alba", "del Umbral", "de Ceniza", "de la Cripta"]
+        : ["Storm", "Valen", "Ashford", "Raven", "Thorne", "Silver"];
+    const roleToken = normalizeForMatch(
+        className ?? race ?? (isCompanion ? "companion" : "adventurer")
+    )
+        .split(/\s+/)[0]
+        ?.slice(0, 10);
+    const first = pickDeterministicFromArray(givenNames, seed, 3);
+    const last = pickDeterministicFromArray(surnames, seed, 11);
+    return `${first} ${last}${roleToken ? ` ${roleToken}` : ""}`.replace(
+        /\s+/g,
+        " "
+    );
+}
+
+function wantsCharacterImprovisation(normalizedInstruction: string) {
+    return (
+        normalizedInstruction.includes("improvisa") ||
+        normalizedInstruction.includes("improvisar") ||
+        normalizedInstruction.includes("inventa") ||
+        normalizedInstruction.includes("inventar") ||
+        normalizedInstruction.includes("aleatorio") ||
+        normalizedInstruction.includes("random") ||
+        normalizedInstruction.includes("lo que falte") ||
+        normalizedInstruction.includes("rellena") ||
+        normalizedInstruction.includes("rellenar")
+    );
+}
+
 function buildHeuristicCreateCharacterActions({
     prompt,
     visibleCharacters,
@@ -7918,7 +9208,13 @@ function buildHeuristicCreateCharacterActions({
     const hasCreateVerb =
         normalized.includes("crea") ||
         normalized.includes("crear") ||
-        normalized.includes("create");
+        normalized.includes("create") ||
+        normalized.includes("genera") ||
+        normalized.includes("generar") ||
+        normalized.includes("improvisa") ||
+        normalized.includes("improvisar") ||
+        normalized.includes("inventa") ||
+        normalized.includes("inventar");
     const createsCharacterSignal =
         normalized.includes("personaje") ||
         normalized.includes("character") ||
@@ -7934,6 +9230,8 @@ function buildHeuristicCreateCharacterActions({
         normalized.includes("companero") ||
         normalized.includes("compañero");
 
+    const core = parseCoreDataPatchFromInstruction(instruction);
+    const shouldImprovise = wantsCharacterImprovisation(normalized);
     let name = extractNameFromInstruction(instruction, 120);
     if (!name) {
         const leadMatch = instruction.match(
@@ -7943,9 +9241,15 @@ function buildHeuristicCreateCharacterActions({
             name = cleanupEntityName(leadMatch[1], 120);
         }
     }
-    if (!name) return [];
+    if (!name) {
+        name = buildImprovisedCharacterName({
+            instruction,
+            className: typeof core.class === "string" ? core.class : undefined,
+            race: typeof core.race === "string" ? core.race : undefined,
+            isCompanion,
+        });
+    }
 
-    const core = parseCoreDataPatchFromInstruction(instruction);
     const detailsPatch = parseDetailsPatchFromInstruction(instruction);
     const ownerCharacterId = resolveHeuristicTargetCharacterId({
         targetCharacterId,
@@ -7962,15 +9266,71 @@ function buildHeuristicCreateCharacterActions({
         name,
         character_type: isCompanion ? "companion" : "character",
     };
-    if (core.class !== undefined) actionData.class = core.class;
-    if (core.race !== undefined) actionData.race = core.race;
-    if (typeof core.level === "number") actionData.level = core.level;
-    if (typeof core.experience === "number") actionData.experience = core.experience;
-    if (typeof core.current_hp === "number") actionData.current_hp = core.current_hp;
-    if (typeof core.max_hp === "number") actionData.max_hp = core.max_hp;
-    if (typeof core.armor_class === "number") actionData.armor_class = core.armor_class;
-    if (typeof core.speed === "number") actionData.speed = core.speed;
-    if (core.stats) actionData.stats = core.stats;
+    const seed = hashInstructionSeed(instruction);
+    const fallbackClass =
+        isCompanion
+            ? null
+            : pickDeterministicFromArray(IMPROVISED_CHARACTER_CLASS_OPTIONS, seed, 5);
+    const fallbackRace = isCompanion
+        ? "Bestia"
+        : pickDeterministicFromArray(IMPROVISED_CHARACTER_RACE_OPTIONS, seed, 13);
+    const resolvedClass =
+        core.class !== undefined ? core.class : shouldImprovise ? fallbackClass : undefined;
+    const resolvedRace =
+        core.race !== undefined ? core.race : shouldImprovise ? fallbackRace : undefined;
+    const resolvedLevel = typeof core.level === "number" ? core.level : 1;
+    const resolvedExperience =
+        typeof core.experience === "number"
+            ? core.experience
+            : shouldImprovise
+              ? Math.max(0, (resolvedLevel - 1) * 300)
+              : undefined;
+    const resolvedSpeed =
+        typeof core.speed === "number"
+            ? core.speed
+            : shouldImprovise
+              ? 30
+              : undefined;
+    const resolvedArmorClass =
+        typeof core.armor_class === "number"
+            ? core.armor_class
+            : shouldImprovise
+              ? isCompanion
+                  ? 13
+                  : 14
+              : undefined;
+    const resolvedStats =
+        core.stats ??
+        (shouldImprovise
+            ? inferImprovisedStatsByClass(
+                  typeof resolvedClass === "string" ? resolvedClass : undefined
+              )
+            : undefined);
+    const conScore =
+        typeof resolvedStats?.con === "number" ? resolvedStats.con : isCompanion ? 12 : 14;
+    const conModifier = Math.floor((conScore - 10) / 2);
+    const resolvedMaxHp =
+        typeof core.max_hp === "number"
+            ? core.max_hp
+            : shouldImprovise
+              ? Math.max(1, resolvedLevel * (isCompanion ? 6 : 8) + conModifier * resolvedLevel)
+              : undefined;
+    const resolvedCurrentHp =
+        typeof core.current_hp === "number"
+            ? core.current_hp
+            : shouldImprovise
+              ? resolvedMaxHp
+              : undefined;
+
+    if (resolvedClass !== undefined) actionData.class = resolvedClass;
+    if (resolvedRace !== undefined) actionData.race = resolvedRace;
+    actionData.level = resolvedLevel;
+    if (typeof resolvedExperience === "number") actionData.experience = resolvedExperience;
+    if (typeof resolvedCurrentHp === "number") actionData.current_hp = resolvedCurrentHp;
+    if (typeof resolvedMaxHp === "number") actionData.max_hp = resolvedMaxHp;
+    if (typeof resolvedArmorClass === "number") actionData.armor_class = resolvedArmorClass;
+    if (typeof resolvedSpeed === "number") actionData.speed = resolvedSpeed;
+    if (resolvedStats) actionData.stats = resolvedStats;
     if (detailsPatch) actionData.details_patch = detailsPatch;
     if (ownerCharacter?.user_id) actionData.user_id = ownerCharacter.user_id;
 
@@ -8104,19 +9464,2111 @@ function buildHeuristicUpdateCharacterActions({
     ];
 }
 
+function findMentionedBestiaryEntryId(
+    instruction: string,
+    visibleBestiaryEntries: BestiarySummaryRow[]
+) {
+    const normalizedInstruction = normalizeForMatch(instruction);
+    let bestMatch: { id: string; len: number } | null = null;
+    for (const entry of visibleBestiaryEntries) {
+        const normalizedName = normalizeForMatch(entry.name ?? "");
+        if (!normalizedName || normalizedName.length < 2) continue;
+        if (!normalizedInstruction.includes(normalizedName)) continue;
+        if (!bestMatch || normalizedName.length > bestMatch.len) {
+            bestMatch = { id: entry.id, len: normalizedName.length };
+        }
+    }
+    return bestMatch?.id;
+}
+
+function findBestiaryEntryIdByName(
+    name: string,
+    visibleBestiaryEntries: BestiarySummaryRow[]
+) {
+    const normalizedName = normalizeForMatch(name);
+    if (!normalizedName) return undefined;
+
+    let bestMatch: { id: string; score: number } | null = null;
+    for (const entry of visibleBestiaryEntries) {
+        const candidate = normalizeForMatch(entry.name ?? "");
+        if (!candidate) continue;
+        if (candidate === normalizedName) {
+            return entry.id;
+        }
+        if (candidate.includes(normalizedName) || normalizedName.includes(candidate)) {
+            const score = Math.min(candidate.length, normalizedName.length);
+            if (!bestMatch || score > bestMatch.score) {
+                bestMatch = { id: entry.id, score };
+            }
+        }
+    }
+    return bestMatch?.id;
+}
+
+function parseBestiaryTextField(
+    instruction: string,
+    patterns: RegExp[],
+    maxLen = 240
+) {
+    for (const pattern of patterns) {
+        const match = instruction.match(pattern);
+        if (!match) continue;
+        const raw = asTrimmedString(match[1], Math.max(maxLen * 2, 4000));
+        if (!raw) continue;
+        const preferredValue =
+            maxLen <= 260 ? cleanupEntityName(raw, maxLen) ?? raw : raw;
+        const parsed = sanitizeBestiaryFreeText(preferredValue, maxLen);
+        if (parsed) return parsed;
+    }
+    return undefined;
+}
+
+function parseBestiaryNarrativeFieldLinesFromInstruction(
+    instruction: string,
+    maxItems = 4
+) {
+    const lines = instruction.replace(/\r/g, "").split("\n");
+    const output: string[] = [];
+    const seen = new Set<string>();
+
+    for (const rawLine of lines) {
+        const labeled = parseBestiaryLabeledLine(rawLine);
+        if (!labeled || !labeled.value) continue;
+        if (isBestiaryCoreFieldLabel(labeled.normalizedLabel)) continue;
+        if (getBestiaryBlockCategoryFromLabel(labeled.label)) continue;
+        if (isBestiaryNarrativeMetaLabel(labeled.normalizedLabel)) continue;
+        if (parseBestiaryQualityHeading(rawLine)) continue;
+        if (hasBestiaryMechanicalCue(labeled.value)) continue;
+
+        const merged = sanitizeBestiaryFreeText(
+            `${labeled.label}: ${labeled.value}`,
+            700
+        );
+        if (!merged) continue;
+        const dedupe = normalizeForMatch(merged);
+        if (!dedupe || seen.has(dedupe)) continue;
+        seen.add(dedupe);
+        output.push(merged);
+        if (output.length >= maxItems) break;
+    }
+
+    return output;
+}
+
+function parseBestiaryChallengeRatingFromInstruction(instruction: string) {
+    const match = instruction.match(
+        /\b(?:cr|challenge rating|valor de desafio|desafio)\b\s*[:=-]?\s*([0-9]+(?:[.,][0-9]+)?|\d+\s*\/\s*\d+)/i
+    );
+    if (!match) return undefined;
+    return parseChallengeRatingValue(match[1]);
+}
+
+function parseBestiaryProficiencyBonusFromInstruction(instruction: string) {
+    const match = instruction.match(
+        /\b(?:pb|bono de competencia|proficiency bonus)\b\s*[:=-]?\s*([+-]?\d+)/i
+    );
+    if (!match) return undefined;
+    return asInteger(match[1], -5, 20);
+}
+
+function parseBestiaryHitDiceFromInstruction(instruction: string) {
+    const match = instruction.match(
+        /\b(?:hit dice|dados de golpe|hd)\b\s*[:=-]?\s*([0-9]+\s*d\s*[0-9]+(?:\s*[+-]\s*[0-9]+)?)/i
+    );
+    if (!match) return undefined;
+    return asTrimmedString(match[1].replace(/\s+/g, ""), 60);
+}
+
+function parseBestiaryVisibilityFromInstruction(instruction: string) {
+    const normalized = normalizeForMatch(instruction);
+    if (
+        normalized.includes("mostrar a jugadores") ||
+        normalized.includes("visible para jugadores") ||
+        normalized.includes("show to players")
+    ) {
+        return true;
+    }
+    if (
+        normalized.includes("ocultar a jugadores") ||
+        normalized.includes("solo dm") ||
+        normalized.includes("hide from players")
+    ) {
+        return false;
+    }
+    return undefined;
+}
+
+const BESTIARY_CR_STEPS: number[] = [
+    0,
+    0.125,
+    0.25,
+    0.5,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+];
+
+const BESTIARY_XP_BY_CR: Record<string, number> = {
+    "0": 10,
+    "0.125": 25,
+    "0.25": 50,
+    "0.5": 100,
+    "1": 200,
+    "2": 450,
+    "3": 700,
+    "4": 1100,
+    "5": 1800,
+    "6": 2300,
+    "7": 2900,
+    "8": 3900,
+    "9": 5000,
+    "10": 5900,
+    "11": 7200,
+    "12": 8400,
+    "13": 10000,
+    "14": 11500,
+    "15": 13000,
+    "16": 15000,
+    "17": 18000,
+    "18": 20000,
+    "19": 22000,
+    "20": 25000,
+    "21": 33000,
+    "22": 41000,
+    "23": 50000,
+    "24": 62000,
+    "25": 75000,
+    "26": 90000,
+    "27": 105000,
+    "28": 120000,
+    "29": 135000,
+    "30": 155000,
+};
+
+type BestiaryCombatQualities = {
+    weaknesses: string[];
+    resistances: string[];
+};
+
+function normalizeBestiaryCrStep(value: number) {
+    let best = BESTIARY_CR_STEPS[0];
+    let bestDiff = Number.POSITIVE_INFINITY;
+    for (const step of BESTIARY_CR_STEPS) {
+        const diff = Math.abs(value - step);
+        if (diff <= bestDiff) {
+            best = step;
+            bestDiff = diff;
+        }
+    }
+    return best;
+}
+
+function normalizeBestiaryCrForDisplay(value: number) {
+    const clamped = clampNumber(value, 0, 30);
+    if (clamped <= 0.06) return 0;
+    if (clamped <= 0.19) return 0.125;
+    if (clamped <= 0.37) return 0.25;
+    if (clamped < 0.9) return 0.5;
+    if (clamped < 1.1) return 1;
+    return Math.round(clamped * 2) / 2;
+}
+
+function getBestiaryXpForCr(challengeRating?: number) {
+    if (typeof challengeRating !== "number" || !Number.isFinite(challengeRating)) {
+        return undefined;
+    }
+    const step = normalizeBestiaryCrStep(clampNumber(challengeRating, 0, 30));
+    return BESTIARY_XP_BY_CR[String(step)];
+}
+
+function getBestiaryProficiencyBonusForCr(challengeRating?: number) {
+    if (typeof challengeRating !== "number" || !Number.isFinite(challengeRating)) {
+        return undefined;
+    }
+    const cr = clampNumber(challengeRating, 0, 30);
+    if (cr >= 29) return 9;
+    if (cr >= 25) return 8;
+    if (cr >= 21) return 7;
+    if (cr >= 17) return 6;
+    if (cr >= 13) return 5;
+    if (cr >= 9) return 4;
+    if (cr >= 5) return 3;
+    return 2;
+}
+
+function parseBestiarySpeedRecordFromInstruction(
+    instruction: string
+): Record<string, unknown> | undefined {
+    const lineMatch = instruction.match(
+        /(?:^|\n)\s*(?:velocidad|speed)\s*[:=-]?\s*([^\n]+)/i
+    );
+    if (!lineMatch) return undefined;
+    const rawLine = asTrimmedString(lineMatch[1], 240);
+    if (!rawLine) return undefined;
+
+    const parts = rawLine
+        .split(/[,;|]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    if (parts.length === 0) return undefined;
+
+    const speed: Record<string, unknown> = {};
+    for (let index = 0; index < parts.length; index += 1) {
+        const part = parts[index];
+        const numericMatch = part.match(/([0-9]+(?:[.,][0-9]+)?)/);
+        if (!numericMatch) continue;
+        const parsed = Number(numericMatch[1].replace(",", "."));
+        if (!Number.isFinite(parsed)) continue;
+        const value = Math.max(0, Math.round(parsed));
+        const normalizedPart = normalizeForMatch(part);
+        let key: string | null = null;
+        if (
+            normalizedPart.includes("swim") ||
+            normalizedPart.includes("nado") ||
+            normalizedPart.includes("nadar")
+        ) {
+            key = "swim";
+        } else if (
+            normalizedPart.includes("fly") ||
+            normalizedPart.includes("volar") ||
+            normalizedPart.includes("vuelo") ||
+            normalizedPart.includes("flot") ||
+            normalizedPart.includes("hover") ||
+            normalizedPart.includes("levitar") ||
+            normalizedPart.includes("levitacion")
+        ) {
+            key = "fly";
+        } else if (
+            normalizedPart.includes("climb") ||
+            normalizedPart.includes("trepar")
+        ) {
+            key = "climb";
+        } else if (
+            normalizedPart.includes("burrow") ||
+            normalizedPart.includes("excavar")
+        ) {
+            key = "burrow";
+        } else if (
+            normalizedPart.includes("walk") ||
+            normalizedPart.includes("caminar") ||
+            normalizedPart.includes("andar") ||
+            normalizedPart.includes("tierra")
+        ) {
+            key = "walk";
+        } else if (index === 0) {
+            key = "walk";
+        }
+        if (!key) continue;
+        speed[key] = value;
+    }
+
+    return Object.keys(speed).length > 0 ? speed : undefined;
+}
+
+function inferBestiaryCreatureSizeFromContext(hitPoints?: number): string {
+    if (typeof hitPoints !== "number") return "Medium";
+    if (hitPoints >= 170) return "Huge";
+    if (hitPoints >= 95) return "Large";
+    if (hitPoints >= 30) return "Medium";
+    if (hitPoints >= 10) return "Small";
+    return "Tiny";
+}
+
+function inferBestiaryConFloorFromHitPoints(hitPoints?: number) {
+    if (typeof hitPoints !== "number") return 10;
+    if (hitPoints >= 170) return 18;
+    if (hitPoints >= 120) return 16;
+    if (hitPoints >= 90) return 15;
+    if (hitPoints >= 45) return 14;
+    if (hitPoints >= 30) return 13;
+    if (hitPoints >= 18) return 12;
+    return 10;
+}
+
+function buildBestiaryTypeAbilityBaseline(
+    creatureType?: string
+): Partial<Record<BestiaryAbilityKey, number>> {
+    const normalizedType = normalizeForMatch(creatureType ?? "");
+    if (normalizedType.includes("elemental")) {
+        return { STR: 14, DEX: 12, CON: 14, INT: 7, WIS: 10, CHA: 9 };
+    }
+    if (normalizedType.includes("dragon")) {
+        return { STR: 18, DEX: 12, CON: 17, INT: 12, WIS: 11, CHA: 15 };
+    }
+    if (normalizedType.includes("construct")) {
+        return { STR: 15, DEX: 10, CON: 16, INT: 5, WIS: 10, CHA: 5 };
+    }
+    if (normalizedType.includes("fiend")) {
+        return { STR: 16, DEX: 13, CON: 15, INT: 10, WIS: 12, CHA: 14 };
+    }
+    if (normalizedType.includes("undead")) {
+        return { STR: 13, DEX: 10, CON: 14, INT: 8, WIS: 11, CHA: 10 };
+    }
+    if (normalizedType.includes("beast")) {
+        return { STR: 12, DEX: 12, CON: 12, INT: 3, WIS: 12, CHA: 6 };
+    }
+    if (normalizedType.includes("aberration")) {
+        return { STR: 12, DEX: 12, CON: 13, INT: 12, WIS: 12, CHA: 10 };
+    }
+    if (normalizedType.includes("humanoid")) {
+        return { STR: 11, DEX: 11, CON: 11, INT: 10, WIS: 10, CHA: 10 };
+    }
+    return {};
+}
+
+function buildBestiaryAbilityScoresFromContext({
+    explicitPatch,
+    creatureType,
+    hitPoints,
+    speed,
+    profile,
+    forceFillMissing,
+}: {
+    explicitPatch: BestiaryAbilityScoresPatch;
+    creatureType?: string;
+    hitPoints?: number;
+    speed?: Record<string, unknown>;
+    profile?: BestiaryAutoCombatProfile | null;
+    forceFillMissing: boolean;
+}) {
+    const output: BestiaryAbilityScoresPatch = { ...explicitPatch };
+    if (!forceFillMissing) return output;
+
+    const typeBaseline = buildBestiaryTypeAbilityBaseline(creatureType);
+    for (const key of BESTIARY_ABILITY_KEYS) {
+        if (typeof output[key] === "number") continue;
+        const baselineValue =
+            typeBaseline[key] ??
+            profile?.abilityScores[key] ??
+            DEFAULT_BESTIARY_ABILITY_SCORES[key];
+        output[key] = Math.round(clampNumber(baselineValue, 1, 40));
+    }
+
+    const conFloor = inferBestiaryConFloorFromHitPoints(hitPoints);
+    if (
+        typeof output.CON === "number" &&
+        typeof explicitPatch.CON !== "number" &&
+        output.CON < conFloor
+    ) {
+        output.CON = conFloor;
+    }
+
+    const walkSpeed =
+        speed && isRecord(speed) ? asInteger(speed.walk, 0, 500) : undefined;
+    if (
+        typeof walkSpeed === "number" &&
+        walkSpeed >= 12 &&
+        typeof explicitPatch.DEX !== "number" &&
+        typeof output.DEX === "number"
+    ) {
+        output.DEX = Math.max(output.DEX, 12);
+    }
+
+    return output;
+}
+
+function inferBestiaryCrFromHitPoints(hitPoints?: number) {
+    if (typeof hitPoints !== "number") return undefined;
+    if (hitPoints <= 6) return 0;
+    if (hitPoints <= 20) return 0.125;
+    if (hitPoints <= 35) return 0.25;
+    if (hitPoints <= 50) return 0.5;
+    if (hitPoints <= 70) return 1.5;
+    if (hitPoints <= 85) return 2.5;
+    if (hitPoints <= 100) return 3.5;
+    if (hitPoints <= 115) return 4;
+    if (hitPoints <= 130) return 5;
+    if (hitPoints <= 145) return 6;
+    if (hitPoints <= 160) return 7;
+    if (hitPoints <= 175) return 8;
+    if (hitPoints <= 190) return 9;
+    if (hitPoints <= 205) return 10;
+    if (hitPoints <= 220) return 11;
+    if (hitPoints <= 235) return 12;
+    return clampNumber(13 + Math.floor((hitPoints - 236) / 25), 13, 30);
+}
+
+function parseBestiaryDamageBudgetFromInstruction(instruction: string) {
+    const regex = /(\d+)\s*d\s*(\d+)(?:\s*([+-])\s*(\d+))?/gi;
+    let maxDamage = 0;
+    let sumDamage = 0;
+    let count = 0;
+    let match = regex.exec(instruction);
+    while (match) {
+        const diceCount = Number(match[1]);
+        const diceFaces = Number(match[2]);
+        const sign = match[3] === "-" ? -1 : 1;
+        const bonus = Number(match[4] ?? 0) * sign;
+        if (Number.isFinite(diceCount) && Number.isFinite(diceFaces) && diceFaces > 0) {
+            const average = diceCount * ((diceFaces + 1) / 2) + bonus;
+            if (average > 0) {
+                maxDamage = Math.max(maxDamage, average);
+                sumDamage += average;
+                count += 1;
+            }
+        }
+        match = regex.exec(instruction);
+    }
+    if (count === 0) return undefined;
+    const averagePerLine = sumDamage / count;
+    return Math.max(maxDamage, (maxDamage * 2 + averagePerLine) / 3);
+}
+
+function inferBestiaryCrFromDamage(damagePerRound?: number) {
+    if (typeof damagePerRound !== "number") return undefined;
+    if (damagePerRound <= 2) return 0;
+    if (damagePerRound <= 4) return 0.125;
+    if (damagePerRound <= 7) return 0.25;
+    if (damagePerRound <= 10) return 0.5;
+    if (damagePerRound <= 14) return 1.5;
+    if (damagePerRound <= 20) return 2;
+    if (damagePerRound <= 26) return 2.5;
+    if (damagePerRound <= 32) return 4;
+    if (damagePerRound <= 38) return 5;
+    if (damagePerRound <= 44) return 6;
+    if (damagePerRound <= 50) return 7;
+    if (damagePerRound <= 56) return 8;
+    if (damagePerRound <= 62) return 9;
+    return clampNumber(10 + Math.floor((damagePerRound - 63) / 8), 10, 30);
+}
+
+function inferBestiaryChallengeRatingFromInstruction({
+    instruction,
+    hitPoints,
+    armorClass,
+}: {
+    instruction: string;
+    hitPoints?: number;
+    armorClass?: number;
+}) {
+    const defensiveCr = inferBestiaryCrFromHitPoints(hitPoints);
+    const offensiveCr = inferBestiaryCrFromDamage(
+        parseBestiaryDamageBudgetFromInstruction(instruction)
+    );
+    if (typeof defensiveCr !== "number" && typeof offensiveCr !== "number") {
+        return undefined;
+    }
+    let combined =
+        typeof defensiveCr === "number" && typeof offensiveCr === "number"
+            ? (defensiveCr + offensiveCr) / 2
+            : (defensiveCr ?? offensiveCr ?? 0.5);
+
+    if (typeof armorClass === "number") {
+        if (armorClass >= 17) combined += 0.5;
+        else if (armorClass >= 15) combined += 0.25;
+    }
+
+    const normalized = normalizeForMatch(instruction);
+    const hasControlEffect =
+        normalized.includes("aturd") ||
+        normalized.includes("stun") ||
+        normalized.includes("cega") ||
+        normalized.includes("blind") ||
+        normalized.includes("derrib") ||
+        normalized.includes("prone") ||
+        normalized.includes("arrastra") ||
+        normalized.includes("pull") ||
+        normalized.includes("empuja") ||
+        normalized.includes("push") ||
+        normalized.includes("asfix") ||
+        normalized.includes("suffocat") ||
+        normalized.includes("envuelve") ||
+        normalized.includes("engulf") ||
+        normalized.includes("desventaja") ||
+        normalized.includes("disadvantage") ||
+        normalized.includes("restrain") ||
+        normalized.includes("inmovil");
+    if (hasControlEffect) combined += 0.25;
+    if (normalized.includes("recarga") || normalized.includes("recharge")) {
+        combined += 0.25;
+    }
+    const hasSustainEffect =
+        normalized.includes("cura") ||
+        normalized.includes("heals") ||
+        normalized.includes("heal") ||
+        normalized.includes("recupera") ||
+        normalized.includes("regenera") ||
+        normalized.includes("reviv");
+    if (hasSustainEffect) {
+        combined += 0.35;
+    }
+    const hasScalingThreat =
+        normalized.includes("por cada enemigo caido") ||
+        normalized.includes("for each fallen") ||
+        normalized.includes("+1 al dano") ||
+        normalized.includes("+1 damage");
+    if (hasScalingThreat) {
+        combined += 0.35;
+    }
+
+    let threatFloor = 0;
+    if (typeof hitPoints === "number") {
+        if (hitPoints >= 55) threatFloor = Math.max(threatFloor, 2);
+        if (hitPoints >= 75) threatFloor = Math.max(threatFloor, 2.5);
+    }
+    if (typeof hitPoints === "number" && typeof armorClass === "number") {
+        if (hitPoints >= 55 && armorClass >= 14) {
+            threatFloor = Math.max(threatFloor, 2.5);
+        }
+        if (hitPoints >= 80 && armorClass >= 15) {
+            threatFloor = Math.max(threatFloor, 3);
+        }
+    }
+    if (hasControlEffect && threatFloor > 0) {
+        threatFloor = Math.max(threatFloor, 2.5);
+    }
+    if (hasSustainEffect && threatFloor > 0) {
+        threatFloor = Math.max(threatFloor, 2.5);
+    }
+    if (hasScalingThreat && threatFloor > 0) {
+        threatFloor = Math.max(threatFloor, 2.5);
+    }
+    if (threatFloor > 0) {
+        combined = Math.max(combined, threatFloor);
+    }
+
+    return normalizeBestiaryCrForDisplay(clampNumber(combined, 0, 30));
+}
+
+function extractBestiaryInferenceBlockLines(value: unknown, maxItems = 40) {
+    if (!Array.isArray(value)) return [] as string[];
+    const lines: string[] = [];
+    for (const entry of value.slice(0, maxItems)) {
+        if (typeof entry === "string") {
+            const parsed = sanitizeBestiaryFreeText(entry, 1200);
+            if (parsed) lines.push(parsed);
+            continue;
+        }
+        if (!isRecord(entry)) continue;
+        const name =
+            typeof entry.name === "string"
+                ? sanitizeBestiaryFreeText(entry.name, 220)
+                : undefined;
+        const desc =
+            typeof entry.desc === "string"
+                ? sanitizeBestiaryFreeText(entry.desc, 1200)
+                : typeof entry.description === "string"
+                  ? sanitizeBestiaryFreeText(entry.description, 1200)
+                  : undefined;
+        if (name && desc) {
+            lines.push(`${name}: ${desc}`);
+        } else if (name) {
+            lines.push(name);
+        } else if (desc) {
+            lines.push(desc);
+        }
+    }
+    return lines;
+}
+
+function buildBestiaryCrInferenceInstructionFromEntry(
+    entry: BestiarySummaryRow | undefined
+) {
+    if (!entry) return "";
+    const lines: string[] = [];
+    if (typeof entry.hit_points === "number") lines.push(`HP: ${entry.hit_points}`);
+    if (typeof entry.armor_class === "number") lines.push(`CA: ${entry.armor_class}`);
+    lines.push(...extractBestiaryInferenceBlockLines(entry.traits, 30));
+    lines.push(...extractBestiaryInferenceBlockLines(entry.actions, 40));
+    lines.push(...extractBestiaryInferenceBlockLines(entry.bonus_actions, 24));
+    lines.push(...extractBestiaryInferenceBlockLines(entry.reactions, 24));
+    lines.push(...extractBestiaryInferenceBlockLines(entry.legendary_actions, 24));
+    lines.push(...extractBestiaryInferenceBlockLines(entry.lair_actions, 24));
+    if (typeof entry.notes === "string") {
+        const parsed = sanitizeBestiaryFreeText(entry.notes, 1200);
+        if (parsed) lines.push(parsed);
+    }
+    if (typeof entry.flavor === "string") {
+        const parsed = sanitizeBestiaryFreeText(entry.flavor, 1200);
+        if (parsed) lines.push(parsed);
+    }
+    return lines.join("\n");
+}
+
+function inferBestiaryChallengeRatingFromEntry(entry: BestiarySummaryRow | undefined) {
+    if (!entry) return undefined;
+    const sourceInstruction = buildBestiaryCrInferenceInstructionFromEntry(entry);
+    if (!sourceInstruction) return undefined;
+    return inferBestiaryChallengeRatingFromInstruction({
+        instruction: sourceInstruction,
+        hitPoints:
+            typeof entry.hit_points === "number" ? entry.hit_points : undefined,
+        armorClass:
+            typeof entry.armor_class === "number" ? entry.armor_class : undefined,
+    });
+}
+
+function parseBestiaryCombatQualitiesFromInstruction(
+    instruction: string
+): BestiaryCombatQualities {
+    const weaknesses = new Set<string>();
+    const resistances = new Set<string>();
+    let activeSection: BestiaryQualitySection | null = null;
+
+    const lines = instruction.replace(/\r/g, "").split("\n");
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) {
+            continue;
+        }
+
+        const qualityHeading = parseBestiaryQualityHeading(line);
+        if (qualityHeading) {
+            activeSection = qualityHeading.section;
+            if (qualityHeading.value) {
+                if (qualityHeading.section === "weaknesses") {
+                    weaknesses.add(qualityHeading.value);
+                } else {
+                    resistances.add(qualityHeading.value);
+                }
+            }
+            continue;
+        }
+
+        if (activeSection) {
+            const split = splitBestiaryInlineBlockLine(line);
+            if (isBestiaryFieldLine(line) || (split.title && isBestiarySectionHeading(split.title))) {
+                activeSection = null;
+                continue;
+            }
+            const parsed = sanitizeBestiaryFreeText(
+                line.replace(/^[\s*•\-–—]+/g, ""),
+                260
+            );
+            if (!parsed) continue;
+            if (activeSection === "weaknesses") {
+                weaknesses.add(parsed);
+            } else {
+                resistances.add(parsed);
+            }
+        }
+    }
+
+    return {
+        weaknesses: Array.from(weaknesses),
+        resistances: Array.from(resistances),
+    };
+}
+
+function mergeBestiaryCombatQualitiesIntoPatch(
+    patch: BestiaryEntryPatch,
+    qualities: BestiaryCombatQualities
+) {
+    const weaknesses = qualities.weaknesses
+        .map((entry) => asTrimmedString(entry, 260))
+        .filter((entry): entry is string => !!entry);
+    const resistances = qualities.resistances
+        .map((entry) => asTrimmedString(entry, 260))
+        .filter((entry): entry is string => !!entry);
+    if (weaknesses.length === 0 && resistances.length === 0) return false;
+
+    let changed = false;
+    const traitList: BestiaryBlockPatch[] = Array.isArray(patch.traits)
+        ? [...patch.traits]
+        : [];
+    const normalizedTraitNames = traitList
+        .map((entry) => normalizeForMatch(entry.name ?? ""))
+        .filter((entry) => entry.length > 0);
+
+    if (weaknesses.length > 0) {
+        if (
+            !normalizedTraitNames.some(
+                (entry) => entry.includes("debilidad") || entry.includes("weakness")
+            )
+        ) {
+            traitList.push({
+                name: "Debilidades",
+                desc: weaknesses.join("; "),
+            });
+            changed = true;
+        }
+    }
+    if (resistances.length > 0) {
+        if (
+            !normalizedTraitNames.some(
+                (entry) => entry.includes("resistencia") || entry.includes("resistance")
+            )
+        ) {
+            traitList.push({
+                name: "Resistencias",
+                desc: resistances.join("; "),
+            });
+            changed = true;
+        }
+    }
+    if (changed || traitList.length > 0) {
+        patch.traits = traitList;
+    }
+
+    return changed;
+}
+
+type BestiaryAutoCombatProfile = {
+    abilityScores: Record<BestiaryAbilityKey, number>;
+    armorClass: number;
+    hitPoints: number;
+    hitDice: string;
+    proficiencyBonus: number;
+    xp: number;
+    speed: number;
+};
+
+function shouldAutofillBestiaryCombatProfile(instruction: string) {
+    const normalized = normalizeForMatch(instruction);
+    return (
+        normalized.includes("estadisticas que le veas convenientes") ||
+        normalized.includes("estadisticas convenientes") ||
+        normalized.includes("estadisticas validas") ||
+        normalized.includes("atributos convenientes") ||
+        normalized.includes("atributos adecuados") ||
+        normalized.includes("stats convenientes") ||
+        normalized.includes("valid stats") ||
+        normalized.includes("fill stats") ||
+        normalized.includes("ponle stats") ||
+        normalized.includes("asigna stats") ||
+        normalized.includes("estadisticas restantes") ||
+        normalized.includes("rellena estadisticas") ||
+        normalized.includes("completa estadisticas") ||
+        normalized.includes("inventa las estadisticas") ||
+        normalized.includes("inventate las estadisticas") ||
+        normalized.includes("inventatelas") ||
+        normalized.includes("falten estadisticas")
+    );
+}
+
+function buildBestiaryAutoCombatProfile(
+    challengeRating?: number
+): BestiaryAutoCombatProfile {
+    const cr =
+        typeof challengeRating === "number" && Number.isFinite(challengeRating)
+            ? clampNumber(challengeRating, 0, 30)
+            : 0.5;
+
+    if (cr <= 0) {
+        return {
+            abilityScores: { STR: 10, DEX: 10, CON: 10, INT: 8, WIS: 10, CHA: 8 },
+            armorClass: 10,
+            hitPoints: 8,
+            hitDice: "2d8",
+            proficiencyBonus: 2,
+            xp: 10,
+            speed: 9,
+        };
+    }
+    if (cr <= 0.125) {
+        return {
+            abilityScores: { STR: 10, DEX: 11, CON: 10, INT: 9, WIS: 10, CHA: 9 },
+            armorClass: 11,
+            hitPoints: 10,
+            hitDice: "3d8",
+            proficiencyBonus: 2,
+            xp: 25,
+            speed: 9,
+        };
+    }
+    if (cr <= 0.25) {
+        return {
+            abilityScores: { STR: 11, DEX: 12, CON: 11, INT: 10, WIS: 11, CHA: 10 },
+            armorClass: 11,
+            hitPoints: 14,
+            hitDice: "4d8",
+            proficiencyBonus: 2,
+            xp: 50,
+            speed: 9,
+        };
+    }
+    if (cr <= 0.5) {
+        return {
+            abilityScores: { STR: 11, DEX: 12, CON: 11, INT: 10, WIS: 12, CHA: 13 },
+            armorClass: 12,
+            hitPoints: 22,
+            hitDice: "5d8",
+            proficiencyBonus: 2,
+            xp: 100,
+            speed: 9,
+        };
+    }
+    if (cr <= 1) {
+        return {
+            abilityScores: { STR: 12, DEX: 12, CON: 12, INT: 10, WIS: 12, CHA: 13 },
+            armorClass: 13,
+            hitPoints: 32,
+            hitDice: "5d8+10",
+            proficiencyBonus: 2,
+            xp: 200,
+            speed: 9,
+        };
+    }
+    if (cr <= 2) {
+        return {
+            abilityScores: { STR: 14, DEX: 12, CON: 13, INT: 10, WIS: 12, CHA: 13 },
+            armorClass: 13,
+            hitPoints: 45,
+            hitDice: "6d10+12",
+            proficiencyBonus: 2,
+            xp: 450,
+            speed: 9,
+        };
+    }
+    if (cr <= 3) {
+        return {
+            abilityScores: { STR: 15, DEX: 13, CON: 14, INT: 11, WIS: 12, CHA: 13 },
+            armorClass: 14,
+            hitPoints: 60,
+            hitDice: "8d10+16",
+            proficiencyBonus: 2,
+            xp: 700,
+            speed: 9,
+        };
+    }
+    if (cr <= 4) {
+        return {
+            abilityScores: { STR: 16, DEX: 13, CON: 15, INT: 11, WIS: 13, CHA: 14 },
+            armorClass: 14,
+            hitPoints: 75,
+            hitDice: "10d10+20",
+            proficiencyBonus: 2,
+            xp: 1100,
+            speed: 9,
+        };
+    }
+    if (cr <= 5) {
+        return {
+            abilityScores: { STR: 17, DEX: 14, CON: 16, INT: 12, WIS: 13, CHA: 14 },
+            armorClass: 15,
+            hitPoints: 90,
+            hitDice: "12d10+24",
+            proficiencyBonus: 3,
+            xp: 1800,
+            speed: 9,
+        };
+    }
+
+    const pb = cr >= 13 ? 5 : cr >= 9 ? 4 : 3;
+    const baseScore = Math.min(20, 12 + Math.floor(cr / 2));
+    return {
+        abilityScores: {
+            STR: baseScore,
+            DEX: Math.max(10, baseScore - 2),
+            CON: baseScore,
+            INT: Math.max(10, baseScore - 4),
+            WIS: Math.max(10, baseScore - 3),
+            CHA: Math.max(10, baseScore - 2),
+        },
+        armorClass: Math.min(19, 13 + Math.floor(cr / 3)),
+        hitPoints: Math.min(280, 100 + Math.floor((cr - 5) * 18)),
+        hitDice: `${Math.min(24, 12 + Math.floor(cr))}d10+${Math.min(120, 24 + Math.floor(cr * 4))}`,
+        proficiencyBonus: pb,
+        xp: Math.round(cr * 500),
+        speed: 9,
+    };
+}
+
+type ParsedBestiaryBlocks = Pick<
+    BestiaryEntryPatch,
+    | "traits"
+    | "actions"
+    | "bonus_actions"
+    | "reactions"
+    | "legendary_actions"
+    | "lair_actions"
+>;
+
+type BestiaryQualitySection = "weaknesses" | "resistances";
+
+function isBestiaryFieldLine(line: string) {
+    const labeled = parseBestiaryLabeledLine(line);
+    if (!labeled) return false;
+    if (isBestiaryCoreFieldLabel(labeled.normalizedLabel)) return true;
+    if (getBestiaryBlockCategoryFromLabel(labeled.label)) return false;
+    if (isBestiaryNarrativeMetaLabel(labeled.normalizedLabel)) return false;
+    if (isBestiaryOutcomeLabel(labeled.label)) return false;
+    if (parseBestiaryQualityHeading(line)) return false;
+    if (labeled.value && hasBestiaryMechanicalCue(labeled.value)) return false;
+    return true;
+}
+
+function parseBestiaryLabeledLine(line: string): {
+    label: string;
+    value: string;
+    normalizedLabel: string;
+} | null {
+    const match = line.match(/^\s*([^:\n]{1,80})\s*:\s*(.*)\s*$/u);
+    if (!match) return null;
+    const label = sanitizeBestiaryFreeText(match[1] ?? "", 120);
+    if (!label) return null;
+    const value = sanitizeBestiaryFreeText(match[2] ?? "", 4000) ?? "";
+    const normalizedLabel = normalizeForMatch(label);
+    if (!normalizedLabel) return null;
+    return { label, value, normalizedLabel };
+}
+
+function isBestiaryCoreFieldLabel(normalizedLabel: string) {
+    if (!normalizedLabel) return false;
+    if (/^(?:str|dex|con|int|wis|cha|fue|des|sab|car)$/i.test(normalizedLabel)) {
+        return true;
+    }
+    return /^(?:nombre|name|tipo|tipo de criatura|type|hp|puntos? de golpe|hit points?|ca|ac|armor class|velocidad|speed|cr|challenge rating|valor de desafio|desafio|xp|pb|bono de competencia|proficiency bonus|idiomas?|languages?|alineamiento|alignment|tamano|tamaño|size|cantidad|quantity|hit dice|dados? de golpe)$/.test(
+        normalizedLabel
+    );
+}
+
+function isBestiaryNarrativeMetaLabel(normalizedLabel: string) {
+    const normalized = normalizedLabel.trim();
+    if (!normalized) return false;
+    if (
+        /^(?:combate|combat|encuentro|encounter|batalla|battle|enemigo|enemy|jefe|boss)\b/.test(
+            normalized
+        )
+    ) {
+        return true;
+    }
+    return /^(?:habilidades?|abilities?|roles?|role)$/.test(normalized);
+}
+
+function isBestiaryWeaknessOrResistanceLine(line: string) {
+    return /^(?:debilidad(?:es)?|weakness(?:es)?|vulnerabilidad(?:es)?|vulnerabilities?|resistencia(?:s)?|resistances?)\s*[:=-]/i.test(
+        line.trim()
+    );
+}
+
+function parseBestiaryQualityHeading(
+    line: string
+): { section: BestiaryQualitySection; value?: string } | null {
+    const trimmed = line.trim();
+    if (!trimmed) return null;
+
+    const weaknessMatch = trimmed.match(
+        /^(?:debilidad(?:es)?|weakness(?:es)?|vulnerabilidad(?:es)?|vulnerabilities?)\s*[:=-]?\s*(.*)$/i
+    );
+    if (weaknessMatch) {
+        const value = sanitizeBestiaryFreeText(weaknessMatch[1] ?? "", 260);
+        return { section: "weaknesses", ...(value ? { value } : {}) };
+    }
+
+    const resistanceMatch = trimmed.match(
+        /^(?:resistencia(?:s)?|resistances?)\s*[:=-]?\s*(.*)$/i
+    );
+    if (resistanceMatch) {
+        const value = sanitizeBestiaryFreeText(resistanceMatch[1] ?? "", 260);
+        return { section: "resistances", ...(value ? { value } : {}) };
+    }
+
+    return null;
+}
+
+function splitBestiaryInlineBlockLine(line: string): {
+    title?: string;
+    inlineDesc?: string;
+} {
+    const cleaned = stripBestiaryEmoji(line)
+        .replace(/^[\s*•\-–—]+/g, "")
+        .trim();
+    if (!cleaned) return {};
+
+    if (cleaned.endsWith(":")) {
+        return {
+            title: cleaned.slice(0, -1).trim(),
+        };
+    }
+
+    const colonIndex = cleaned.indexOf(":");
+    if (colonIndex > 1 && colonIndex < cleaned.length - 1) {
+        const title = cleaned.slice(0, colonIndex).trim();
+        const inlineDesc = cleaned.slice(colonIndex + 1).trim();
+        return { title, inlineDesc };
+    }
+
+    const dashSplit = cleaned.match(/^(.{2,120}?)\s+[—-]\s+(.{2,4000})$/u);
+    if (dashSplit) {
+        return {
+            title: dashSplit[1].trim(),
+            inlineDesc: dashSplit[2].trim(),
+        };
+    }
+
+    return { title: cleaned };
+}
+
+function splitBestiaryEmbeddedBlockLine(line: string) {
+    const raw = line.replace(/\r/g, "").trim();
+    if (!raw) return [""] as string[];
+
+    const chunks: string[] = [];
+    let remaining = raw;
+    let guard = 0;
+
+    while (remaining && guard < 8) {
+        const explicitTaggedMatch = remaining.match(
+            /^(.+?[.!?])\s+([A-ZÁÉÍÓÚÜÑ][\p{L}\p{N}\s'’\-]{2,120}\([^)]*(?:pasiv|passiv|reaccion|reaction|accion|action|bonus|trait|rasgo)[^)]*\))\s*(.*)$/iu
+        );
+        const cueMatch = remaining.match(
+            /^(.+?[.!?])\s+([A-ZÁÉÍÓÚÜÑ][\p{L}\p{N}\s'’()\-]{2,140})(\s+(?:\+\d+\s+al\s+ataque|\+\d+\s+to\s+hit|\d+\s*d\s*\d+|cada\s+\d+\s+turnos?|every\s+\d+\s+turns?|recarga|recharge|cono|linea|línea|aura|aliento|ataque|attack|mordisco|zarpazo|bite|claw|tail|slam)\b[\s\S]*)$/iu
+        );
+        const match = explicitTaggedMatch ?? cueMatch;
+        if (!match) {
+            chunks.push(remaining.trim());
+            break;
+        }
+
+        const before = match[1]?.trim() ?? "";
+        const heading = match[2]?.trim() ?? "";
+        const rest = match[3]?.trim() ?? "";
+
+        if (before) {
+            chunks.push(before);
+        }
+
+        const next = `${heading}${rest ? ` ${rest}` : ""}`.trim();
+        if (!next || next === remaining.trim()) {
+            if (next) chunks.push(next);
+            break;
+        }
+
+        remaining = next;
+        guard += 1;
+    }
+
+    return chunks.length > 0 ? chunks : [raw];
+}
+
+function hasBestiaryMechanicalCue(value: string) {
+    const normalized = normalizeForMatch(value);
+    if (!normalized) return false;
+    if (/\b\d+\s*d\s*\d+\b/.test(normalized)) return true;
+    if (/\b(?:cd|dc)\s*\d+\b/.test(normalized)) return true;
+    if (/\b[+-]\s*\d+\s+al\s+ataque\b/.test(normalized)) return true;
+    if (/\b(?:ataque|attack|dan[oó]|damage|salvaci[oó]n|save|desventaja|disadvantage|ventaja|advantage|aturd|stun|derrib|prone|veneno|poison|acido|acid|fuego|fire|frio|cold|relampago|lightning|necrot|radiante|radiant|cura|heal|recupera|recarga|recharge|reaccion|reaction|accion|action|bonus|pasivo|pasiva|passive|arrastra|pull|empuja|push)\b/.test(
+        normalized
+    )) {
+        return true;
+    }
+    return false;
+}
+
+function isBestiaryNameLikePhrase(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/[0-9]/.test(trimmed)) return false;
+    if (/[.!?]/.test(trimmed)) return false;
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (words.length === 0 || words.length > 8) return false;
+    const connector = /^(?:de|del|la|el|los|las|y|o|a|of|the|and)$/i;
+    return words.every((word) => {
+        if (connector.test(word)) return true;
+        return /^[A-ZÁÉÍÓÚÜÑ]/u.test(word);
+    });
+}
+
+function isBestiarySectionHeading(title: string) {
+    const normalized = normalizeForMatch(title).replace(/[^\w\s]/g, " ").trim();
+    if (!normalized) return false;
+    return (
+        normalized === "combate" ||
+        normalized === "combat" ||
+        normalized === "encuentro" ||
+        normalized === "encounter" ||
+        normalized === "batalla" ||
+        normalized === "battle" ||
+        normalized === "fight" ||
+        normalized === "habilidades comunes" ||
+        normalized === "habilidades" ||
+        normalized === "acciones" ||
+        normalized === "rasgos" ||
+        normalized === "roles" ||
+        /^roles\s+divide\s+en\s+\d+\s+tipos?$/.test(normalized) ||
+        normalized === "abilities" ||
+        normalized === "traits" ||
+        normalized === "actions" ||
+        normalized === "roles by type" ||
+        normalized === "roles"
+    );
+}
+
+function isLikelyBestiaryEncounterHeading(
+    title: string,
+    inlineDesc?: string
+) {
+    const safeTitle = title.trim();
+    const safeDesc = (inlineDesc ?? "").trim();
+    if (!safeTitle) return false;
+    if (isBestiarySectionHeading(safeTitle)) return true;
+    if (!safeDesc) return false;
+    if (hasBestiaryMechanicalCue(safeTitle) || hasBestiaryMechanicalCue(safeDesc)) {
+        return false;
+    }
+    return isBestiaryNameLikePhrase(safeTitle) && isBestiaryNameLikePhrase(safeDesc);
+}
+
+function looksLikeBestiaryBlockTitle(line: string) {
+    const value = line.trim();
+    if (!value) return false;
+    if (isBestiaryFieldLine(value)) return false;
+    if (isBestiaryMetaInstructionLine(value)) return false;
+    if (isBestiaryWeaknessOrResistanceLine(value)) return false;
+    const hasExplicitTaggedAction = /\((?:accion|acción|action|reaccion|reacción|reaction|bonus(?:\s+action|\s+accion|\s+acción)?|pasivo|pasiva|passive|rasgo|trait)\)/i.test(
+        value
+    );
+    if (hasExplicitTaggedAction) return true;
+    if (/[.!?]/.test(value)) return false;
+    if (/^[+\-*•]/.test(value)) return false;
+    if (/^(?:fallo|falla|éxito|exito|failure|success)\s*:/i.test(value)) {
+        return false;
+    }
+    if (/^\d+\s*(?:m|ft)\b/i.test(value)) return false;
+    if (/^[0-9]/.test(value)) return false;
+    if (value.length > 140) return false;
+    if (
+        /\b(?:ataque|attack|pasivo|passive|rasgo|trait|habilidad|ability|reaccion|reaction|bonus|legendaria|legendary|guarida|lair|grito|aura)\b/i.test(
+            value
+        )
+    ) {
+        return true;
+    }
+    if (/\([^)]+\)/.test(value)) return hasBestiaryMechanicalCue(value);
+    return isBestiaryNameLikePhrase(value);
+}
+
+function classifyBestiaryBlockTarget(
+    title: string
+): keyof ParsedBestiaryBlocks {
+    const normalized = normalizeForMatch(title);
+    if (
+        normalized.includes("pasivo") ||
+        normalized.includes("pasiva") ||
+        normalized.includes("passive") ||
+        normalized.includes("rasgo") ||
+        normalized.includes("trait") ||
+        normalized.includes("aura")
+    ) {
+        return "traits";
+    }
+    if (
+        normalized.includes("accion bonus") ||
+        normalized.includes("acción bonus") ||
+        normalized.includes("bonus action") ||
+        normalized.includes("bonus")
+    ) {
+        return "bonus_actions";
+    }
+    if (
+        normalized.includes("reaccion") ||
+        normalized.includes("reaction")
+    ) {
+        return "reactions";
+    }
+    if (
+        normalized.includes("legendaria") ||
+        normalized.includes("legendary")
+    ) {
+        return "legendary_actions";
+    }
+    if (normalized.includes("guarida") || normalized.includes("lair")) {
+        return "lair_actions";
+    }
+    return "actions";
+}
+
+function isBestiaryOutcomeLabel(value: string | undefined) {
+    const normalized = normalizeForMatch(value ?? "");
+    if (!normalized) return false;
+    return (
+        normalized === "fallo" ||
+        normalized === "falla" ||
+        normalized === "exito" ||
+        normalized === "éxito" ||
+        normalized === "failure" ||
+        normalized === "success" ||
+        normalized === "impacto" ||
+        normalized === "hit" ||
+        normalized === "efecto" ||
+        normalized === "effect" ||
+        normalized === "objetivo" ||
+        normalized === "target" ||
+        normalized === "alcance" ||
+        normalized === "reach" ||
+        normalized === "rango" ||
+        normalized === "range" ||
+        normalized === "duracion" ||
+        normalized === "duration" ||
+        normalized === "recarga" ||
+        normalized === "recharge" ||
+        normalized === "costo" ||
+        normalized === "coste" ||
+        normalized === "cost"
+    );
+}
+
+function getBestiaryBlockCategoryFromLabel(
+    label: string | undefined
+): keyof ParsedBestiaryBlocks | null {
+    const normalized = normalizeForMatch(label ?? "");
+    if (!normalized) return null;
+    if (
+        normalized.includes("pasiv") ||
+        normalized.includes("passive") ||
+        normalized === "rasgo" ||
+        normalized === "rasgos" ||
+        normalized === "trait" ||
+        normalized === "traits"
+    ) {
+        return "traits";
+    }
+    if (normalized.includes("reaccion") || normalized.includes("reaction")) {
+        return "reactions";
+    }
+    if (normalized.includes("bonus")) {
+        return "bonus_actions";
+    }
+    if (normalized.includes("legendaria") || normalized.includes("legendary")) {
+        return "legendary_actions";
+    }
+    if (normalized.includes("guarida") || normalized.includes("lair")) {
+        return "lair_actions";
+    }
+    if (
+        normalized === "accion" ||
+        normalized === "acciones" ||
+        normalized === "action" ||
+        normalized === "actions" ||
+        normalized === "ataque" ||
+        normalized === "ataques" ||
+        normalized === "attack" ||
+        normalized === "attacks" ||
+        normalized === "habilidad" ||
+        normalized === "habilidades" ||
+        normalized === "ability" ||
+        normalized === "abilities" ||
+        normalized === "poder" ||
+        normalized === "poderes"
+    ) {
+        return "actions";
+    }
+    return null;
+}
+
+function isLikelyBestiarySublineLabel(label: string, value: string) {
+    const normalized = normalizeForMatch(label);
+    if (!normalized || isBestiaryCoreFieldLabel(normalized)) return false;
+    if (isBestiaryOutcomeLabel(label)) return true;
+    if (normalized.length > 26) return false;
+    if (
+        /^(?:impacto|hit|efecto|effect|objetivo|target|alcance|reach|rango|range|duracion|duration|recarga|recharge|costo|coste|cost|salvacion|save|cd|dc)$/i.test(
+            normalized
+        )
+    ) {
+        return true;
+    }
+    if (!value) return false;
+    return false;
+}
+
+function isLikelyBestiaryBlockHeadingLabel(label: string) {
+    const cleaned = stripBestiaryEmoji(label).trim();
+    if (!cleaned) return false;
+    if (cleaned.length > 72) return false;
+    if (/[.!?]/.test(cleaned)) return false;
+    if (/^[0-9]/.test(cleaned)) return false;
+    const normalized = normalizeForMatch(cleaned);
+    if (!normalized) return false;
+    if (isBestiaryCoreFieldLabel(normalized)) return false;
+    if (isBestiaryOutcomeLabel(cleaned)) return false;
+    if (isBestiaryNarrativeMetaLabel(normalized)) return false;
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const hasExplicitTag = /\((?:accion|acción|action|reaccion|reacción|reaction|bonus(?:\s+action|\s+accion|\s+acción)?|pasiv|passive|rasgo|trait)\)/i.test(
+        cleaned
+    );
+    if (
+        !hasExplicitTag &&
+        words.length >= 5 &&
+        /^(?:un|una|unos|unas|el|la|los|las|si|cuando|mientras|if|when|while)\b/.test(
+            normalized
+        )
+    ) {
+        return false;
+    }
+    return looksLikeBestiaryBlockTitle(cleaned) || isBestiaryNameLikePhrase(cleaned);
+}
+
+function hasParsedBestiaryBlocks(parsed: ParsedBestiaryBlocks) {
+    return (
+        (parsed.traits?.length ?? 0) > 0 ||
+        (parsed.actions?.length ?? 0) > 0 ||
+        (parsed.bonus_actions?.length ?? 0) > 0 ||
+        (parsed.reactions?.length ?? 0) > 0 ||
+        (parsed.legendary_actions?.length ?? 0) > 0 ||
+        (parsed.lair_actions?.length ?? 0) > 0
+    );
+}
+
+function parseBestiaryBlocksFromInstruction(
+    instruction: string
+): ParsedBestiaryBlocks {
+    const parsed: ParsedBestiaryBlocks = {};
+    const sourceLines = instruction.replace(/\r/g, "").split("\n");
+    const lines: string[] = [];
+    for (const rawLine of sourceLines) {
+        const expanded = splitBestiaryEmbeddedBlockLine(rawLine);
+        for (const line of expanded) {
+            lines.push(line);
+        }
+    }
+
+    let currentTitle: string | null = null;
+    let currentDescLines: string[] = [];
+    let activeQualitySection: BestiaryQualitySection | null = null;
+
+    function flushCurrent() {
+        if (!currentTitle) return;
+        const split = splitBestiaryInlineBlockLine(currentTitle);
+        const title = sanitizeBestiaryFreeText(
+            split.title ?? currentTitle,
+            180
+        );
+        const descRaw = asTrimmedString(
+            currentDescLines.join("\n").replace(/\n{3,}/g, "\n\n"),
+            4000
+        );
+        const inlineDesc = split.inlineDesc
+            ? sanitizeBestiaryFreeText(split.inlineDesc, 4000)
+            : undefined;
+        const mergedDescSource = [inlineDesc, descRaw]
+            .filter((entry): entry is string => Boolean(entry))
+            .join("\n");
+        const desc = mergedDescSource
+            ? sanitizeBestiaryFreeText(mergedDescSource, 4000)
+            : undefined;
+        if (!title && !desc) {
+            currentTitle = null;
+            currentDescLines = [];
+            return;
+        }
+        if (title && isBestiarySectionHeading(title)) {
+            currentTitle = null;
+            currentDescLines = [];
+            return;
+        }
+        if (title && isLikelyBestiaryEncounterHeading(title, desc)) {
+            currentTitle = null;
+            currentDescLines = [];
+            return;
+        }
+        const targetKey = classifyBestiaryBlockTarget(title ?? "Bloque");
+        const list = parsed[targetKey] ?? [];
+        list.push({
+            ...(title ? { name: title } : {}),
+            ...(desc ? { desc } : {}),
+        });
+        parsed[targetKey] = list;
+        currentTitle = null;
+        currentDescLines = [];
+    }
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) {
+            if (currentTitle && currentDescLines.length > 0) {
+                currentDescLines.push("");
+            }
+            continue;
+        }
+        const qualityHeading = parseBestiaryQualityHeading(line);
+        if (qualityHeading) {
+            flushCurrent();
+            activeQualitySection = qualityHeading.section;
+            continue;
+        }
+        if (activeQualitySection) {
+            const splitQualityLine = splitBestiaryInlineBlockLine(line);
+            const labeledQualityLine = parseBestiaryLabeledLine(line);
+            if (
+                isBestiaryFieldLine(line) ||
+                (splitQualityLine.title && isBestiarySectionHeading(splitQualityLine.title))
+            ) {
+                activeQualitySection = null;
+            } else if (
+                labeledQualityLine &&
+                labeledQualityLine.value &&
+                hasBestiaryMechanicalCue(labeledQualityLine.value) &&
+                !isLikelyBestiarySublineLabel(
+                    labeledQualityLine.label,
+                    labeledQualityLine.value
+                )
+            ) {
+                activeQualitySection = null;
+            } else {
+                continue;
+            }
+        }
+        if (isBestiaryFieldLine(line)) continue;
+        if (isBestiaryMetaInstructionLine(line)) continue;
+        if (isBestiaryWeaknessOrResistanceLine(line)) continue;
+
+        const labeledLine = parseBestiaryLabeledLine(line);
+        if (labeledLine) {
+            const labeledCategory = getBestiaryBlockCategoryFromLabel(
+                labeledLine.label
+            );
+            if (
+                currentTitle &&
+                (isBestiaryOutcomeLabel(labeledLine.label) ||
+                    isLikelyBestiarySublineLabel(
+                        labeledLine.label,
+                        labeledLine.value
+                    ))
+            ) {
+                if (labeledLine.value) {
+                    currentDescLines.push(`${labeledLine.label}: ${labeledLine.value}`);
+                } else {
+                    currentDescLines.push(labeledLine.label);
+                }
+                continue;
+            }
+            if (
+                currentTitle &&
+                labeledLine.value &&
+                !isLikelyBestiaryBlockHeadingLabel(labeledLine.label)
+            ) {
+                currentDescLines.push(`${labeledLine.label}: ${labeledLine.value}`);
+                continue;
+            }
+            if (labeledCategory) {
+                flushCurrent();
+                const categorySuffix = labeledCategory === "actions"
+                    ? ""
+                    : ` (${labeledLine.label})`;
+                const titleFromValue =
+                    labeledLine.value || labeledLine.label;
+                currentTitle = `${titleFromValue}${categorySuffix}`.trim();
+                currentDescLines = [];
+                continue;
+            }
+            if (labeledLine.value && hasBestiaryMechanicalCue(labeledLine.value)) {
+                flushCurrent();
+                currentTitle = labeledLine.label;
+                currentDescLines = [labeledLine.value];
+                continue;
+            }
+            continue;
+        }
+
+        const split = splitBestiaryInlineBlockLine(line);
+        if (split.title && isBestiarySectionHeading(split.title)) {
+            continue;
+        }
+        if (
+            split.title &&
+            split.inlineDesc &&
+            isLikelyBestiaryEncounterHeading(split.title, split.inlineDesc)
+        ) {
+            continue;
+        }
+        if (
+            split.title &&
+            split.inlineDesc &&
+            isBestiaryOutcomeLabel(split.title) &&
+            currentTitle
+        ) {
+            currentDescLines.push(`${split.title}: ${split.inlineDesc}`);
+            continue;
+        }
+        if (split.title && split.inlineDesc && !isBestiarySectionHeading(split.title)) {
+            flushCurrent();
+            currentTitle = split.title;
+            currentDescLines = [split.inlineDesc];
+            continue;
+        }
+
+        if (looksLikeBestiaryBlockTitle(line)) {
+            flushCurrent();
+            currentTitle = line;
+            continue;
+        }
+
+        if (!currentTitle) continue;
+        currentDescLines.push(line);
+    }
+
+    flushCurrent();
+    return parsed;
+}
+
+function normalizeBestiaryBlockText(value: string | undefined) {
+    if (!value) return "";
+    return normalizeForMatch(stripBestiaryEmoji(value))
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function isLikelyOverpackedBestiaryBlockDesc(value: string | undefined) {
+    const desc = normalizeBestiaryBlockText(value);
+    if (!desc) return false;
+    if (desc.length >= 900) return true;
+    const embeddedHeadingMatches =
+        desc.match(
+            /(?:^|[.!?]\s+)[a-z0-9áéíóúüñ][^.!?\n]{2,90}\s+(?:\+\d+\s+al\s+ataque|\+\d+\s+to\s+hit|\d+\s*d\s*\d+|cada\s+\d+\s+turnos?|every\s+\d+\s+turns?|recarga|recharge|ataque|attack)\b/g
+        ) ?? [];
+    if (embeddedHeadingMatches.length >= 2) return true;
+    const outcomeAndAnotherAction =
+        /(fallo|failure)\s*:/.test(desc) &&
+        /(exito|success)\s*:/.test(desc) &&
+        /(?:mordisco|bite|garra|claw|ataque|attack|aliento|breath|resurreccion|summon|invoca)/.test(
+            desc
+        );
+    return outcomeAndAnotherAction;
+}
+
+function mergeBestiaryBlockPatchLists(
+    current: BestiaryBlockPatch[] | undefined,
+    inferred: BestiaryBlockPatch[] | undefined
+): { merged: BestiaryBlockPatch[] | undefined; changed: boolean } {
+    if (!inferred || inferred.length === 0) {
+        return { merged: current, changed: false };
+    }
+    if (!current || current.length === 0) {
+        return { merged: inferred, changed: true };
+    }
+
+    const merged = [...current];
+    let changed = false;
+
+    for (const candidateRaw of inferred) {
+        const candidateName = sanitizeBestiaryFreeText(
+            candidateRaw.name ?? "",
+            180
+        );
+        const candidateDesc = sanitizeBestiaryFreeText(
+            candidateRaw.desc ?? "",
+            4000
+        );
+        if (!candidateName && !candidateDesc) continue;
+
+        const candidateNameNorm = normalizeBestiaryBlockText(candidateName);
+        const candidateDescNorm = normalizeBestiaryBlockText(candidateDesc);
+
+        const existingIndex = merged.findIndex((entry) => {
+            const existingNameNorm = normalizeBestiaryBlockText(entry.name);
+            const existingDescNorm = normalizeBestiaryBlockText(entry.desc);
+            if (candidateNameNorm && existingNameNorm) {
+                return candidateNameNorm === existingNameNorm;
+            }
+            if (!candidateNameNorm && !existingNameNorm) {
+                return candidateDescNorm.length > 0 && candidateDescNorm === existingDescNorm;
+            }
+            return false;
+        });
+
+        if (existingIndex >= 0) {
+            const existing = merged[existingIndex];
+            const nextName = existing.name ?? candidateName;
+            const existingDesc = existing.desc;
+            let nextDesc = existingDesc ?? candidateDesc;
+            if (
+                existingDesc &&
+                candidateDesc &&
+                isLikelyOverpackedBestiaryBlockDesc(existingDesc) &&
+                !isLikelyOverpackedBestiaryBlockDesc(candidateDesc)
+            ) {
+                nextDesc = candidateDesc;
+            }
+            if (nextName !== existing.name || nextDesc !== existing.desc) {
+                merged[existingIndex] = {
+                    ...(nextName ? { name: nextName } : {}),
+                    ...(nextDesc ? { desc: nextDesc } : {}),
+                };
+                changed = true;
+            }
+            continue;
+        }
+
+        merged.push({
+            ...(candidateName ? { name: candidateName } : {}),
+            ...(candidateDesc ? { desc: candidateDesc } : {}),
+        });
+        changed = true;
+    }
+
+    return { merged, changed };
+}
+
+function enrichBestiaryActionsFromInstruction(
+    actions: SanitizedAction[],
+    prompt: string
+) {
+    if (actions.length === 0) return actions;
+    const instruction = extractCurrentUserInstruction(prompt);
+    const parsedBlocks = parseBestiaryBlocksFromInstruction(instruction);
+    const parsedQualities = parseBestiaryCombatQualitiesFromInstruction(instruction);
+    const hasQualities =
+        parsedQualities.weaknesses.length > 0 ||
+        parsedQualities.resistances.length > 0;
+    if (!hasParsedBestiaryBlocks(parsedBlocks) && !hasQualities) return actions;
+
+    return actions.map((action) => {
+        const patch = action.data.bestiary_patch;
+        if (!patch) return action;
+
+        const nextPatch: BestiaryEntryPatch = { ...patch };
+        let changed = false;
+        const keys: Array<keyof ParsedBestiaryBlocks> = [
+            "traits",
+            "actions",
+            "bonus_actions",
+            "reactions",
+            "legendary_actions",
+            "lair_actions",
+        ];
+
+        for (const key of keys) {
+            const current = patch[key];
+            const inferred = parsedBlocks[key];
+            const mergedResult = mergeBestiaryBlockPatchLists(current, inferred);
+            if (!mergedResult.changed) continue;
+            nextPatch[key] = mergedResult.merged;
+            changed = true;
+        }
+        if (hasQualities && mergeBestiaryCombatQualitiesIntoPatch(nextPatch, parsedQualities)) {
+            changed = true;
+        }
+
+        if (!changed) return action;
+        return {
+            ...action,
+            data: {
+                ...action.data,
+                bestiary_patch: nextPatch,
+            },
+            note: action.note
+                ? `${action.note} + bloques de combate inferidos.`
+                : "Bloques de combate inferidos desde el texto.",
+        };
+    });
+}
+
+function appendBestiaryNoteLine(patch: BestiaryEntryPatch, line: string) {
+    const parsed = sanitizeBestiaryFreeText(line, 400);
+    if (!parsed) return;
+    const current = asTrimmedString(patch.notes, 4000);
+    if (!current) {
+        patch.notes = parsed;
+        return;
+    }
+    const currentNormalized = normalizeForMatch(current);
+    if (currentNormalized.includes(normalizeForMatch(parsed))) {
+        return;
+    }
+    patch.notes = `${current}\n${parsed}`;
+}
+
+function buildHeuristicBestiaryActions({
+    prompt,
+    clientContext,
+    visibleBestiaryEntries,
+}: {
+    prompt: string;
+    clientContext: ClientContextPayload | null;
+    visibleBestiaryEntries: BestiarySummaryRow[];
+}): SanitizedAction[] {
+    const instruction = extractCurrentUserInstruction(prompt);
+    const normalized = normalizeForMatch(instruction);
+    const inBestiarySection =
+        normalizeForMatch(clientContext?.section ?? "").includes("bestiary");
+    const hasCreatureSignal =
+        normalized.includes("bestiario") ||
+        normalized.includes("enemigo") ||
+        normalized.includes("criatura") ||
+        normalized.includes("monster") ||
+        normalized.includes("bestia") ||
+        normalized.includes("monstruo");
+    const hasCharacterSignal =
+        normalized.includes("personaje") ||
+        normalized.includes("character") ||
+        normalized.includes("companion") ||
+        normalized.includes("companero") ||
+        normalized.includes("compañero");
+    const hasCreateVerb =
+        normalized.includes("crea") ||
+        normalized.includes("crear") ||
+        normalized.includes("fabrica") ||
+        normalized.includes("fabricar") ||
+        normalized.includes("genera") ||
+        normalized.includes("generar") ||
+        normalized.includes("anade") ||
+        normalized.includes("añade") ||
+        normalized.includes("agrega");
+    const hasUpdateVerb =
+        normalized.includes("actualiza") ||
+        normalized.includes("modifica") ||
+        normalized.includes("edita") ||
+        normalized.includes("cambia") ||
+        normalized.includes("ajusta") ||
+        normalized.includes("pon ") ||
+        normalized.includes("aplica") ||
+        normalized.includes("aplicar") ||
+        normalized.includes("asigna") ||
+        normalized.includes("asignar") ||
+        normalized.includes("establece") ||
+        normalized.includes("establecer") ||
+        normalized.includes("configura") ||
+        normalized.includes("configurar");
+    const hasForceDuplicateCreateIntent =
+        normalized.includes("duplic") ||
+        normalized.includes("copia") ||
+        normalized.includes("otra igual") ||
+        normalized.includes("otra criatura igual");
+    const hasCorrectionIntent =
+        normalized.includes("corrige") ||
+        normalized.includes("correg") ||
+        normalized.includes("sin reemplazar") ||
+        normalized.includes("sin cambiar") ||
+        normalized.includes("no modifiques") ||
+        normalized.includes("no cambies");
+
+    if (!hasCreatureSignal && !(inBestiarySection && !hasCharacterSignal)) return [];
+
+    const parsedName =
+        parseBestiaryTextField(
+            instruction,
+            [/(?:^|\n)\s*(?:nombre|name)\s*[:=-]?\s*([^\n]{2,180})/i],
+            140
+        ) ??
+        extractNameFromInstruction(instruction, 140) ??
+        parseBestiaryTextField(instruction, [
+            /\b(?:enemigo|criatura|bestia|monstruo|monster)\b\s+([^\n,.;]{2,160})/i,
+        ], 140);
+    const existingEntryIdByName =
+        parsedName
+            ? findBestiaryEntryIdByName(parsedName, visibleBestiaryEntries)
+            : undefined;
+    const mentionedEntryIdByText = findMentionedBestiaryEntryId(
+        instruction,
+        visibleBestiaryEntries
+    );
+    const inferredTargetEntryId = existingEntryIdByName ?? mentionedEntryIdByText;
+    const selectedBestiaryEntry =
+        inferredTargetEntryId
+            ? visibleBestiaryEntries.find((entry) => entry.id === inferredTargetEntryId)
+            : undefined;
+    const shouldPreferUpdateExistingByName =
+        Boolean(existingEntryIdByName) &&
+        !hasForceDuplicateCreateIntent;
+
+    const cr = parseBestiaryChallengeRatingFromInstruction(instruction);
+    const armorClass = parseArmorClassFromInstruction(instruction);
+    const xp = parseExperienceFromInstruction(instruction);
+    const speed = parseSpeedFromInstruction(instruction);
+    const speedRecord = parseBestiarySpeedRecordFromInstruction(instruction);
+    const hitDice = parseBestiaryHitDiceFromInstruction(instruction);
+    const proficiencyBonus = parseBestiaryProficiencyBonusFromInstruction(instruction);
+    const statPatch = parseStatPatchFromInstruction(instruction);
+    const hitPointsMatch = instruction.match(
+        /\b(?:hp|puntos?\s+de\s+golpe)\b\s*[:=-]?\s*([0-9]{1,5})/i
+    );
+    const hitPoints = hitPointsMatch ? asInteger(hitPointsMatch[1], 0, 100000) : undefined;
+    const quantityMatch = instruction.match(
+        /\b(?:cantidad|quantity)\b\s*[:=-]?\s*([0-9]{1,3})/i
+    );
+    const quantity = quantityMatch ? asInteger(quantityMatch[1], 1, 999) : undefined;
+    const creatureType = parseBestiaryTextField(instruction, [
+        /(?:^|\n)\s*(?:tipo de criatura|tipo|type)\s*[:=-]?\s*([^\n]{2,160})/i,
+    ]);
+    const creatureSize = parseBestiaryTextField(instruction, [
+        /(?:^|\n)\s*(?:tamano|tamaño|size)\s*[:=-]?\s*([^\n,.;]{2,80})/i,
+    ]);
+    const alignment = parseBestiaryTextField(instruction, [
+        /\b(?:alineamiento|alignment)\b\s*[:=-]?\s*([^\n,.;]{2,120})/i,
+    ]);
+    const languages = parseBestiaryTextField(instruction, [
+        /\b(?:idiomas?|languages?)\b\s*[:=-]?\s*([^\n]{2,260})/i,
+    ], 600);
+    const narrativeFlavorLines = parseBestiaryNarrativeFieldLinesFromInstruction(
+        instruction,
+        4
+    );
+    const flavor =
+        parseBestiaryTextField(instruction, [
+            /\b(?:descripcion|descripción|flavor|description)\b\s*[:=-]?\s*(.+)$/im,
+        ], 4000) ??
+        (narrativeFlavorLines.length > 0
+            ? narrativeFlavorLines.join("\n")
+            : undefined);
+    const notes = parseBestiaryTextField(instruction, [
+        /\b(?:notas?|notes?)\b\s*[:=-]?\s*(.+)$/im,
+    ], 4000);
+    const isPlayerVisible = parseBestiaryVisibilityFromInstruction(instruction);
+    const parsedBlocks = parseBestiaryBlocksFromInstruction(instruction);
+    const combatQualities = parseBestiaryCombatQualitiesFromInstruction(instruction);
+    const shouldAutofillCombatProfile = shouldAutofillBestiaryCombatProfile(instruction);
+    const shouldFillMissingStats = hasCreateVerb || shouldAutofillCombatProfile;
+    const hasCrAdjustmentIntent =
+        (/\bcr\b/.test(normalized) ||
+            normalized.includes("challenge rating") ||
+            normalized.includes("valor de desafio") ||
+            normalized.includes("desafio")) &&
+        (normalized.includes("acorde") ||
+            normalized.includes("ajusta") ||
+            normalized.includes("balance") ||
+            normalized.includes("equilibra") ||
+            normalized.includes("sube") ||
+            normalized.includes("mejor"));
+    const inferredCr = inferBestiaryChallengeRatingFromInstruction({
+        instruction,
+        hitPoints,
+        armorClass,
+    });
+    const inferredCrFromExistingEntry =
+        typeof cr === "number" || !hasCrAdjustmentIntent
+            ? undefined
+            : inferBestiaryChallengeRatingFromEntry(selectedBestiaryEntry);
+    const resolvedCr =
+        typeof cr === "number"
+            ? cr
+            : typeof inferredCr === "number"
+              ? inferredCr
+              : typeof inferredCrFromExistingEntry === "number"
+                ? inferredCrFromExistingEntry
+              : shouldFillMissingStats
+                ? 0.5
+                : undefined;
+    const autoCombatProfile =
+        shouldFillMissingStats || typeof resolvedCr === "number"
+            ? buildBestiaryAutoCombatProfile(resolvedCr)
+            : null;
+
+    const explicitBestiaryAbilityScores: BestiaryAbilityScoresPatch = {};
+    if (statPatch) {
+        if (typeof statPatch.str === "number") explicitBestiaryAbilityScores.STR = statPatch.str;
+        if (typeof statPatch.dex === "number") explicitBestiaryAbilityScores.DEX = statPatch.dex;
+        if (typeof statPatch.con === "number") explicitBestiaryAbilityScores.CON = statPatch.con;
+        if (typeof statPatch.int === "number") explicitBestiaryAbilityScores.INT = statPatch.int;
+        if (typeof statPatch.wis === "number") explicitBestiaryAbilityScores.WIS = statPatch.wis;
+        if (typeof statPatch.cha === "number") explicitBestiaryAbilityScores.CHA = statPatch.cha;
+    }
+    const baseSpeedRecord =
+        speedRecord ??
+        (typeof speed === "number" ? { walk: speed } : undefined) ??
+        (shouldFillMissingStats && autoCombatProfile
+            ? { walk: autoCombatProfile.speed }
+            : undefined);
+    const resolvedHitPoints =
+        typeof hitPoints === "number" ? hitPoints : autoCombatProfile?.hitPoints;
+    const resolvedCreatureSize =
+        creatureSize ??
+        (shouldFillMissingStats ? inferBestiaryCreatureSizeFromContext(resolvedHitPoints) : undefined);
+    const bestiaryAbilityScores = buildBestiaryAbilityScoresFromContext({
+        explicitPatch: explicitBestiaryAbilityScores,
+        creatureType,
+        hitPoints: resolvedHitPoints,
+        speed: baseSpeedRecord,
+        profile: autoCombatProfile,
+        forceFillMissing: shouldFillMissingStats,
+    });
+
+    const resolvedXp =
+        typeof xp === "number"
+            ? xp
+            : getBestiaryXpForCr(resolvedCr) ?? autoCombatProfile?.xp;
+    const resolvedProficiencyBonus =
+        typeof proficiencyBonus === "number"
+            ? proficiencyBonus
+            : getBestiaryProficiencyBonusForCr(resolvedCr) ??
+              autoCombatProfile?.proficiencyBonus;
+    const resolvedArmorClass =
+        typeof armorClass === "number" ? armorClass : autoCombatProfile?.armorClass;
+    const resolvedConForDice =
+        typeof bestiaryAbilityScores.CON === "number"
+            ? Math.floor((bestiaryAbilityScores.CON - 10) / 2)
+            : undefined;
+    const resolvedHitDice =
+        hitDice !== undefined
+            ? hitDice
+            : typeof resolvedHitPoints === "number"
+              ? (() => {
+                    const dieFaces = resolvedHitPoints >= 95 ? 10 : 8;
+                    const averagePerDie =
+                        dieFaces / 2 + 0.5 + (resolvedConForDice ?? 0);
+                    const safeAverage = averagePerDie > 0 ? averagePerDie : dieFaces / 2 + 0.5;
+                    const diceCount = Math.max(
+                        1,
+                        Math.round(resolvedHitPoints / safeAverage)
+                    );
+                    const bonus = (resolvedConForDice ?? 0) * diceCount;
+                    return `${diceCount}d${dieFaces}${bonus === 0 ? "" : bonus > 0 ? `+${bonus}` : `${bonus}`}`;
+                })()
+              : autoCombatProfile?.hitDice;
+
+    if (hasCreateVerb && !shouldPreferUpdateExistingByName) {
+        if (!parsedName) return [];
+        const patch: BestiaryEntryPatch = {
+            name: parsedName,
+            source_type: "CUSTOM",
+            entry_kind: "ENEMY",
+        };
+        if (creatureType) patch.creature_type = creatureType;
+        if (resolvedCreatureSize) patch.creature_size = resolvedCreatureSize;
+        if (alignment) patch.alignment = alignment;
+        if (typeof resolvedCr === "number") patch.challenge_rating = resolvedCr;
+        if (typeof resolvedXp === "number") patch.xp = resolvedXp;
+        if (typeof resolvedProficiencyBonus === "number") {
+            patch.proficiency_bonus = resolvedProficiencyBonus;
+        }
+        if (typeof resolvedArmorClass === "number") patch.armor_class = resolvedArmorClass;
+        if (typeof resolvedHitPoints === "number") patch.hit_points = resolvedHitPoints;
+        if (resolvedHitDice !== undefined) patch.hit_dice = resolvedHitDice;
+        if (Object.keys(bestiaryAbilityScores).length > 0) {
+            patch.ability_scores = bestiaryAbilityScores;
+        }
+        if (baseSpeedRecord !== undefined) patch.speed = baseSpeedRecord;
+        if (languages) patch.languages = languages;
+        if (flavor) patch.flavor = flavor;
+        if (notes) patch.notes = notes;
+        if (typeof quantity === "number") {
+            appendBestiaryNoteLine(patch, `Cantidad sugerida: ${quantity}`);
+        }
+        if ((parsedBlocks.traits?.length ?? 0) > 0) patch.traits = parsedBlocks.traits;
+        if ((parsedBlocks.actions?.length ?? 0) > 0) patch.actions = parsedBlocks.actions;
+        if ((parsedBlocks.bonus_actions?.length ?? 0) > 0) {
+            patch.bonus_actions = parsedBlocks.bonus_actions;
+        }
+        if ((parsedBlocks.reactions?.length ?? 0) > 0) {
+            patch.reactions = parsedBlocks.reactions;
+        }
+        if ((parsedBlocks.legendary_actions?.length ?? 0) > 0) {
+            patch.legendary_actions = parsedBlocks.legendary_actions;
+        }
+        if ((parsedBlocks.lair_actions?.length ?? 0) > 0) {
+            patch.lair_actions = parsedBlocks.lair_actions;
+        }
+        if (typeof isPlayerVisible === "boolean") {
+            patch.is_player_visible = isPlayerVisible;
+        }
+        mergeBestiaryCombatQualitiesIntoPatch(patch, combatQualities);
+
+        return [
+            {
+                operation: "create",
+                data: { bestiary_patch: patch },
+                note: "Creación heurística de criatura de bestiario.",
+            },
+        ];
+    }
+
+    const shouldUpdate = hasUpdateVerb || shouldPreferUpdateExistingByName;
+    if (!shouldUpdate) return [];
+    const targetEntryId =
+        inferredTargetEntryId;
+    if (!targetEntryId) return [];
+
+    const patch: BestiaryEntryPatch = {
+        target_entry_id: targetEntryId,
+    };
+    if (parsedName) patch.name = parsedName;
+    if (creatureType) patch.creature_type = creatureType;
+    if (resolvedCreatureSize) patch.creature_size = resolvedCreatureSize;
+    if (alignment) patch.alignment = alignment;
+    if (typeof resolvedCr === "number") patch.challenge_rating = resolvedCr;
+    if (typeof resolvedXp === "number") patch.xp = resolvedXp;
+    if (typeof resolvedProficiencyBonus === "number") {
+        patch.proficiency_bonus = resolvedProficiencyBonus;
+    }
+    if (typeof resolvedArmorClass === "number") patch.armor_class = resolvedArmorClass;
+    if (typeof resolvedHitPoints === "number") patch.hit_points = resolvedHitPoints;
+    if (resolvedHitDice !== undefined) patch.hit_dice = resolvedHitDice;
+    if (Object.keys(bestiaryAbilityScores).length > 0) {
+        patch.ability_scores = bestiaryAbilityScores;
+    }
+    if (baseSpeedRecord !== undefined) patch.speed = baseSpeedRecord;
+    if (languages) patch.languages = languages;
+    if (flavor) patch.flavor = flavor;
+    if (notes) patch.notes = notes;
+    if (typeof quantity === "number") {
+        appendBestiaryNoteLine(patch, `Cantidad sugerida: ${quantity}`);
+    }
+    if ((parsedBlocks.traits?.length ?? 0) > 0) patch.traits = parsedBlocks.traits;
+    if ((parsedBlocks.actions?.length ?? 0) > 0) patch.actions = parsedBlocks.actions;
+    if ((parsedBlocks.bonus_actions?.length ?? 0) > 0) {
+        patch.bonus_actions = parsedBlocks.bonus_actions;
+    }
+    if ((parsedBlocks.reactions?.length ?? 0) > 0) {
+        patch.reactions = parsedBlocks.reactions;
+    }
+    if ((parsedBlocks.legendary_actions?.length ?? 0) > 0) {
+        patch.legendary_actions = parsedBlocks.legendary_actions;
+    }
+    if ((parsedBlocks.lair_actions?.length ?? 0) > 0) {
+        patch.lair_actions = parsedBlocks.lair_actions;
+    }
+    if (typeof isPlayerVisible === "boolean") {
+        patch.is_player_visible = isPlayerVisible;
+    }
+    mergeBestiaryCombatQualitiesIntoPatch(patch, combatQualities);
+
+    if (!hasBestiaryWriteFields(patch)) return [];
+    return [
+        {
+            operation: "update",
+            data: { bestiary_patch: patch },
+            note: shouldPreferUpdateExistingByName
+                ? "Actualización heurística por corrección de criatura existente."
+                : "Actualización heurística de criatura de bestiario.",
+        },
+    ];
+}
+
 function buildHeuristicMutationPlan({
     prompt,
     visibleCharacters,
+    visibleBestiaryEntries,
     targetCharacterId,
     clientContext,
     visibleCharacterIds,
 }: {
     prompt: string;
     visibleCharacters: CharacterSummaryRow[];
+    visibleBestiaryEntries: BestiarySummaryRow[];
     targetCharacterId?: string;
     clientContext: ClientContextPayload | null;
     visibleCharacterIds: Set<string>;
 }) {
+    const bestiaryActions = buildHeuristicBestiaryActions({
+        prompt,
+        clientContext,
+        visibleBestiaryEntries,
+    });
+    if (bestiaryActions.length > 0) {
+        return {
+            actions: bestiaryActions,
+            reply: "He preparado una propuesta local para crear/editar la criatura del bestiario.",
+        };
+    }
+
     const createActions = buildHeuristicCreateCharacterActions({
         prompt,
         visibleCharacters,
@@ -8201,7 +11653,7 @@ function buildCapabilitiesReply(
 ) {
     const ownerScope =
         role === "DM"
-            ? "Puedo editar personajes de toda la campaña."
+            ? "Puedo editar personajes y criaturas del bestiario de toda la campaña."
             : "Puedo editar solo tus personajes.";
     const uiHint = describeUIContextHint(clientContext);
 
@@ -8218,6 +11670,8 @@ function buildCapabilitiesReply(
         "- Crear/editar hechizos personalizados y cantrips con su estructura completa (coste, tirada/salvación, daño, componentes).",
         "- Crear/editar rasgos y habilidades personalizadas (incluye acciones, requisitos, efecto y recursos).",
         "- Aprender u olvidar hechizos por nivel en la lista de hechizos del personaje.",
+        "- (DM) Crear/editar criaturas del bestiario de campaña con CR, AC, HP, tipo/tamaño, rasgos/acciones y las 6 stats base.",
+        "- Generar personajes desde prompts libres e improvisar campos faltantes cuando lo pidas explícitamente.",
         "Ejemplos:",
         "- \"Crea un companion lobo nivel 2 para mi personaje.\"",
         "- \"Crea personaje: nombre Lyra, clase Bardo, raza Elfa, nivel 3, str 8 dex 16 con 12 int 13 wis 10 cha 17, hp 21/21, ca 14, velocidad 30.\"",
@@ -8227,6 +11681,8 @@ function buildCapabilitiesReply(
         "- \"Crea el martillo con CONFIGURACIÓN A y B, cada una con su daño, alcance y habilidades.\"",
         "- \"Crea un hechizo personalizado nivel 2 llamado Lanza de Ceniza con daño 3d6 fuego.\"",
         "- \"Añade una acción personalizada llamada Rugido de Guerra con recarga corta.\"",
+        "- \"Crea enemigo: name Guardián de Ceniza, tipo elemental, CR 5, AC 15, HP 88, STR 18 DEX 12 CON 16 INT 8 WIS 11 CHA 9.\"",
+        "- \"Improvísame un personaje pícaro tiefling nivel 3 con ficha completa.\"",
     ];
     if (uiHint) lines.push(`Contexto detectado: ${uiHint}`);
     return lines.join("\n");
@@ -8238,7 +11694,7 @@ function buildChatGuidanceReply(
 ) {
     const scopeHint =
         role === "DM"
-            ? "Como DM, puedes pedirme cambios para cualquier personaje de la campaña."
+            ? "Como DM, puedes pedirme cambios para cualquier personaje y para criaturas del bestiario de campaña."
             : "Como jugador, puedo modificar solo tus personajes.";
     const uiHint = describeUIContextHint(clientContext);
 
@@ -8254,6 +11710,8 @@ function buildChatGuidanceReply(
         "- \"Crea un arma modular con configuración A/B y habilidades separadas por modo.\"",
         "- \"Añade el hechizo Bola de Fuego al nivel 3 de hechizos aprendidos.\"",
         "- \"Crea una habilidad personalizada llamada Golpe Sísmico con 3 cargas.\"",
+        "- \"(DM) Crea criatura de bestiario: nombre Acechador Sombrío, CR 3, AC 14, HP 52, STR 14 DEX 16 CON 13 INT 10 WIS 12 CHA 8.\"",
+        "- \"Genérame un personaje improvisado tipo paladín humano nivel 4 y rellena lo que falte.\"",
     ];
     if (uiHint) lines.push(`Contexto detectado: ${uiHint}`);
     return lines.join("\n");
@@ -8268,14 +11726,15 @@ function buildAssistantProductKnowledge({
 }) {
     const roleScope =
         role === "DM"
-            ? "DM puede editar cualquier personaje de la campaña."
-            : "PLAYER solo puede editar sus propios personajes.";
+            ? "DM puede editar cualquier personaje y criaturas del bestiario de la campaña."
+            : "PLAYER solo puede editar sus propios personajes (sin mutaciones de bestiario).";
 
     const uiFlows =
         clientContext?.surface === "dm"
             ? [
                   "DM sections: players, story, bestiary, characters.",
                   "Si la sección activa es players, priorizar cambios en personajes.",
+                  "Si la sección activa es bestiary, priorizar cambios en criaturas del bestiario.",
               ]
             : [
                   "Player workspace: lista de personajes + panel derecho.",
@@ -8301,6 +11760,36 @@ function buildAssistantProductKnowledge({
             detailPatchKeys: [...DETAIL_PATCH_KEYS],
             featureCollections: [...FEATURE_COLLECTION_VALUES],
             spellCollections: [...SPELL_COLLECTION_VALUES],
+            bestiaryAbilityKeys: [...BESTIARY_ABILITY_KEYS],
+            bestiaryCoreFields: [
+                "name",
+                "source_type",
+                "entry_kind",
+                "creature_type",
+                "creature_size",
+                "alignment",
+                "challenge_rating",
+                "xp",
+                "proficiency_bonus",
+                "armor_class",
+                "hit_points",
+                "hit_dice",
+                "ability_scores",
+                "speed",
+                "senses",
+                "languages",
+                "flavor",
+                "notes",
+                "traits",
+                "actions",
+                "bonus_actions",
+                "reactions",
+                "legendary_actions",
+                "lair_actions",
+                "image_url",
+                "is_player_visible",
+                "sort_order",
+            ],
         },
         webRenderModel: {
             itemCard: [
@@ -8324,6 +11813,7 @@ function buildAssistantProductKnowledge({
             "update learned_spell_patch: learn/forget by spell_level + spell_name/spell_index",
             "update custom_spell_patch: create/update/delete customSpells/customCantrips",
             "update custom_feature_patch: create/update/delete customTraits/customClassAbilities",
+            "create/update bestiary creature via bestiary_patch",
         ],
         orderPatterns: [
             "crear/añadir/agregar/insertar",
@@ -8332,6 +11822,7 @@ function buildAssistantProductKnowledge({
             "aprender/olvidar hechizos",
             "equipar/desequipar objetos",
             "crear/editar contenido personalizado",
+            "crear/editar enemigo o criatura de bestiario",
             "targeting por 'en X'/'para X'/'a X' o por personaje seleccionado",
         ],
         uiFlows,
@@ -8353,6 +11844,14 @@ function buildAssistantProductKnowledge({
             "Si el usuario pide crear/editar un hechizo personalizado, usar custom_spell_patch (no texto plano).",
             "Si pide rasgos/habilidades/acciones personalizadas, usar custom_feature_patch.",
             "Si pide aprender/olvidar un hechizo de nivel, usar learned_spell_patch.",
+            "Si la instrucción es sobre bestiario/enemigos/criaturas, usar data.bestiary_patch (no campos de personaje).",
+            "En criaturas de bestiario, incluir siempre ability_scores con STR/DEX/CON/INT/WIS/CHA.",
+            "En criaturas de bestiario, si faltan estadísticas y el usuario pide completarlas, rellenar solo las faltantes (sin pisar valores explícitos).",
+            "Si faltan CR/XP/PB, inferirlos desde HP/AC/daño y completar valores coherentes.",
+            "Si hay velocidad con múltiples modos, guardar speed con todos los modos (walk/swim/fly/climb/burrow).",
+            "Si hay debilidades/resistencias explícitas, registrarlas en traits/notes.",
+            "Si la criatura ya existe por nombre y el usuario está corrigiendo, priorizar update para evitar duplicados.",
+            "Si el texto incluye bloques de combate, convertirlos a traits/actions/reactions y no dejarlos fuera.",
         ],
         structuredObjectSegmentation: [
             "segmento_1_nombre_principal",
@@ -8638,6 +12137,45 @@ async function loadGlobalLearningDocs({
         });
         if (docs.length >= 60) break;
     }
+
+    const digestRes = await adminClient
+        .from("ai_global_learning_digests")
+        .select("id, frequency, period_start, period_end, summary_markdown")
+        .order("period_end", { ascending: false })
+        .limit(6);
+
+    if (digestRes.error) {
+        if (!isMissingRelationError(digestRes.error)) {
+            console.warn("assistant.global-learning.digest-load warn:", digestRes.error.message);
+        }
+    } else {
+        const digestRows = Array.isArray(digestRes.data) ? digestRes.data : [];
+        for (const entry of digestRows) {
+            if (!isRecord(entry)) continue;
+            const id = asTrimmedString(entry.id, 64);
+            const summary = asTrimmedString(entry.summary_markdown, 1200);
+            if (!id || !summary) continue;
+            const digestKey = normalizeForMatch(summary);
+            if (!digestKey || seen.has(`digest:${digestKey}`)) continue;
+            seen.add(`digest:${digestKey}`);
+
+            const frequency = asTrimmedString(entry.frequency, 16) ?? "weekly";
+            const periodStart = asTrimmedString(entry.period_start, 16);
+            const periodEnd = asTrimmedString(entry.period_end, 16);
+            const periodLabel =
+                periodStart && periodEnd ? ` ${periodStart} -> ${periodEnd}` : "";
+
+            docs.push({
+                id: `community:digest:${id}`,
+                sourceType: "community",
+                title: `Reglas consolidadas (${frequency})${periodLabel}`,
+                text: summary,
+                priority: 3,
+            });
+            if (docs.length >= 80) break;
+        }
+    }
+
     return docs;
 }
 
@@ -9241,7 +12779,7 @@ async function loadCampaignContext({
     role: CampaignRole;
     userId: string;
 }) {
-    const [membersRes, charactersRes, campaignRes, notesRes] = await Promise.all([
+    const [membersRes, charactersRes, campaignRes, notesRes, bestiaryRes] = await Promise.all([
         adminClient
             .from("campaign_members")
             .select("user_id, role")
@@ -9263,6 +12801,15 @@ async function loadCampaignContext({
             .eq("campaign_id", campaignId)
             .order("updated_at", { ascending: false })
             .limit(120),
+        adminClient
+            .from("campaign_bestiary_entries")
+            .select(
+                "id, name, source_type, entry_kind, creature_type, creature_size, alignment, challenge_rating, armor_class, hit_points, hit_dice, traits, actions, bonus_actions, reactions, legendary_actions, lair_actions, notes, flavor, is_player_visible"
+            )
+            .eq("campaign_id", campaignId)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: true })
+            .limit(400),
     ]);
 
     if (membersRes.error) {
@@ -9279,12 +12826,19 @@ async function loadCampaignContext({
     if (notesRes.error) {
         console.warn("assistant.loadCampaignContext notes warn:", notesRes.error.message);
     }
+    if (bestiaryRes.error && !isMissingRelationError(bestiaryRes.error)) {
+        console.warn(
+            "assistant.loadCampaignContext bestiary warn:",
+            bestiaryRes.error.message
+        );
+    }
 
     const campaign = (campaignRes.error ? null : campaignRes.data ?? null) as CampaignRow | null;
     const rawNotes = (notesRes.error ? [] : notesRes.data ?? []) as NoteRow[];
     const notes = rawNotes.filter((note) => canAccessNote(note, role, userId));
+    const bestiaryEntries = (bestiaryRes.error ? [] : bestiaryRes.data ?? []) as BestiarySummaryRow[];
 
-    return { members, characters, campaign, notes };
+    return { members, characters, campaign, notes, bestiaryEntries };
 }
 
 function hasWriteFields(data: SanitizedActionData) {
@@ -9301,6 +12855,7 @@ async function applyActions({
     role,
     members,
     visibleCharacterIds,
+    visibleBestiaryEntryIds,
     actions,
 }: {
     adminClient: SupabaseClient;
@@ -9309,6 +12864,7 @@ async function applyActions({
     role: CampaignRole;
     members: CampaignMemberRow[];
     visibleCharacterIds: Set<string>;
+    visibleBestiaryEntryIds: Set<string>;
     actions: SanitizedAction[];
 }) {
     const isDm = role === "DM";
@@ -9316,6 +12872,379 @@ async function applyActions({
     const results: MutationResult[] = [];
 
     for (const action of actions) {
+        const bestiaryPatch = action.data.bestiary_patch;
+        if (bestiaryPatch) {
+            if (!isDm) {
+                results.push({
+                    operation: action.operation,
+                    status: "blocked",
+                    message:
+                        "Solo el DM puede crear o editar criaturas del bestiario de campaña.",
+                });
+                continue;
+            }
+
+            let effectiveOperation: Operation = action.operation;
+            let effectiveBestiaryPatch: BestiaryEntryPatch = { ...bestiaryPatch };
+            if (action.operation === "create") {
+                const existingName = asTrimmedString(bestiaryPatch.name, 140);
+                if (existingName) {
+                    const { data: sameNameEntry, error: sameNameError } =
+                        await adminClient
+                            .from("campaign_bestiary_entries")
+                            .select("id, name")
+                            .eq("campaign_id", campaignId)
+                            .ilike("name", existingName)
+                            .limit(1)
+                            .maybeSingle();
+                    if (sameNameError && !isMissingRelationError(sameNameError)) {
+                        results.push({
+                            operation: "create",
+                            status: "error",
+                            message: sameNameError.message,
+                        });
+                        continue;
+                    }
+                    if (
+                        sameNameEntry &&
+                        isRecord(sameNameEntry) &&
+                        typeof sameNameEntry.id === "string"
+                    ) {
+                        effectiveOperation = "update";
+                        effectiveBestiaryPatch = {
+                            ...effectiveBestiaryPatch,
+                            target_entry_id: sameNameEntry.id,
+                        };
+                    }
+                }
+            }
+
+            if (effectiveOperation === "create") {
+                const name = asTrimmedString(effectiveBestiaryPatch.name, 140);
+                if (!name) {
+                    results.push({
+                        operation: "create",
+                        status: "skipped",
+                        message:
+                            "Se omitió create de bestiario porque falta el nombre de la criatura.",
+                    });
+                    continue;
+                }
+
+                const createPayload: Record<string, unknown> = {
+                    campaign_id: campaignId,
+                    name,
+                    source_type: effectiveBestiaryPatch.source_type ?? "CUSTOM",
+                    source_index:
+                        effectiveBestiaryPatch.source_index !== undefined
+                            ? effectiveBestiaryPatch.source_index
+                            : null,
+                    source_name:
+                        effectiveBestiaryPatch.source_type === "SRD" ? "dnd5eapi" : null,
+                    entry_kind: effectiveBestiaryPatch.entry_kind ?? "ENEMY",
+                    creature_type:
+                        effectiveBestiaryPatch.creature_type !== undefined
+                            ? effectiveBestiaryPatch.creature_type
+                            : null,
+                    creature_size:
+                        effectiveBestiaryPatch.creature_size !== undefined
+                            ? effectiveBestiaryPatch.creature_size
+                            : null,
+                    alignment:
+                        effectiveBestiaryPatch.alignment !== undefined
+                            ? effectiveBestiaryPatch.alignment
+                            : null,
+                    challenge_rating:
+                        typeof effectiveBestiaryPatch.challenge_rating === "number"
+                            ? effectiveBestiaryPatch.challenge_rating
+                            : null,
+                    xp:
+                        typeof effectiveBestiaryPatch.xp === "number"
+                            ? effectiveBestiaryPatch.xp
+                            : null,
+                    proficiency_bonus:
+                        typeof effectiveBestiaryPatch.proficiency_bonus === "number"
+                            ? effectiveBestiaryPatch.proficiency_bonus
+                            : null,
+                    armor_class:
+                        typeof effectiveBestiaryPatch.armor_class === "number"
+                            ? effectiveBestiaryPatch.armor_class
+                            : null,
+                    hit_points:
+                        typeof effectiveBestiaryPatch.hit_points === "number"
+                            ? effectiveBestiaryPatch.hit_points
+                            : null,
+                    hit_dice:
+                        effectiveBestiaryPatch.hit_dice !== undefined
+                            ? effectiveBestiaryPatch.hit_dice
+                            : null,
+                    ability_scores: mergeBestiaryAbilityScores(
+                        DEFAULT_BESTIARY_ABILITY_SCORES,
+                        effectiveBestiaryPatch.ability_scores
+                    ),
+                    speed: effectiveBestiaryPatch.speed ?? {},
+                    senses: effectiveBestiaryPatch.senses ?? {},
+                    languages:
+                        effectiveBestiaryPatch.languages !== undefined
+                            ? effectiveBestiaryPatch.languages
+                            : null,
+                    flavor:
+                        effectiveBestiaryPatch.flavor !== undefined
+                            ? effectiveBestiaryPatch.flavor
+                            : null,
+                    notes:
+                        effectiveBestiaryPatch.notes !== undefined
+                            ? effectiveBestiaryPatch.notes
+                            : null,
+                    traits: effectiveBestiaryPatch.traits ?? [],
+                    actions: effectiveBestiaryPatch.actions ?? [],
+                    bonus_actions: effectiveBestiaryPatch.bonus_actions ?? [],
+                    reactions: effectiveBestiaryPatch.reactions ?? [],
+                    legendary_actions: effectiveBestiaryPatch.legendary_actions ?? [],
+                    lair_actions: effectiveBestiaryPatch.lair_actions ?? [],
+                    image_url:
+                        effectiveBestiaryPatch.image_url !== undefined
+                            ? effectiveBestiaryPatch.image_url
+                            : null,
+                    is_player_visible:
+                        typeof effectiveBestiaryPatch.is_player_visible === "boolean"
+                            ? effectiveBestiaryPatch.is_player_visible
+                            : false,
+                    sort_order:
+                        typeof effectiveBestiaryPatch.sort_order === "number"
+                            ? effectiveBestiaryPatch.sort_order
+                            : 0,
+                    created_by: userId,
+                    updated_by: userId,
+                };
+
+                const { data: inserted, error } = await adminClient
+                    .from("campaign_bestiary_entries")
+                    .insert(createPayload)
+                    .select("id, name")
+                    .maybeSingle();
+
+                if (error) {
+                    results.push({
+                        operation: "create",
+                        status: "error",
+                        message: isMissingRelationError(error)
+                            ? "Falta la migración del bestiario de campaña."
+                            : error.message,
+                    });
+                    continue;
+                }
+
+                results.push({
+                    operation: "create",
+                    bestiaryEntryId:
+                        inserted && isRecord(inserted) && typeof inserted.id === "string"
+                            ? inserted.id
+                            : undefined,
+                    status: "applied",
+                    message: `Criatura "${name}" creada en bestiario de campaña.`,
+                });
+                continue;
+            }
+
+            const targetEntryId = asTrimmedString(
+                effectiveBestiaryPatch.target_entry_id,
+                64
+            );
+            if (!targetEntryId) {
+                results.push({
+                    operation: "update",
+                    status: "skipped",
+                    message:
+                        "Se omitió update de bestiario porque falta target_entry_id.",
+                });
+                continue;
+            }
+
+            if (
+                visibleBestiaryEntryIds.size > 0 &&
+                !visibleBestiaryEntryIds.has(targetEntryId)
+            ) {
+                results.push({
+                    operation: "update",
+                    bestiaryEntryId: targetEntryId,
+                    status: "blocked",
+                    message: "No tienes acceso a esta criatura del bestiario.",
+                });
+                continue;
+            }
+
+            const { data: existingBestiary, error: fetchBestiaryError } = await adminClient
+                .from("campaign_bestiary_entries")
+                .select("id, name, ability_scores")
+                .eq("id", targetEntryId)
+                .eq("campaign_id", campaignId)
+                .maybeSingle();
+
+            if (fetchBestiaryError) {
+                results.push({
+                    operation: "update",
+                    bestiaryEntryId: targetEntryId,
+                    status: "error",
+                    message: isMissingRelationError(fetchBestiaryError)
+                        ? "Falta la migración del bestiario de campaña."
+                        : fetchBestiaryError.message,
+                });
+                continue;
+            }
+
+            if (!existingBestiary) {
+                results.push({
+                    operation: "update",
+                    bestiaryEntryId: targetEntryId,
+                    status: "skipped",
+                    message: "No existe esa criatura en la campaña.",
+                });
+                continue;
+            }
+
+            if (!hasBestiaryWriteFields(effectiveBestiaryPatch)) {
+                results.push({
+                    operation: "update",
+                    bestiaryEntryId: targetEntryId,
+                    status: "skipped",
+                    message:
+                        "No se detectaron campos editables para la criatura del bestiario.",
+                });
+                continue;
+            }
+
+            const updatePayload: Record<string, unknown> = {
+                updated_by: userId,
+            };
+            if (effectiveBestiaryPatch.name) updatePayload.name = effectiveBestiaryPatch.name;
+            if (effectiveBestiaryPatch.source_type) {
+                updatePayload.source_type = effectiveBestiaryPatch.source_type;
+                updatePayload.source_name =
+                    effectiveBestiaryPatch.source_type === "SRD" ? "dnd5eapi" : null;
+            }
+            if (effectiveBestiaryPatch.source_index !== undefined) {
+                updatePayload.source_index = effectiveBestiaryPatch.source_index;
+            }
+            if (effectiveBestiaryPatch.entry_kind) {
+                updatePayload.entry_kind = effectiveBestiaryPatch.entry_kind;
+            }
+            if (effectiveBestiaryPatch.creature_type !== undefined) {
+                updatePayload.creature_type = effectiveBestiaryPatch.creature_type;
+            }
+            if (effectiveBestiaryPatch.creature_size !== undefined) {
+                updatePayload.creature_size = effectiveBestiaryPatch.creature_size;
+            }
+            if (effectiveBestiaryPatch.alignment !== undefined) {
+                updatePayload.alignment = effectiveBestiaryPatch.alignment;
+            }
+            if (typeof effectiveBestiaryPatch.challenge_rating === "number") {
+                updatePayload.challenge_rating = effectiveBestiaryPatch.challenge_rating;
+            }
+            if (typeof effectiveBestiaryPatch.xp === "number") {
+                updatePayload.xp = effectiveBestiaryPatch.xp;
+            }
+            if (typeof effectiveBestiaryPatch.proficiency_bonus === "number") {
+                updatePayload.proficiency_bonus = effectiveBestiaryPatch.proficiency_bonus;
+            }
+            if (typeof effectiveBestiaryPatch.armor_class === "number") {
+                updatePayload.armor_class = effectiveBestiaryPatch.armor_class;
+            }
+            if (typeof effectiveBestiaryPatch.hit_points === "number") {
+                updatePayload.hit_points = effectiveBestiaryPatch.hit_points;
+            }
+            if (effectiveBestiaryPatch.hit_dice !== undefined) {
+                updatePayload.hit_dice = effectiveBestiaryPatch.hit_dice;
+            }
+            if (effectiveBestiaryPatch.ability_scores) {
+                updatePayload.ability_scores = mergeBestiaryAbilityScores(
+                    isRecord(existingBestiary) ? existingBestiary.ability_scores : null,
+                    effectiveBestiaryPatch.ability_scores
+                );
+            }
+            if (effectiveBestiaryPatch.speed !== undefined) {
+                updatePayload.speed = effectiveBestiaryPatch.speed;
+            }
+            if (effectiveBestiaryPatch.senses !== undefined) {
+                updatePayload.senses = effectiveBestiaryPatch.senses;
+            }
+            if (effectiveBestiaryPatch.languages !== undefined) {
+                updatePayload.languages = effectiveBestiaryPatch.languages;
+            }
+            if (effectiveBestiaryPatch.flavor !== undefined) {
+                updatePayload.flavor = effectiveBestiaryPatch.flavor;
+            }
+            if (effectiveBestiaryPatch.notes !== undefined) {
+                updatePayload.notes = effectiveBestiaryPatch.notes;
+            }
+            if (effectiveBestiaryPatch.traits !== undefined) {
+                updatePayload.traits = effectiveBestiaryPatch.traits;
+            }
+            if (effectiveBestiaryPatch.actions !== undefined) {
+                updatePayload.actions = effectiveBestiaryPatch.actions;
+            }
+            if (effectiveBestiaryPatch.bonus_actions !== undefined) {
+                updatePayload.bonus_actions = effectiveBestiaryPatch.bonus_actions;
+            }
+            if (effectiveBestiaryPatch.reactions !== undefined) {
+                updatePayload.reactions = effectiveBestiaryPatch.reactions;
+            }
+            if (effectiveBestiaryPatch.legendary_actions !== undefined) {
+                updatePayload.legendary_actions = effectiveBestiaryPatch.legendary_actions;
+            }
+            if (effectiveBestiaryPatch.lair_actions !== undefined) {
+                updatePayload.lair_actions = effectiveBestiaryPatch.lair_actions;
+            }
+            if (effectiveBestiaryPatch.image_url !== undefined) {
+                updatePayload.image_url = effectiveBestiaryPatch.image_url;
+            }
+            if (typeof effectiveBestiaryPatch.is_player_visible === "boolean") {
+                updatePayload.is_player_visible = effectiveBestiaryPatch.is_player_visible;
+            }
+            if (typeof effectiveBestiaryPatch.sort_order === "number") {
+                updatePayload.sort_order = effectiveBestiaryPatch.sort_order;
+            }
+
+            const payloadKeys = Object.keys(updatePayload).filter(
+                (key) => key !== "updated_by"
+            );
+            if (payloadKeys.length === 0) {
+                results.push({
+                    operation: "update",
+                    bestiaryEntryId: targetEntryId,
+                    status: "skipped",
+                    message: "No hubo cambios concretos para aplicar en la criatura.",
+                });
+                continue;
+            }
+
+            const { error: bestiaryUpdateError } = await adminClient
+                .from("campaign_bestiary_entries")
+                .update(updatePayload)
+                .eq("id", targetEntryId)
+                .eq("campaign_id", campaignId);
+
+            if (bestiaryUpdateError) {
+                results.push({
+                    operation: "update",
+                    bestiaryEntryId: targetEntryId,
+                    status: "error",
+                    message: isMissingRelationError(bestiaryUpdateError)
+                        ? "Falta la migración del bestiario de campaña."
+                        : bestiaryUpdateError.message,
+                });
+                continue;
+            }
+
+            results.push({
+                operation: "update",
+                bestiaryEntryId: targetEntryId,
+                status: "applied",
+                message: `Criatura "${asTrimmedString(existingBestiary.name, 140) ?? "sin nombre"}" actualizada.`,
+            });
+            continue;
+        }
+
         if (action.operation === "create") {
             const data = action.data;
             if (!data.name) {
@@ -9632,6 +13561,11 @@ export const __assistantTestHooks = {
     parseStructuredItemBatchPatchesFromInstruction,
     normalizeAttachmentPatchList,
     buildItemAttachmentsFromBodyLines,
+    splitBestiaryEmbeddedBlockLine,
+    mergeBestiaryBlockPatchLists,
+    parseBestiarySpeedRecordFromInstruction,
+    parseBestiaryBlocksFromInstruction,
+    parseBestiaryCombatQualitiesFromInstruction,
     normalizeAssistantMode,
     normalizeTrainingSubmode,
     isTrainingPromptRequest,
@@ -9842,7 +13776,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
         }
 
         const role = membership.role === "DM" ? "DM" : "PLAYER";
-        const { members, characters, campaign, notes } = await loadCampaignContext({
+        const { members, characters, campaign, notes, bestiaryEntries } =
+            await loadCampaignContext({
             adminClient,
             campaignId,
             role,
@@ -9855,6 +13790,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 : characters.filter((character) => character.user_id === user.id);
         const visibleCharacterIds = new Set(
             visibleCharacters.map((character) => character.id)
+        );
+        const visibleBestiaryEntries =
+            role === "DM"
+                ? bestiaryEntries
+                : bestiaryEntries.filter((entry) => entry.is_player_visible === true);
+        const visibleBestiaryEntryIds = new Set(
+            visibleBestiaryEntries.map((entry) => entry.id)
         );
 
         await storeGlobalLearningEvent({
@@ -9879,9 +13821,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
         }
 
         if (apply && proposedActions) {
-            const sanitizedActions = sanitizeActions(
-                proposedActions,
-                targetCharacterId
+            const sanitizedActions = enrichBestiaryActionsFromInstruction(
+                sanitizeActions(proposedActions, targetCharacterId),
+                prompt
             );
             const sanitizedOriginalActions = originalProposedActions
                 ? sanitizeActions(originalProposedActions, targetCharacterId)
@@ -9936,6 +13878,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 role,
                 members,
                 visibleCharacterIds,
+                visibleBestiaryEntryIds,
                 actions: sanitizedActions,
             });
 
@@ -9966,7 +13909,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
             return NextResponse.json({
                 reply: effectiveReply,
                 proposedActions: sanitizedActions,
-                applied: true,
+                applied: results.some((entry) => entry.status === "applied"),
                 provider: "preview-confirm",
                 intent: "mutation",
                 rag: [],
@@ -10081,6 +14024,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 ? buildHeuristicMutationPlan({
                       prompt,
                       visibleCharacters,
+                      visibleBestiaryEntries,
                       targetCharacterId,
                       clientContext,
                       visibleCharacterIds,
@@ -10140,13 +14084,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 role,
                 members,
                 visibleCharacterIds,
+                visibleBestiaryEntryIds,
                 actions: directHeuristicPlan.actions,
             });
 
             return NextResponse.json({
                 reply: directReply,
                 proposedActions: directHeuristicPlan.actions,
-                applied: true,
+                applied: results.some((entry) => entry.status === "applied"),
                 provider: "heuristic-local",
                 intent,
                 rag: [],
@@ -10278,6 +14223,20 @@ export async function POST(req: NextRequest, context: RouteContext) {
                               .slice(0, 16)
                         : [],
             })),
+            visibleBestiaryEntries: visibleBestiaryEntries.map((entry) => ({
+                id: entry.id,
+                name: entry.name,
+                source_type: entry.source_type ?? "CUSTOM",
+                entry_kind: entry.entry_kind ?? "ENEMY",
+                creature_type: entry.creature_type ?? null,
+                creature_size: entry.creature_size ?? null,
+                alignment: entry.alignment ?? null,
+                challenge_rating:
+                    typeof entry.challenge_rating === "number"
+                        ? entry.challenge_rating
+                        : null,
+                is_player_visible: entry.is_player_visible === true,
+            })),
             retrievedContext: ragSnippets,
             productKnowledge: buildAssistantProductKnowledge({
                 role,
@@ -10319,6 +14278,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
                     ? buildHeuristicMutationPlan({
                           prompt,
                           visibleCharacters,
+                          visibleBestiaryEntries,
                           targetCharacterId,
                           clientContext,
                           visibleCharacterIds,
@@ -10376,12 +14336,15 @@ export async function POST(req: NextRequest, context: RouteContext) {
                     role,
                     members,
                     visibleCharacterIds,
+                    visibleBestiaryEntryIds,
                     actions: localFallbackPlan.actions,
                 });
                 return NextResponse.json({
                     reply: fallbackReply,
                     proposedActions: localFallbackPlan.actions,
-                    applied: true,
+                    applied: fallbackResults.some(
+                        (entry) => entry.status === "applied"
+                    ),
                     provider: "heuristic-local",
                     intent,
                     rag: ragSnippets,
@@ -10395,12 +14358,16 @@ export async function POST(req: NextRequest, context: RouteContext) {
             throw modelError;
         }
 
-        const sanitizedActions = sanitizeActions(plan.actions, targetCharacterId);
+        const sanitizedActions = enrichBestiaryActionsFromInstruction(
+            sanitizeActions(plan.actions, targetCharacterId),
+            prompt
+        );
         const heuristicPlan =
             sanitizedActions.length === 0
                 ? buildHeuristicMutationPlan({
                       prompt,
                       visibleCharacters,
+                      visibleBestiaryEntries,
                       targetCharacterId,
                       clientContext,
                       visibleCharacterIds,
@@ -10467,13 +14434,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
             role,
             members,
             visibleCharacterIds,
+            visibleBestiaryEntryIds,
             actions: effectiveActions,
         });
 
         return NextResponse.json({
             reply: effectiveReply,
             proposedActions: effectiveActions,
-            applied: true,
+            applied: results.some((entry) => entry.status === "applied"),
             provider,
             intent,
             rag: ragSnippets,

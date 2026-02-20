@@ -27,6 +27,7 @@ import {
     type Tab,
 } from "../player/playerShared";
 import StoryManagerPanel from "./StoryManagerPanel";
+import BestiaryManagerPanel from "./BestiaryManagerPanel";
 
 type MembershipRow = {
     role: "PLAYER" | "DM";
@@ -67,6 +68,9 @@ export default function CampaignDMPage() {
     const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
     const [selectionPulse, setSelectionPulse] = useState(0);
     const [showCompanions, setShowCompanions] = useState(false);
+    const [bestiaryRefreshNonce, setBestiaryRefreshNonce] = useState(0);
+    const [aiFocusedBestiaryEntryId, setAiFocusedBestiaryEntryId] =
+        useState<string | null>(null);
 
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [characters, setCharacters] = useState<Character[]>([]);
@@ -295,10 +299,13 @@ export default function CampaignDMPage() {
                 "create-companion-for-player",
                 "reorder-character-list",
                 "delete-character",
+                "create-campaign-bestiary-creature",
+                "update-campaign-bestiary-creature",
             ],
             hints: [
                 "dm-can-target-any-visible-character",
                 "prefer-current-ui-section-when-context-is-ambiguous",
+                "dm-can-mutate-campaign-bestiary",
             ],
         }),
         [
@@ -970,7 +977,7 @@ export default function CampaignDMPage() {
 
             <section
                 className={`flex-1 min-h-0 p-6 ${
-                    activeSection === "story"
+                    activeSection === "story" || activeSection === "bestiary"
                         ? "flex flex-col gap-4 overflow-hidden"
                         : "space-y-4 overflow-y-auto styled-scrollbar"
                 }`}
@@ -1190,16 +1197,13 @@ export default function CampaignDMPage() {
                 )}
 
                 {activeSection === "bestiary" && (
-                    <div className="space-y-3">
-                        <h1 className="text-xl font-semibold text-ink">
-                            {t("Gestor de bestiario", "Bestiary manager")}
-                        </h1>
-                        <p className="text-sm text-ink-muted">
-                            {t(
-                                "Apartado listo para conectar criaturas y encuentros.",
-                                "Section ready to connect creatures and encounters."
-                            )}
-                        </p>
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                        <BestiaryManagerPanel
+                            campaignId={String(params.id)}
+                            locale={locale}
+                            refreshNonce={bestiaryRefreshNonce}
+                            focusEntryId={aiFocusedBestiaryEntryId}
+                        />
                     </div>
                 )}
 
@@ -1276,7 +1280,17 @@ export default function CampaignDMPage() {
                 selectedCharacterId={editingCharacter?.id ?? null}
                 selectedCharacterName={editingCharacter?.name ?? null}
                 assistantContext={assistantContext}
-                onApplied={async () => {
+                onApplied={async (context) => {
+                    const appliedBestiaryResult = context?.results?.find(
+                        (entry) =>
+                            entry.status === "applied" &&
+                            typeof entry.bestiaryEntryId === "string" &&
+                            entry.bestiaryEntryId.length > 0
+                    );
+                    if (appliedBestiaryResult?.bestiaryEntryId) {
+                        setAiFocusedBestiaryEntryId(appliedBestiaryResult.bestiaryEntryId);
+                    }
+                    setBestiaryRefreshNonce((value) => value + 1);
                     const refreshed = await loadPanelData(String(params.id));
                     if (playerPanelMode !== "edit") return;
                     if (!editingCharacterId) return;

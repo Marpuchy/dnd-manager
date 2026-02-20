@@ -32,12 +32,13 @@ import { useCharacterForm } from "./hooks/useCharacterForm";
 import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide-react";
 import AIAssistantPanel, { type AIAssistantClientContext } from "./ui/AIAssistantPanel";
 import StoryPlayerView from "./ui/StoryPlayerView";
+import CampaignBestiaryPlayerView from "./ui/CampaignBestiaryPlayerView";
 import { getSubclassName } from "@/lib/dnd/classAbilities";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
 
 type RightPanelMode = "character" | "spellManager";
-type PlayerSection = "characters" | "story";
+type PlayerSection = "characters" | "story" | "bestiary";
 
 type CampaignPlayerPageProps = {
     forceDmMode?: boolean;
@@ -628,7 +629,12 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         () => ({
             surface: isDmMode ? "dm" : "player",
             locale,
-            section: activeSection === "story" ? "story-view" : "character-workspace",
+            section:
+                activeSection === "story"
+                    ? "story-view"
+                    : activeSection === "bestiary"
+                    ? "bestiary-view"
+                    : "character-workspace",
             panelMode: `${mode}:${rightPanelMode}`,
             activeTab,
             selectedCharacter: selectedChar
@@ -1117,7 +1123,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
                         <button
                             type="button"
                             onClick={() => setActiveSection("characters")}
@@ -1143,6 +1149,21 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             }`}
                         >
                             {tr(locale, "Historia", "Story")}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActiveSection("bestiary");
+                                setMode("view");
+                                setRightPanelMode("character");
+                            }}
+                            className={`w-full text-[11px] px-3 py-2 rounded-md border transition-colors ${
+                                activeSection === "bestiary"
+                                    ? "border-accent/60 bg-accent/10 text-accent-strong"
+                                    : "border-ring text-ink hover:bg-ink/5"
+                            }`}
+                        >
+                            {tr(locale, "Bestiario", "Bestiary")}
                         </button>
                     </div>
 
@@ -1351,6 +1372,8 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                 <h1 className="text-lg font-semibold text-ink">
                                     {activeSection === "story"
                                         ? tr(locale, "Historia de campaña", "Campaign story")
+                                        : activeSection === "bestiary"
+                                        ? tr(locale, "Bestiario de campaña", "Campaign bestiary")
                                         : mode === "create"
                                         ? createTitle
                                         : selectedChar?.name ?? tr(locale, "Personaje", "Character")}
@@ -1361,6 +1384,12 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                               locale,
                                               "Explora lo que el master ha publicado desde el gestor de historia.",
                                               "Browse what the DM has published from the story manager."
+                                          )
+                                        : activeSection === "bestiary"
+                                        ? tr(
+                                              locale,
+                                              "Consulta las criaturas del bestiario de campaña que el DM ha marcado para jugadores.",
+                                              "Browse campaign bestiary creatures marked for players by the DM."
                                           )
                                         : selectedChar
                                         ? characterSummary(selectedChar)
@@ -1466,6 +1495,11 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                     <div className="relative p-4 min-w-0 flex-1 overflow-y-auto overflow-x-hidden styled-scrollbar">
                         {activeSection === "story" ? (
                             <StoryPlayerView
+                                campaignId={String(params.id)}
+                                locale={locale}
+                            />
+                        ) : activeSection === "bestiary" ? (
+                            <CampaignBestiaryPlayerView
                                 campaignId={String(params.id)}
                                 locale={locale}
                             />

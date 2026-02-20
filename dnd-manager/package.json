@@ -11,6 +11,11 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "dnd:sync-local-data": "node scripts/generate-local-dnd-data.mjs",
+    "ai:digest": "node scripts/run-ai-learning-digest.mjs",
+    "ai:digest:run-ps": "powershell -ExecutionPolicy Bypass -File .\\scripts\\run-ai-learning-digest.ps1 -Frequency weekly -SendEmail true",
+    "ai:digest:daily": "node scripts/run-ai-learning-digest.mjs --frequency=daily --send-email=false",
+    "ai:digest:weekly": "node scripts/run-ai-learning-digest.mjs --frequency=weekly --send-email=true",
+    "ai:digest:install-weekly-task": "powershell -ExecutionPolicy Bypass -File .\\scripts\\install-ai-learning-digest-weekly-task.ps1",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

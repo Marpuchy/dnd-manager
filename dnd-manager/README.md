@@ -17,6 +17,51 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - Opcional: configura `TRANSLATION_*` si quieres traducciones automaticas.
 - IA recomendada gratis: `AI_FREE_ONLY=true`, `AI_PROVIDER=auto`, `GEMINI_API_KEY=...`, `AI_ENABLE_LOCAL_FALLBACK=true` (Gemini principal + Ollama fallback).
 
+### Digest de aprendizaje IA (diario/semanal)
+
+- Ejecuta migraciones:
+  - `docs/migrations/2026-02-19-ai-global-training-events.sql`
+  - `docs/migrations/2026-02-20-ai-global-learning-digests.sql`
+- Configura en `.env.local`:
+  - `AI_LEARNING_DIGEST_SECRET`
+  - `AI_LEARNING_DIGEST_FROM_EMAIL`
+  - `AI_LEARNING_DIGEST_TO_EMAIL` (lista separada por comas)
+  - `RESEND_API_KEY`
+- Endpoint cron/manual:
+  - `POST /api/ai/learning/digest`
+  - Header: `x-ai-learning-secret: <AI_LEARNING_DIGEST_SECRET>`
+  - Body ejemplo semanal:
+
+```json
+{ "frequency": "weekly", "sendEmail": true }
+```
+
+- Body ejemplo diario sin correo:
+
+```json
+{ "frequency": "daily", "sendEmail": false }
+```
+
+- Scripts npm:
+  - `npm run ai:digest:daily`
+  - `npm run ai:digest:weekly`
+  - `npm run ai:digest:install-weekly-task`
+- Puedes programarlos con cron/task scheduler para automatizar el ciclo diario/semanal.
+
+### Programar semanal en Windows (Task Scheduler)
+
+Comando directo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-ai-learning-digest-weekly-task.ps1 -Day MON -Time 09:00
+```
+
+Opcional ejecutar ahora mismo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-ai-learning-digest-weekly-task.ps1 -Day MON -Time 09:00 -RunNow
+```
+
 ### Docker (VPS + IA local gratis)
 
 - Requisitos del VPS: Docker + Docker Compose plugin.
