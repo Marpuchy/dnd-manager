@@ -183,7 +183,7 @@ export default function CustomContentManager({
                 const saveType =
                     spell.save.type === "attack"
                         ? t("Ataque", "Attack")
-                        : t("Salvacion", "Save");
+                        : t("SalvaciÓn", "Save");
                 const detail = [
                     spell.save.saveAbility ? spell.save.saveAbility : "",
                     spell.save.dcType === "fixed" && spell.save.dcValue != null
@@ -196,7 +196,7 @@ export default function CustomContentManager({
                     .filter(Boolean)
                     .join(" - ");
                 pushMarkdownField(
-                    t("Tirada / salvacion", "Roll / save"),
+                    t("Tirada / salvaciÓn", "Roll / save"),
                     `${saveType}${detail ? ` (${detail})` : ""}`
                 );
             }
@@ -217,7 +217,7 @@ export default function CustomContentManager({
                     .filter(Boolean)
                     .join(" - ");
                 if (parts) {
-                    pushMarkdownField(t("Dano", "Damage"), parts);
+                    pushMarkdownField(t("Daño", "Damage"), parts);
                 }
             }
         } else if (type === "classAbility" || type === "action") {
@@ -266,7 +266,7 @@ export default function CustomContentManager({
             }
         }
 
-        pushMarkdownField(t("Descripcion", "Description"), desc);
+        pushMarkdownField(t("Descripción", "Description"), desc);
         return lines.join("\n\n");
     }
 
@@ -370,7 +370,7 @@ export default function CustomContentManager({
             case "classAbility":
                 return t("Habilidad", "Ability");
             case "action":
-                return t("Accion", "Action");
+                return t("Acción", "Action");
             default:
                 return t("Contenido", "Content");
         }
@@ -793,7 +793,7 @@ export default function CustomContentManager({
                                     </div>
                                 ) : (
                                     <p className="mt-2 text-[11px] text-ink-muted">
-                                        {t("Sin descripcion.", "No description.")}
+                                        {t("Sin descripción.", "No description.")}
                                     </p>
                                 )}
                             </details>
@@ -889,7 +889,7 @@ export default function CustomContentManager({
                                 <option value="classAbility">{t("Habilidad", "Ability")}</option>
                             )}
                             {allowedFormTypes.includes("action") && (
-                                <option value="action">{t("Accion", "Action")}</option>
+                                <option value="action">{t("Acción", "Action")}</option>
                             )}
                         </select>
                     </div>
@@ -941,7 +941,7 @@ export default function CustomContentManager({
                         )}
                         {isAbilityForm && (
                             <div className="space-y-1">
-                                <label className="text-xs text-ink-muted">{t("Tipo de accion", "Action type")}</label>
+                                <label className="text-xs text-ink-muted">{t("Tipo de acción", "Action type")}</label>
                                 <select
                                     value={abilityActionType ?? "action"}
                                     onChange={(event) =>
@@ -1006,7 +1006,7 @@ export default function CustomContentManager({
                                     value={castingTimeNote}
                                     onChange={(event) => setCastingTimeNote(event.target.value)}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-                                    placeholder={t("Accion adicional, reaccion al ser atacado...", "Bonus action, reaction on being attacked...")}
+                                    placeholder={t("Acción adicional, reacción al ser atacado...", "Bonus action, reaction on being attacked...")}
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1165,7 +1165,7 @@ export default function CustomContentManager({
 
                         <details className="rounded-xl border border-ring bg-white/80 p-3">
                             <summary className="cursor-pointer text-xs text-ink-muted">
-                                {t("Tirada / salvacion", "Roll / save")}
+                                {t("Tirada / salvaciÓn", "Roll / save")}
                             </summary>
                             <div className="mt-3 space-y-3">
                                 <div className="space-y-1">
@@ -1179,7 +1179,7 @@ export default function CustomContentManager({
                                     >
                                         <option value="none">{t("Ninguno", "None")}</option>
                                         <option value="attack">{t("Ataque", "Attack")}</option>
-                                        <option value="save">{t("Salvacion", "Saving throw")}</option>
+                                        <option value="save">{t("SalvaciÓn", "Saving throw")}</option>
                                     </select>
                                 </div>
 
@@ -1250,10 +1250,10 @@ export default function CustomContentManager({
                         </details>
 
                         <details className="rounded-xl border border-ring bg-white/80 p-3">
-                            <summary className="cursor-pointer text-xs text-ink-muted">{t("Dano", "Damage")}</summary>
+                            <summary className="cursor-pointer text-xs text-ink-muted">{t("Daño", "Damage")}</summary>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
                                 <div className="space-y-1">
-                                    <label className="text-[11px] text-ink-muted">{t("Tipo de dano", "Damage type")}</label>
+                                    <label className="text-[11px] text-ink-muted">{t("Tipo de daño", "Damage type")}</label>
                                     <input
                                         type="text"
                                         value={damageType}
@@ -1390,7 +1390,7 @@ export default function CustomContentManager({
 
                 <details className="rounded-xl border border-ring bg-white/80 p-3">
                     <summary className="cursor-pointer text-xs text-ink-muted">
-                        {t("Descripcion (Markdown)", "Description (Markdown)")}
+                        {t("Descripción (Markdown)", "Description (Markdown)")}
                     </summary>
                     <div className="mt-2">
                         <textarea

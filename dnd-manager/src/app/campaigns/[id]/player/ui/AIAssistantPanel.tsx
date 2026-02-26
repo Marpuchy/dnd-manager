@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Sparkles, X, SendHorizontal, Trash2 } from "lucide-react";
@@ -2716,7 +2716,7 @@ export default function AIAssistantPanel({
         if (sessionError) throw sessionError;
         const accessToken = sessionData?.session?.access_token;
         if (!accessToken) {
-            throw new Error(t("No hay sesion activa.", "No active session."));
+            throw new Error(t("No hay sesión activa.", "No active session."));
         }
         return accessToken;
     }

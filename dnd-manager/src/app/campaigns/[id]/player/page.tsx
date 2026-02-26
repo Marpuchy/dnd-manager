@@ -1,4 +1,4 @@
-﻿// src/app/campaigns/[id]/player/page.tsx
+// src/app/campaigns/[id]/player/page.tsx
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
@@ -184,7 +184,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 setError(
                     charsError.message ??
                         (isDmMode
-                            ? "No se han podido cargar los personajes de la campana."
+                            ? "No se han podido cargar los personajes de la Campaña."
                             : "No se han podido cargar tus personajes.")
                 );
                 setCharacters([]);
@@ -1102,7 +1102,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             <div>
                                 <h2 className="text-lg font-semibold text-ink leading-tight">
                                     {isDmMode
-                                        ? tr(locale, "Personajes de campana", "Campaign characters")
+                                        ? tr(locale, "Personajes de Campaña", "Campaign characters")
                                         : tr(locale, "Tus personajes", "Your characters")}
                                 </h2>
                                 <p className="text-[11px] text-ink-muted mt-0.5">
@@ -1191,7 +1191,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             <p className="text-xs text-ink-muted">
                                 {tr(
                                     locale,
-                                    "Todavia no tienes personajes en esta campaña.",
+                                    "Todavía no tienes personajes en esta campaña.",
                                     "You do not have characters in this campaign yet."
                                 )}
                             </p>
@@ -1310,7 +1310,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             <Trash2 className="h-5 w-5 text-red-500" />
                             <div>
                                 <p className="text-sm font-medium text-red-600">
-                                    {tr(locale, "Arrastra aqui para eliminar", "Drag here to delete")}
+                                    {tr(locale, "Arrastra aqu? para eliminar", "Drag here to delete")}
                                 </p>
                                 <p className="text-[11px] text-ink-muted">
                                     {tr(locale, "Suelta para eliminar el personaje arrastrado", "Release to remove the dragged character")}
@@ -1417,8 +1417,8 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                 {activeSection === "characters" && (mode === "create" || mode === "edit") && (
                                     <span className="text-[11px] text-ink-muted">
                                         {autoSaving
-                                            ? tr(locale, "Guardado automatico...", "Auto-saving...")
-                                            : tr(locale, "Guardado automatico activo", "Auto-save active")}
+                                            ? tr(locale, "Guardado automático...", "Auto-saving...")
+                                            : tr(locale, "Guardado automático activo", "Auto-save active")}
                                     </span>
                                 )}
                             </div>
@@ -1537,7 +1537,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                 )}
 
                                 {mode === "view" && !selectedChar && (
-                                    <p className="text-sm text-ink-muted">
+                                    <p className="hint-copy text-sm text-ink-muted">
                                         {tr(locale, "Selecciona un personaje en la lista o crea uno nuevo.", "Select a character from the list or create a new one.")}
                                     </p>
                                 )}
@@ -1634,5 +1634,6 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 }
 
 export default CampaignPlayerPage;
+
 
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { Details } from "../../playerShared";
@@ -113,8 +113,8 @@ function ItemCard({
     ...(item.tags ?? []),
     item.attunement
       ? typeof item.attunement === "string"
-        ? `${tr(locale, "Sintonia", "Attunement")}: ${item.attunement}`
-        : tr(locale, "Requiere sintonia", "Requires attunement")
+        ? `${tr(locale, "Sintonía", "Attunement")}: ${item.attunement}`
+        : tr(locale, "Requiere sintonía", "Requires attunement")
       : null,
   ].filter(Boolean) as string[];
 
@@ -370,7 +370,7 @@ export default function InventoryPanel({ details }: InventoryPanelProps) {
           </span>
         </div>
         {items.length === 0 ? (
-          <p className="text-xs text-ink-muted">{tr(locale, "Aun no hay objetos registrados.", "No items recorded yet.")}</p>
+          <p className="text-xs text-ink-muted">{tr(locale, "Aún no hay objetos registrados.", "No items recorded yet.")}</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {items.map((item) => (
@@ -421,7 +421,7 @@ export default function InventoryPanel({ details }: InventoryPanelProps) {
 
       {companion && (
         <div className="border border-ring rounded-2xl p-[var(--panel-pad)] space-y-3 bg-panel/80">
-          <h3 className="text-sm font-semibold text-ink">{tr(locale, "Companero / Mascota", "Companion / Pet")}</h3>
+          <h3 className="text-sm font-semibold text-ink">{tr(locale, "Compañero / Mascota", "Companion / Pet")}</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-ring bg-white/80 p-3">
               <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">{tr(locale, "Nombre", "Name")}</p>
@@ -429,7 +429,7 @@ export default function InventoryPanel({ details }: InventoryPanelProps) {
               {companion.kind && <p className="text-[11px] text-ink-muted mt-1">{companion.kind}</p>}
               {companion.size && (
                 <p className="text-[11px] text-ink-muted mt-1">
-                  {tr(locale, "Tamano", "Size")}: {companion.size}
+                  {tr(locale, "Tamaño", "Size")}: {companion.size}
                 </p>
               )}
             </div>
@@ -480,7 +480,7 @@ export default function InventoryPanel({ details }: InventoryPanelProps) {
           {companion.notes && (
             <details className="rounded-xl border border-ring bg-white/80 p-3">
               <summary className="cursor-pointer text-sm font-semibold text-ink">
-                {tr(locale, "Notas del companero", "Companion notes")}
+                {tr(locale, "Notas del compañero", "Companion notes")}
               </summary>
               <div className="mt-2">
                 <Markdown content={companion.notes} className="text-ink-muted text-xs" />

@@ -75,7 +75,7 @@ const FALLBACK_SUBCLASS_FEATURES: Record<string, LocalizedSubclassFeatures> = {
                 subclassName: "Circulo de la Luna",
                 source: "Fallback 2014",
                 description:
-                    "Puedes usar Forma salvaje como accion bonus y gastar un espacio de conjuro para recuperar puntos de golpe mientras estas transformado (1d8 por nivel del espacio).",
+                    "Puedes usar Forma salvaje como acción bonus y gastar un espacio de conjuro para recuperar puntos de golpe mientras estas transformado (1d8 por nivel del espacio).",
             },
             {
                 id: "druid:circle-of-the-moon:lvl3:circle-forms:fallback",
@@ -86,7 +86,7 @@ const FALLBACK_SUBCLASS_FEATURES: Record<string, LocalizedSubclassFeatures> = {
                 subclassName: "Circulo de la Luna",
                 source: "Fallback 2014",
                 description:
-                    "Tu Forma salvaje puede asumir bestias mas potentes que un druida estandar y esta orientada al combate cercano.",
+                    "Tu Forma salvaje puede asumir bestias mÁs potentes que un druida estÁndar y esta orientada al combate cercano.",
             },
             {
                 id: "druid:circle-of-the-moon:lvl6:primal-strike:fallback",
@@ -97,7 +97,7 @@ const FALLBACK_SUBCLASS_FEATURES: Record<string, LocalizedSubclassFeatures> = {
                 subclassName: "Circulo de la Luna",
                 source: "Fallback 2014",
                 description:
-                    "Tus ataques en forma de bestia cuentan como magicos para superar resistencias e inmunidades a dano no magico.",
+                    "Tus ataques en forma de bestia cuentan como mÁgicos para superar resistencias e inmunidades a daño no magico.",
             },
             {
                 id: "druid:circle-of-the-moon:lvl10:elemental-wild-shape:fallback",

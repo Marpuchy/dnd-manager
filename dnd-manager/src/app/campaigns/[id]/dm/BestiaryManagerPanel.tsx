@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
     useEffect,
@@ -1391,7 +1391,7 @@ export default function BestiaryManagerPanel({
                             : "border-ring bg-white/70 text-ink hover:bg-white"
                     }`}
                 >
-                    {t("Bestiario de campana", "Campaign bestiary")}
+                    {t("Bestiario de Campaña", "Campaign bestiary")}
                 </button>
                 <button
                     type="button"
@@ -1445,7 +1445,7 @@ export default function BestiaryManagerPanel({
                             {loadingEntries ? (
                                 <p className="text-xs text-ink-muted">{t("Cargando...", "Loading...")}</p>
                             ) : entries.length === 0 ? (
-                                <p className="text-xs text-ink-muted">{t("Aun no hay criaturas en campana.", "No campaign creatures yet.")}</p>
+                                <p className="text-xs text-ink-muted">{t("Aún no hay criaturas en Campaña.", "No campaign creatures yet.")}</p>
                             ) : (
                                 <ul className="space-y-2">
                                     {entries.map((entry) => {
@@ -1537,7 +1537,7 @@ export default function BestiaryManagerPanel({
                                             <label className="text-xs text-ink-muted">{t("Tipo", "Type")}
                                                 <input value={draft.creatureType} onChange={(e) => updateDraft("creatureType", e.target.value)} className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink" />
                                             </label>
-                                            <label className="text-xs text-ink-muted">{t("Tamano", "Size")}
+                                            <label className="text-xs text-ink-muted">{t("Tamaño", "Size")}
                                                 <input value={draft.creatureSize} onChange={(e) => updateDraft("creatureSize", e.target.value)} className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink" />
                                             </label>
                                             <label className="text-xs text-ink-muted">{t("Alineamiento", "Alignment")}
@@ -1691,7 +1691,7 @@ export default function BestiaryManagerPanel({
                                         {!draft.id && pendingImage ? <p className="mt-1 text-[11px] text-ink-muted">{t("Se subira al guardar.", "Will upload on save.")}</p> : null}
                                     </div>
 
-                                        <label className="mt-3 block text-xs text-ink-muted">{t("Descripcion", "Description")}
+                                        <label className="mt-3 block text-xs text-ink-muted">{t("Descripción", "Description")}
                                             <textarea value={draft.flavor} onChange={(e) => updateDraft("flavor", e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink" />
                                         </label>
                                         <label className="mt-3 block text-xs text-ink-muted">{t("Notas", "Notes")}
@@ -1789,7 +1789,7 @@ export default function BestiaryManagerPanel({
                                         <option value="0-1">{t("0 a 1", "0 to 1")}</option>
                                         <option value="2-4">{t("2 a 4", "2 to 4")}</option>
                                         <option value="5-10">{t("5 a 10", "5 to 10")}</option>
-                                        <option value="11+">{t("11 o mas", "11 or more")}</option>
+                                        <option value="11+">{t("11 o mÁs", "11 or more")}</option>
                                     </select>
                                 </label>
 
@@ -1808,7 +1808,7 @@ export default function BestiaryManagerPanel({
                                 </label>
 
                                 <label className="block min-w-[140px] text-[11px] text-ink-muted">
-                                    {t("Tamano", "Size")}
+                                    {t("Tamaño", "Size")}
                                     <select
                                         value={commonSizeFilter}
                                         onChange={(e) => setCommonSizeFilter(e.target.value)}
@@ -1896,7 +1896,7 @@ export default function BestiaryManagerPanel({
                                             className="inline-flex items-center gap-2 rounded-md border border-accent/60 bg-accent/10 px-3 py-1.5 text-xs text-accent-strong disabled:opacity-60"
                                         >
                                             <Plus className="h-3.5 w-3.5" />
-                                            {importing ? t("Importando...", "Importing...") : t("Importar a campana", "Import to campaign")}
+                                            {importing ? t("Importando...", "Importing...") : t("Importar a Campaña", "Import to campaign")}
                                         </button>
                                     }
                                 />
@@ -1910,3 +1910,4 @@ export default function BestiaryManagerPanel({
         </div>
     );
 }
+

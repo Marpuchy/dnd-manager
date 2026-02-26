@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
     forwardRef,
@@ -12,8 +12,13 @@ import {
 } from "react";
 import {
     ArrowLeft,
+    ChevronLeft,
+    ChevronDown,
+    ChevronRight,
     ExternalLink,
     Link2,
+    Lock,
+    LockOpen,
     Plus,
     RefreshCw,
     Save,
@@ -132,6 +137,15 @@ type LinkRow = {
     to_node_id: string;
     link_type: string;
     label: string | null;
+    sort_order: number;
+};
+
+type ZoneIndexZoneRow = {
+    id: string;
+    map_id: string;
+    node_id: string | null;
+    target_node_id: string | null;
+    name: string;
     sort_order: number;
 };
 
@@ -415,6 +429,32 @@ function createInitialMapView(viewportEl: HTMLDivElement | null): ViewState {
         scale,
         x: (viewportWidth - STAGE_WIDTH * scale) / 2,
         y: (viewportHeight - STAGE_HEIGHT * scale) / 2,
+    };
+}
+
+function createCenteredMapView(
+    viewportEl: HTMLDivElement | null,
+    stageX: number,
+    stageY: number,
+    scale: number
+): ViewState {
+    const rect = viewportEl?.getBoundingClientRect();
+    const viewportWidth =
+        rect && Number.isFinite(rect.width) && rect.width > 0
+            ? rect.width
+            : FALLBACK_VIEWPORT_WIDTH;
+    const viewportHeight =
+        rect && Number.isFinite(rect.height) && rect.height > 0
+            ? rect.height
+            : FALLBACK_VIEWPORT_HEIGHT;
+    const nextScale = clamp(scale, MIN_SCALE, MAX_SCALE);
+    const x = clamp(stageX, 0, STAGE_WIDTH);
+    const y = clamp(stageY, 0, STAGE_HEIGHT);
+
+    return {
+        scale: nextScale,
+        x: viewportWidth / 2 - x * nextScale,
+        y: viewportHeight / 2 - y * nextScale,
     };
 }
 
@@ -722,7 +762,23 @@ function normalizeDocDefaultTextColor(value: unknown): string {
 }
 
 function zoneNodeId(zone: ZoneRow) {
-    return zone.node_id ?? zone.target_node_id ?? null;
+    return zone.target_node_id ?? zone.node_id ?? null;
+}
+
+function linkedNodeIdForReference(link: LinkRow, baseNodeId: string | null) {
+    if (baseNodeId && link.from_node_id === baseNodeId) return link.to_node_id;
+    if (baseNodeId && link.to_node_id === baseNodeId) return link.from_node_id;
+    return link.to_node_id;
+}
+
+function defaultMapNameForNode(nodeTitle: string) {
+    const safeTitle = nodeTitle.trim() || "Zona";
+    return `Mapa - ${safeTitle}`;
+}
+
+function isAutoZoneMapName(name: string) {
+    const normalized = name.trim().toLowerCase();
+    return /^mapa\s*-\s*(zona|zone)\s+\d+$/.test(normalized);
 }
 
 type RichTextEditorProps = {
@@ -1098,6 +1154,8 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         startX: number;
         startWidth: number;
     } | null>(null);
+    const pendingViewOnMapChangeRef = useRef<ViewState | null>(null);
+    const pendingCenterZoneIdRef = useRef<string | null>(null);
     const zoneLiveSaveTimeoutRef = useRef<number | null>(null);
     const zoneLiveSaveInFlightRef = useRef(false);
 
@@ -1122,6 +1180,9 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const [mapConnections, setMapConnections] = useState<LinkRow[]>([]);
     const [pendingConnectionZoneId, setPendingConnectionZoneId] = useState<string | null>(null);
     const [movingZoneId, setMovingZoneId] = useState<string | null>(null);
+    const [isZoneLockEnabled, setIsZoneLockEnabled] = useState(true);
+    const [isZoneIndexCollapsed, setIsZoneIndexCollapsed] = useState(false);
+    const [zoneIndexExpandedById, setZoneIndexExpandedById] = useState<Record<string, boolean>>({});
     const [selectedDocument, setSelectedDocument] = useState<DocumentRow | null>(null);
 
     const [newActTitle, setNewActTitle] = useState("");
@@ -1137,6 +1198,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const [zonePossibleEncountersDraft, setZonePossibleEncountersDraft] = useState<string[]>([]);
 
     const [bestiaryCreatures, setBestiaryCreatures] = useState<BestiaryEntryRecord[]>([]);
+    const [zoneIndexZones, setZoneIndexZones] = useState<ZoneIndexZoneRow[]>([]);
     const [encounterModalOpen, setEncounterModalOpen] = useState(false);
     const [selectedEncounterForView, setSelectedEncounterForView] = useState<BestiaryEntryRecord | null>(null);
 
@@ -1162,7 +1224,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const currentNode = currentNodeId ? nodesById.get(currentNodeId) ?? null : null;
     const selectedZone = selectedZoneId ? zones.find((zone) => zone.id === selectedZoneId) ?? null : null;
 
-    const selectedZoneNodeId = selectedZone?.node_id ?? selectedZone?.target_node_id ?? null;
+    const selectedZoneNodeId = selectedZone?.target_node_id ?? selectedZone?.node_id ?? null;
     const selectedZoneNode = selectedZoneNodeId ? nodesById.get(selectedZoneNodeId) ?? null : null;
 
     const selectedZoneGeometry = useMemo(
@@ -1184,6 +1246,79 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
         return path.reverse();
     }, [currentNodeId, nodesById]);
+
+    const parentNode = useMemo(
+        () => (breadcrumbNodes.length > 1 ? breadcrumbNodes[breadcrumbNodes.length - 2] : null),
+        [breadcrumbNodes]
+    );
+
+    const zoneIndexNodeIdSet = useMemo(() => {
+        const ids = zoneIndexZones
+            .map((zone) => zone.target_node_id ?? zone.node_id)
+            .filter((nodeId): nodeId is string => Boolean(nodeId));
+        return new Set(ids);
+    }, [zoneIndexZones]);
+
+    const zoneIndexActNodes = useMemo(
+        () =>
+            nodes.filter(
+                (node) => node.act_id === currentActId && zoneIndexNodeIdSet.has(node.id)
+            ),
+        [nodes, currentActId, zoneIndexNodeIdSet]
+    );
+
+    const zoneIndexChildrenByParentId = useMemo(() => {
+        const grouped = new Map<string, NodeRow[]>();
+        for (const node of zoneIndexActNodes) {
+            if (!node.parent_id) continue;
+            const list = grouped.get(node.parent_id);
+            if (list) {
+                list.push(node);
+            } else {
+                grouped.set(node.parent_id, [node]);
+            }
+        }
+        for (const list of grouped.values()) {
+            list.sort((a, b) => {
+                if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+                return a.title.localeCompare(b.title, locale, { sensitivity: "base" });
+            });
+        }
+        return grouped;
+    }, [zoneIndexActNodes, locale]);
+
+    const zoneIndexRootNodes = useMemo(
+        () =>
+            zoneIndexActNodes
+                .filter((node) => !node.parent_id || !zoneIndexNodeIdSet.has(node.parent_id))
+                .sort((a, b) => {
+                    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+                    return a.title.localeCompare(b.title, locale, { sensitivity: "base" });
+                }),
+        [zoneIndexActNodes, zoneIndexNodeIdSet, locale]
+    );
+
+    const zoneIndexNameByNodeId = useMemo(() => {
+        const pairs = zoneIndexZones
+            .map((zone) => ({
+                nodeId: zone.target_node_id ?? zone.node_id,
+                name: zone.name.trim(),
+                sortOrder: zone.sort_order,
+            }))
+            .filter(
+                (entry): entry is { nodeId: string; name: string; sortOrder: number } =>
+                    Boolean(entry.nodeId) && Boolean(entry.name)
+            )
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        const mapped = new Map<string, string>();
+        for (const entry of pairs) {
+            if (!mapped.has(entry.nodeId)) {
+                mapped.set(entry.nodeId, entry.name);
+            }
+        }
+        return mapped;
+    }, [zoneIndexZones]);
 
     const referenceMatches = useMemo(() => {
         const query = referenceQuery.trim().toLowerCase();
@@ -1339,7 +1474,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         setLoading(true);
         setError(null);
         try {
-            const [sessionRes, actsRes, nodesRes, bestiaryRes] = await Promise.all([
+            const [sessionRes, actsRes, nodesRes, bestiaryRes, zoneRows] = await Promise.all([
                 supabase.auth.getSession(),
                 supabase
                     .from("campaign_acts")
@@ -1359,6 +1494,36 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     .eq("campaign_id", campaignId)
                     .order("sort_order", { ascending: true })
                     .order("created_at", { ascending: true }),
+                (async () => {
+                    const selectColumns =
+                        "id, map_id, node_id, target_node_id, name, sort_order";
+
+                    const withTrashFilter = await supabase
+                        .from("campaign_map_zones")
+                        .select(selectColumns)
+                        .eq("campaign_id", campaignId)
+                        .is("deleted_at", null)
+                        .order("sort_order", { ascending: true });
+
+                    if (!withTrashFilter.error) {
+                        return (withTrashFilter.data ?? []) as ZoneIndexZoneRow[];
+                    }
+
+                    const lowered = String(withTrashFilter.error.message ?? "").toLowerCase();
+                    const missingTrashColumns =
+                        lowered.includes("deleted_at") || lowered.includes("deleted_by");
+                    if (!missingTrashColumns) {
+                        throw withTrashFilter.error;
+                    }
+
+                    const legacyRes = await supabase
+                        .from("campaign_map_zones")
+                        .select(selectColumns)
+                        .eq("campaign_id", campaignId)
+                        .order("sort_order", { ascending: true });
+                    if (legacyRes.error) throw legacyRes.error;
+                    return (legacyRes.data ?? []) as ZoneIndexZoneRow[];
+                })(),
             ]);
 
             if (sessionRes.error) throw sessionRes.error;
@@ -1370,6 +1535,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             setActs((actsRes.data ?? []) as ActRow[]);
             setNodes((nodesRes.data ?? []) as NodeRow[]);
             setBestiaryCreatures((bestiaryRes.data ?? []).map((creature) => toBestiaryEntryRecord(creature)));
+            setZoneIndexZones(zoneRows);
         } catch (err) {
             setError(
                 toErrorMessage(
@@ -1525,7 +1691,11 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         return created;
     }
 
-    async function ensureMapForNode(nodeId: string, nodeTitle: string): Promise<MapRow> {
+    async function ensureMapForNode(
+        nodeId: string,
+        nodeTitle: string,
+        preferredZoneName?: string
+    ): Promise<MapRow> {
         const { data: existingRows, error: existingError } = await supabase
             .from("campaign_maps")
             .select("id, campaign_id, node_id, name, image_url, sort_order")
@@ -1536,12 +1706,38 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
         if (existingError) throw existingError;
         const existing = (existingRows?.[0] ?? null) as MapRow | null;
-        if (existing) return existing;
+        const desiredMapName = defaultMapNameForNode(preferredZoneName || nodeTitle);
+
+        if (existing) {
+            const currentName = existing.name.trim();
+            const legacyDefault = defaultMapNameForNode(nodeTitle);
+            const shouldSyncDefaultName =
+                Boolean(preferredZoneName) &&
+                (isAutoZoneMapName(currentName) || currentName === legacyDefault);
+
+            if (!shouldSyncDefaultName || currentName === desiredMapName) {
+                return existing;
+            }
+
+            const { data: updatedData, error: updateError } = await supabase
+                .from("campaign_maps")
+                .update({
+                    name: desiredMapName,
+                    updated_by: userId,
+                })
+                .eq("id", existing.id)
+                .eq("campaign_id", campaignId)
+                .select("id, campaign_id, node_id, name, image_url, sort_order")
+                .maybeSingle();
+
+            if (updateError) throw updateError;
+            return (updatedData as MapRow | null) ?? existing;
+        }
 
         const payload = {
             campaign_id: campaignId,
             node_id: nodeId,
-            name: `Mapa - ${nodeTitle}`,
+            name: desiredMapName,
             image_url: BLANK_MAP_URL,
             sort_order: 0,
             created_by: userId,
@@ -1630,11 +1826,15 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         };
     }
 
-    async function enterNode(nodeId: string, explicitActId?: string) {
+    async function enterNode(
+        nodeId: string,
+        explicitActId?: string,
+        preferredZoneName?: string
+    ) {
         const node = nodesById.get(nodeId) ?? null;
         if (!node) return;
 
-        const map = await ensureMapForNode(nodeId, node.title);
+        const map = await ensureMapForNode(nodeId, node.title, preferredZoneName);
         const nextZones = await loadZones(map.id);
         const nextConnections = await loadMapConnections(nextZones);
 
@@ -1674,7 +1874,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 .from("campaign_story_links")
                 .select("id, campaign_id, from_node_id, to_node_id, link_type, label, sort_order")
                 .eq("campaign_id", campaignId)
-                .eq("from_node_id", zoneNodeId)
+                .or(`from_node_id.eq.${zoneNodeId},to_node_id.eq.${zoneNodeId}`)
                 .order("sort_order", { ascending: true }),
             supabase
                 .from("campaign_documents")
@@ -1814,12 +2014,49 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         if (!currentMap) {
             setMapNameDraft("");
             setMapImageDraft("");
+            pendingViewOnMapChangeRef.current = null;
+            pendingCenterZoneIdRef.current = null;
             return;
         }
         setMapNameDraft(currentMap.name);
         setMapImageDraft(currentMap.image_url);
+        const pendingView = pendingViewOnMapChangeRef.current;
+        if (pendingView) {
+            setView(pendingView);
+            pendingViewOnMapChangeRef.current = null;
+            return;
+        }
         setView(createInitialMapView(viewportRef.current));
     }, [currentMap?.id]);
+
+    useEffect(() => {
+        if (!selectedZone || !selectedZoneId) return;
+        if (pendingCenterZoneIdRef.current !== selectedZoneId) return;
+        const geometry = parseZoneGeometry(selectedZone.geometry);
+        const baseScale =
+            Number.isFinite(viewRef.current.scale) && viewRef.current.scale > 0
+                ? viewRef.current.scale
+                : INITIAL_MAP_SCALE;
+        setView(createCenteredMapView(viewportRef.current, geometry.x, geometry.y, baseScale));
+        pendingCenterZoneIdRef.current = null;
+    }, [selectedZoneId, selectedZone]);
+
+    useEffect(() => {
+        if (!currentNodeId) return;
+        setZoneIndexExpandedById((prev) => {
+            const next = { ...prev };
+            let cursor = nodesById.get(currentNodeId) ?? null;
+            const visited = new Set<string>();
+            while (cursor && !visited.has(cursor.id)) {
+                visited.add(cursor.id);
+                if (cursor.parent_id) {
+                    next[cursor.parent_id] = true;
+                }
+                cursor = cursor.parent_id ? nodesById.get(cursor.parent_id) ?? null : null;
+            }
+            return next;
+        });
+    }, [currentNodeId, nodesById]);
 
     useEffect(() => {
         function onWindowMouseUp() {
@@ -2009,6 +2246,11 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             return;
         }
         if (event.button !== 0) return;
+        if (isZoneLockEnabled) {
+            setSelectedZoneId(zone.id);
+            event.stopPropagation();
+            return;
+        }
         const pointer = clientToStagePoint(event.clientX, event.clientY);
         if (!pointer) return;
 
@@ -2104,7 +2346,13 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
             const createdLink = data as LinkRow;
             setMapConnections((prev) => [...prev, createdLink]);
-            if (selectedZoneNodeId && selectedZoneNodeId === createdLink.from_node_id) {
+            if (
+                selectedZoneNodeId
+                && (
+                    selectedZoneNodeId === createdLink.from_node_id
+                    || selectedZoneNodeId === createdLink.to_node_id
+                )
+            ) {
                 setReferences((prev) => [...prev, createdLink]);
             }
             setPendingConnectionZoneId(null);
@@ -2178,7 +2426,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     async function handleDeleteAct(act: ActRow) {
         const confirmed = window.confirm(
             t(
-                `Eliminar el acto "${act.title}" y su contenido? Esta accion no se puede deshacer.`,
+                `Eliminar el acto "${act.title}" y su contenido? Esta acción no se puede deshacer.`,
                 `Delete act "${act.title}" and its content? This action cannot be undone.`
             )
         );
@@ -2362,6 +2610,17 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
             const createdZone = zoneData as ZoneRow;
             setZones((prev) => [...prev, createdZone]);
+            setZoneIndexZones((prev) => [
+                ...prev,
+                {
+                    id: createdZone.id,
+                    map_id: createdZone.map_id,
+                    node_id: createdZone.node_id,
+                    target_node_id: createdZone.target_node_id,
+                    name: createdZone.name,
+                    sort_order: createdZone.sort_order,
+                },
+            ]);
             setSelectedZoneId(createdZone.id);
         }, { es: "Zona creada.", en: "Zone created." });
     }
@@ -2374,11 +2633,49 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         void handleCreateZoneAt(pointer.x, pointer.y);
     }
 
+    async function syncNodeTitleFromZone(nodeId: string, zoneName: string) {
+        const nextTitle = zoneName.trim();
+        if (!nextTitle) return;
+
+        const localNode = nodesById.get(nodeId) ?? null;
+        if (localNode && localNode.title.trim() === nextTitle) return;
+
+        const { data, error: updateError } = await supabase
+            .from("campaign_story_nodes")
+            .update({
+                title: nextTitle,
+                updated_by: userId,
+            })
+            .eq("id", nodeId)
+            .eq("campaign_id", campaignId)
+            .select("id, campaign_id, act_id, parent_id, node_type, title, slug, sort_order, summary")
+            .maybeSingle();
+
+        if (updateError) throw updateError;
+
+        if (data) {
+            const updatedNode = data as NodeRow;
+            setNodes((prev) => prev.map((node) => (node.id === updatedNode.id ? updatedNode : node)));
+            return;
+        }
+
+        setNodes((prev) =>
+            prev.map((node) => (node.id === nodeId ? { ...node, title: nextTitle } : node))
+        );
+    }
+
     function handleOpenZone(zone: ZoneRow) {
         const nodeId = zone.target_node_id ?? zone.node_id;
         if (!nodeId) return;
         setPendingConnectionZoneId(null);
-        void enterNode(nodeId);
+        void (async () => {
+            try {
+                await syncNodeTitleFromZone(nodeId, zone.name);
+            } catch {
+                // Navigation should continue even if title sync fails.
+            }
+            await enterNode(nodeId, undefined, zone.name);
+        })();
     }
 
     async function handleSaveMap(options?: SaveHandlerOptions) {
@@ -2605,6 +2902,20 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             setZones((prev) =>
                 prev.map((zone) => (zone.id === updatedZone.id ? updatedZone : zone))
             );
+            setZoneIndexZones((prev) =>
+                prev.map((zone) =>
+                    zone.id === updatedZone.id
+                        ? {
+                            ...zone,
+                            name: updatedZone.name,
+                            node_id: updatedZone.node_id,
+                            target_node_id: updatedZone.target_node_id,
+                            sort_order: updatedZone.sort_order,
+                            map_id: updatedZone.map_id,
+                        }
+                        : zone
+                )
+            );
 
             if (zoneVisibleDraft && selectedDocument && selectedDocument.visibility === "DM_ONLY") {
                 const { data: updatedDocData, error: updateDocError } = await supabase
@@ -2628,13 +2939,33 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             }
 
             if (selectedZoneNodeId) {
-                setNodes((prev) =>
-                    prev.map((node) =>
-                        node.id === selectedZoneNodeId
-                            ? { ...node, title: updatedZone.name }
-                            : node
-                    )
-                );
+                const { data: updatedNodeData, error: updateNodeError } = await supabase
+                    .from("campaign_story_nodes")
+                    .update({
+                        title: updatedZone.name,
+                        updated_by: userId,
+                    })
+                    .eq("id", selectedZoneNodeId)
+                    .eq("campaign_id", campaignId)
+                    .select("id, campaign_id, act_id, parent_id, node_type, title, slug, sort_order, summary")
+                    .maybeSingle();
+
+                if (updateNodeError) throw updateNodeError;
+
+                if (updatedNodeData) {
+                    const updatedNode = updatedNodeData as NodeRow;
+                    setNodes((prev) =>
+                        prev.map((node) => (node.id === updatedNode.id ? updatedNode : node))
+                    );
+                } else {
+                    setNodes((prev) =>
+                        prev.map((node) =>
+                            node.id === selectedZoneNodeId
+                                ? { ...node, title: updatedZone.name }
+                                : node
+                        )
+                    );
+                }
             }
         }, { es: "Zona guardada.", en: "Zone saved." }, options);
     }
@@ -2690,6 +3021,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             }
 
             setZones((prev) => prev.filter((zone) => zone.id !== zoneId));
+            setZoneIndexZones((prev) => prev.filter((zone) => zone.id !== zoneId));
             setSelectedZoneId(null);
             setReferences([]);
             setSelectedDocument(null);
@@ -2706,7 +3038,13 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
     async function handleAddReference(targetNodeId: string) {
         if (!selectedZoneNodeId) return;
-        if (references.some((link) => link.to_node_id === targetNodeId)) return;
+        if (
+            references.some(
+                (link) => linkedNodeIdForReference(link, selectedZoneNodeId) === targetNodeId
+            )
+        ) {
+            return;
+        }
 
         await runMutation(async () => {
             const payload = {
@@ -3009,6 +3347,149 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         return `A${act.act_number} - ${node.title}`;
     }
 
+    function zoneIndexLabel(node: NodeRow) {
+        return zoneIndexNameByNodeId.get(node.id) ?? node.title;
+    }
+
+    async function handleZoneIndexSelect(node: NodeRow) {
+        const preferredName = zoneIndexLabel(node);
+        if (!node.parent_id) {
+            await enterNode(node.id, node.act_id ?? undefined, preferredName);
+            return;
+        }
+
+        const parent = nodesById.get(node.parent_id) ?? null;
+        if (!parent) {
+            await enterNode(node.id, node.act_id ?? undefined, preferredName);
+            return;
+        }
+
+        const parentMap = await ensureMapForNode(
+            parent.id,
+            parent.title,
+            zoneIndexLabel(parent)
+        );
+        const parentZones = await loadZones(parentMap.id);
+        const parentConnections = await loadMapConnections(parentZones);
+        const selectedParentZone =
+            parentZones.find(
+                (zone) =>
+                    zone.target_node_id === node.id
+                    || zone.node_id === node.id
+                    || zoneNodeId(zone) === node.id
+            ) ?? null;
+        const defaultView = createInitialMapView(viewportRef.current);
+        const nextView = selectedParentZone
+            ? (() => {
+                const geometry = parseZoneGeometry(selectedParentZone.geometry);
+                return createCenteredMapView(
+                    viewportRef.current,
+                    geometry.x,
+                    geometry.y,
+                    defaultView.scale
+                );
+            })()
+            : defaultView;
+        pendingViewOnMapChangeRef.current = nextView;
+        pendingCenterZoneIdRef.current = selectedParentZone?.id ?? null;
+
+        setCurrentActId(parent.act_id ?? node.act_id ?? currentActId);
+        setCurrentNodeId(parent.id);
+        setCurrentMap(parentMap);
+        setZones(parentZones);
+        setMapConnections(parentConnections);
+        setPendingConnectionZoneId(null);
+        setSelectedZoneId(selectedParentZone?.id ?? null);
+        setReferences([]);
+        setSelectedDocument(null);
+        setView(nextView);
+        setMapNameDraft(parentMap.name);
+        setMapImageDraft(parentMap.image_url);
+    }
+
+    function renderZoneIndexNode(
+        node: NodeRow,
+        depth = 0,
+        trail: Set<string> = new Set<string>()
+    ) {
+        if (trail.has(node.id)) return null;
+        const children = zoneIndexChildrenByParentId.get(node.id) ?? [];
+        const hasChildren = children.length > 0;
+        const isExpanded = hasChildren ? (zoneIndexExpandedById[node.id] ?? depth === 0) : false;
+        const nextTrail = new Set(trail);
+        nextTrail.add(node.id);
+
+        return (
+            <div key={node.id} className="space-y-1">
+                <div
+                    className="flex items-center gap-1"
+                    style={{ paddingLeft: `${Math.min(depth, 7) * 12}px` }}
+                >
+                    {hasChildren ? (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setZoneIndexExpandedById((prev) => ({
+                                    ...prev,
+                                    [node.id]: !isExpanded,
+                                }))
+                            }
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-ring bg-white/70 text-ink hover:bg-white"
+                            title={
+                                isExpanded
+                                    ? t("Plegar subzonas", "Collapse subzones")
+                                    : t("Desplegar subzonas", "Expand subzones")
+                            }
+                        >
+                            {isExpanded ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            )}
+                        </button>
+                    ) : (
+                        <span className="inline-flex h-6 w-6" />
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            void (async () => {
+                                try {
+                                    await handleZoneIndexSelect(node);
+                                } catch (err) {
+                                    setError(
+                                        toErrorMessage(
+                                            err,
+                                            t(
+                                                "No se pudo abrir la zona desde el indice.",
+                                                "Could not open zone from index."
+                                            )
+                                        )
+                                    );
+                                }
+                            })();
+                        }}
+                        className={`min-w-0 flex-1 rounded-md border px-2 py-1 text-left text-xs hover:bg-white ${
+                            currentNodeId === node.id || selectedZoneNodeId === node.id
+                                ? "border-accent/60 bg-accent/10 text-ink"
+                                : "border-ring bg-white/80 text-ink"
+                        }`}
+                        title={renderNodeLabel(node)}
+                    >
+                        <span className="block truncate">{zoneIndexLabel(node)}</span>
+                    </button>
+                </div>
+
+                {hasChildren && isExpanded && (
+                    <div className="space-y-1">
+                        {children.map((child) => renderZoneIndexNode(child, depth + 1, nextTrail))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     if (loading) {
         return (
             <div className="space-y-2">
@@ -3022,16 +3503,52 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
     if (!currentActId) {
         return (
-            <div className="story-manager-surface space-y-4">
-                <h1 className="text-xl font-semibold text-ink">
-                    {t("Gestor de historia", "Story manager")}
-                </h1>
-                <p className="text-sm text-ink-muted">
-                    {t(
-                        "Elige un acto para entrar en su mundo. Si no hay actos, crea uno.",
-                        "Choose an act to enter its world. If no acts exist, create one."
-                    )}
-                </p>
+            <div className="story-manager-surface ml-6 pr-6 min-h-0 flex flex-col gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4 items-start">
+                    <section className="rounded-xl border border-ring bg-panel/80 p-4 space-y-2">
+                        <h1 className="text-xl font-semibold text-ink">
+                            {t("Gestor de historia", "Story manager")}
+                        </h1>
+                        <p className="text-sm text-ink-muted">
+                            {t(
+                                "Elige un acto para entrar en su mundo. Si no hay actos, crea uno.",
+                                "Choose an act to enter its world. If no acts exist, create one."
+                            )}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="rounded-md border border-ring bg-white/80 px-2 py-1 text-ink">
+                                {t("Actos creados", "Created acts")}: {acts.length}
+                            </span>
+                            <span className="rounded-md border border-ring bg-white/80 px-2 py-1 text-ink-muted">
+                                {t("Haz clic en uno para entrar", "Click one to enter")}
+                            </span>
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-ring bg-panel/80 p-4 space-y-3">
+                        <h2 className="text-sm font-semibold text-ink">
+                            {t("Crear nuevo acto", "Create new act")}
+                        </h2>
+                        <div className="flex flex-col gap-2">
+                            <input
+                                value={newActTitle}
+                                onChange={(event) => setNewActTitle(event.target.value)}
+                                placeholder={t("Nombre del acto", "Act name")}
+                                className="w-full rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => void handleCreateAct()}
+                                disabled={saving}
+                                className="inline-flex items-center justify-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-3 py-2 text-xs hover:bg-accent/20 disabled:opacity-60"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                {t("Crear acto", "Create act")}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+
                 {error && (
                     <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2">
                         {error}
@@ -3043,78 +3560,72 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     </p>
                 )}
 
-                <div className="flex flex-wrap items-center gap-2 border border-ring rounded-xl bg-panel/80 p-3">
-                    <input
-                        value={newActTitle}
-                        onChange={(event) => setNewActTitle(event.target.value)}
-                        placeholder={t("Nombre del acto", "Act name")}
-                        className="min-w-[240px] flex-1 rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
-                    />
-                    <button
-                        type="button"
-                        onClick={() => void handleCreateAct()}
-                        disabled={saving}
-                        className="inline-flex items-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-3 py-2 text-xs hover:bg-accent/20 disabled:opacity-60"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        {t("Crear acto", "Create act")}
-                    </button>
-                </div>
+                <section className="min-h-0 flex-1 rounded-xl border border-ring bg-panel/80 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                        <h2 className="text-sm font-semibold text-ink">
+                            {t("Actos de la campaña", "Campaign acts")}
+                        </h2>
+                        <span className="text-xs text-ink-muted">{acts.length}</span>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {acts.map((act) => (
-                        <div
-                            key={act.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => void enterAct(act.id)}
-                            onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return;
-                                event.preventDefault();
-                                void enterAct(act.id);
-                            }}
-                            className="rounded-xl border border-ring bg-panel/80 p-4 space-y-3 cursor-pointer"
-                        >
-                            <div className="w-full text-left">
-                                <p className="text-xs text-ink-muted">{`ACTO ${act.act_number}`}</p>
-                                <p className="text-base font-semibold text-ink">{act.title}</p>
-                                <p className="text-xs text-ink-muted mt-1">
-                                    {t("Entrar al mundo del acto", "Enter act world")}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        void handleRenameAct(act);
-                                    }}
-                                    disabled={saving}
-                                    className="inline-flex items-center rounded-md border border-ring bg-white/80 px-2 py-1 text-xs hover:bg-white disabled:opacity-60"
-                                >
-                                    {t("Renombrar", "Rename")}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        void handleDeleteAct(act);
-                                    }}
-                                    disabled={saving}
-                                    className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-60"
-                                >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    {t("Eliminar", "Delete")}
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                    {acts.length === 0 && (
-                        <p className="text-sm text-ink-muted">
-                            {t("Aun no hay actos.", "No acts yet.")}
+                    {acts.length === 0 ? (
+                        <p className="rounded-md border border-dashed border-ring bg-white/70 px-3 py-4 text-sm text-ink-muted">
+                            {t("Aún no hay actos.", "No acts yet.")}
                         </p>
+                    ) : (
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,360px))] justify-center gap-3">
+                            {acts.map((act) => (
+                                <div
+                                    key={act.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => void enterAct(act.id)}
+                                    onKeyDown={(event) => {
+                                        if (event.key !== "Enter" && event.key !== " ") return;
+                                        event.preventDefault();
+                                        void enterAct(act.id);
+                                    }}
+                                    className="w-full max-w-[360px] rounded-xl border border-ring bg-white/80 p-3 space-y-3 cursor-pointer"
+                                >
+                                    <div className="w-full text-left">
+                                        <p className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">
+                                            {`ACTO ${act.act_number}`}
+                                        </p>
+                                        <p className="text-base font-semibold text-ink">{act.title}</p>
+                                        <p className="text-xs text-ink-muted mt-1">
+                                            {t("Entrar al mundo del acto", "Enter act world")}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                void handleRenameAct(act);
+                                            }}
+                                            disabled={saving}
+                                            className="inline-flex items-center rounded-md border border-ring bg-white px-2 py-1 text-xs hover:bg-panel disabled:opacity-60"
+                                        >
+                                            {t("Renombrar", "Rename")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                void handleDeleteAct(act);
+                                            }}
+                                            disabled={saving}
+                                            className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-60"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                            {t("Eliminar", "Delete")}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
-                </div>
+                </section>
                 <style jsx global>{STORY_MANAGER_GLOBAL_STYLES}</style>
             </div>
         );
@@ -3122,7 +3633,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
     return (
         <div className="story-manager-surface h-full min-h-0 flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="ml-6 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
@@ -3219,7 +3730,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <div className="ml-6 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                 {breadcrumbNodes.map((node, index) => (
                     <div key={node.id} className="flex items-center gap-2">
                         <button
@@ -3235,18 +3746,18 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             </div>
 
             {error && (
-                <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2">
+                <p className="ml-6 text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2">
                     {error}
                 </p>
             )}
             {notice && (
-                <p className="text-sm text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-md px-3 py-2">
+                <p className="ml-6 text-sm text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-md px-3 py-2">
                     {notice}
                 </p>
             )}
 
             {playerPreviewMode ? (
-                <section className="min-h-0 flex-1 rounded-xl border border-ring bg-panel/80 p-3 overflow-hidden">
+                <section className="ml-6 min-h-0 flex-1 rounded-xl border border-ring bg-panel/80 p-3 overflow-hidden">
                     <StoryPlayerView
                         campaignId={campaignId}
                         locale={locale}
@@ -3271,7 +3782,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             >
                 {showMapPanel && (
                 <section className="space-y-2 min-w-0 min-h-0 flex flex-col">
-                    <div className="flex flex-wrap items-center gap-2 border border-ring rounded-xl bg-panel/80 p-3">
+                    <div className="ml-6 flex flex-wrap items-center gap-2 border border-ring rounded-xl bg-panel/80 p-3">
                         <input
                             value={mapNameDraft}
                             onChange={(event) => setMapNameDraft(event.target.value)}
@@ -3281,7 +3792,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         <input
                             value={mapImageDraft === BLANK_MAP_URL ? "" : mapImageDraft}
                             onChange={(event) => setMapImageDraft(event.target.value)}
-                            placeholder={t("URL de imagen (vacio = mapa en blanco)", "Image URL (empty = blank map)")}
+                            placeholder={t("URL de imagen (vacÍo = mapa en blanco)", "Image URL (empty = blank map)")}
                             className="min-w-[220px] flex-[2_1_320px] rounded-md border border-ring bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
                         />
                         <button
@@ -3322,6 +3833,119 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         />
                     </div>
 
+                    <div className="relative min-h-0 flex flex-1 min-w-0 gap-6">
+                        <div
+                            className={`relative z-10 h-full min-h-0 shrink-0 transition-[width] duration-300 ease-in-out ${
+                                isZoneIndexCollapsed ? "w-16" : "w-72"
+                            }`}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setIsZoneIndexCollapsed((prev) => !prev)}
+                                className="hidden md:flex absolute -right-[18px] top-4 z-30 rounded-full p-2 shadow-sm transition-[transform,background-color] duration-300 ease-in-out bg-panel border border-ring hover:bg-white"
+                                aria-label={
+                                    isZoneIndexCollapsed
+                                        ? t("Abrir indice", "Open index")
+                                        : t("Cerrar indice", "Close index")
+                                }
+                                title={
+                                    isZoneIndexCollapsed
+                                        ? t("Abrir indice", "Open index")
+                                        : t("Cerrar indice", "Close index")
+                                }
+                            >
+                                <span
+                                    className={`inline-flex transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
+                                        isZoneIndexCollapsed ? "rotate-180 scale-95" : "rotate-0 scale-100"
+                                    }`}
+                                >
+                                    <ChevronLeft className="h-4 w-4 text-ink" />
+                                </span>
+                            </button>
+
+                            <aside
+                                className={`relative flex h-full min-h-0 w-full flex-col overflow-y-auto overflow-x-hidden styled-scrollbar border-r border-ring rounded-r-3xl bg-panel/90 transition-[box-shadow,background-color,padding] duration-300 ease-in-out ${
+                                    isZoneIndexCollapsed
+                                        ? "p-2 shadow-none"
+                                        : "p-3 shadow-[0_18px_50px_rgba(45,29,12,0.18)]"
+                                }`}
+                            >
+                            <div className="flex items-start justify-between gap-2">
+                                <div
+                                    className={`space-y-1 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-300 ease-in-out motion-reduce:transition-none ${
+                                        isZoneIndexCollapsed
+                                            ? "pointer-events-none max-w-0 -translate-x-2 opacity-0"
+                                            : "max-w-[14rem] translate-x-0 opacity-100"
+                                    }`}
+                                >
+                                    <h2 className="text-sm font-semibold text-ink">
+                                        {t("Indice del sitio", "Site index")}
+                                    </h2>
+                                    <p className="text-[11px] text-ink-muted">
+                                        {zoneIndexNameByNodeId.size}
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setIsZoneIndexCollapsed((prev) => !prev)}
+                                    className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-ring bg-white/70 text-sm transition-colors duration-200 hover:bg-white md:hidden"
+                                    title={t("Desplegar indice", "Toggle index")}
+                                    aria-label={t("Desplegar indice", "Toggle index")}
+                                >
+                                    <span
+                                        className={`inline-flex transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
+                                            isZoneIndexCollapsed ? "rotate-180 scale-95" : "rotate-0 scale-100"
+                                        }`}
+                                    >
+                                        <ChevronLeft className="h-4 w-4 text-ink" />
+                                    </span>
+                                </button>
+                            </div>
+
+                                <div
+                                    className={`min-h-0 flex flex-1 flex-col space-y-2 overflow-hidden transition-[max-height,opacity,transform,margin] duration-300 ease-in-out motion-reduce:transition-none ${
+                                        isZoneIndexCollapsed
+                                            ? "pointer-events-none mt-0 max-h-0 -translate-y-1 opacity-0"
+                                            : "mt-3 max-h-[9999px] translate-y-0 opacity-100"
+                                    }`}
+                                >
+                                <div className="rounded-md border border-ring bg-white/70 px-2.5 py-2 text-xs text-ink">
+                                    <p className="font-semibold truncate">
+                                        {t("Zona actual", "Current zone")}: {currentNode ? zoneIndexLabel(currentNode) : mapNameDraft}
+                                    </p>
+                                    <p className="text-[11px] text-ink-muted">
+                                        {t("Subzonas en este mapa", "Subzones in this map")}: {zones.length}
+                                    </p>
+                                    {parentNode && (
+                                        <button
+                                            type="button"
+                                            onClick={() => void enterNode(parentNode.id, parentNode.act_id ?? undefined)}
+                                            className="mt-1.5 rounded-md border border-ring bg-white px-2 py-1 text-[11px] hover:bg-panel/80"
+                                        >
+                                            {t("Volver a", "Back to")} {zoneIndexLabel(parentNode)}
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="min-h-0 flex-1 overflow-y-auto styled-scrollbar space-y-1 pr-1">
+                                    {zoneIndexRootNodes.length === 0 ? (
+                                        <p className="px-1 text-xs text-ink-muted">
+                                            {t(
+                                                "No hay zonas en este acto.",
+                                                "No zones in this act."
+                                            )}
+                                        </p>
+                                    ) : (
+                                        zoneIndexRootNodes.map((rootNode) =>
+                                            renderZoneIndexNode(rootNode)
+                                        )
+                                    )}
+                                </div>
+                                </div>
+                            </aside>
+                        </div>
+
                     <div
                         ref={viewportRef}
                         onContextMenu={handleViewportContextMenu}
@@ -3329,8 +3953,54 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                         onMouseMove={handleViewportMouseMove}
                         onWheel={handleViewportWheel}
                         onDoubleClick={handleViewportDoubleClick}
-                        className={`relative flex-1 min-h-[320px] overflow-hidden rounded-xl border border-ring bg-panel/80 ${isPanning ? "cursor-grabbing" : "cursor-default"}`}
+                        className={`relative flex-1 min-h-[320px] min-w-0 overflow-hidden rounded-xl border border-ring bg-panel/80 ${isPanning ? "cursor-grabbing" : "cursor-default"}`}
                     >
+                        <button
+                            type="button"
+                            aria-label={
+                                isZoneLockEnabled
+                                    ? t("Desbloquear zonas", "Unlock zones")
+                                    : t("Bloquear zonas", "Lock zones")
+                            }
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setIsZoneLockEnabled((prev) => !prev);
+                            }}
+                            className={`absolute right-3 top-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-md border px-2.5 py-1.5 text-xs shadow-sm ${
+                                isZoneLockEnabled
+                                    ? "border-amber-300 bg-amber-100 text-amber-900"
+                                    : "border-emerald-300 bg-emerald-100 text-emerald-900"
+                            }`}
+                            title={
+                                isZoneLockEnabled
+                                    ? t(
+                                        "Candado cerrado: mover zonas desactivado.",
+                                        "Locked: zone movement disabled."
+                                    )
+                                    : t(
+                                        "Candado abierto: mover zonas activado.",
+                                        "Unlocked: zone movement enabled."
+                                    )
+                            }
+                        >
+                            <span className="relative h-4 w-4">
+                                <Lock
+                                    className={`absolute inset-0 h-4 w-4 transition-all duration-200 ${
+                                        isZoneLockEnabled
+                                            ? "opacity-100 scale-100 rotate-0"
+                                            : "opacity-0 scale-75 -rotate-12"
+                                    }`}
+                                />
+                                <LockOpen
+                                    className={`absolute inset-0 h-4 w-4 transition-all duration-200 ${
+                                        isZoneLockEnabled
+                                            ? "opacity-0 scale-75 rotate-12"
+                                            : "opacity-100 scale-100 rotate-0"
+                                    }`}
+                                />
+                            </span>
+                        </button>
+
                         <div
                             className="story-map-canvas absolute left-0 top-0 origin-top-left"
                             style={{
@@ -3414,7 +4084,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                                 ? "scale-105 border-white shadow-[0_0_0_3px_rgba(245,158,11,0.7)]"
                                                 : "border-white/80"
                                         } ${isPendingConnect ? "shadow-[0_0_0_4px_rgba(245,158,11,0.9)]" : ""} ${
-                                            isMoving ? "cursor-grabbing" : "cursor-pointer"
+                                            isZoneLockEnabled ? "cursor-default" : isMoving ? "cursor-grabbing" : "cursor-pointer"
                                         } ${zone.is_visible ? "" : "opacity-70 border-dashed"}`}
                                         style={{
                                             left: `${geometry.x - geometry.radius}px`,
@@ -3441,8 +4111,8 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
 
                         <div className="pointer-events-none absolute bottom-3 left-3 right-3 rounded-md border border-ring/70 bg-black/45 px-3 py-2 text-xs text-amber-100">
                             {t(
-                                "Clic derecho + arrastrar: mover mapa | Arrastra zona con clic izquierdo: mover zona | Clic derecho en zona: conectar zonas | Rueda: zoom | Doble clic en mapa: crear zona | Doble clic en zona: entrar",
-                                "Right-click + drag: pan | Left-drag zone: move zone | Right-click zone: connect zones | Wheel: zoom | Double click map: create zone | Double click zone: enter"
+                                "Clic derecho + arrastrar: mover mapa | Arrastra zona con clic izquierdo: mover zona (si el candado esta abierto) | Clic derecho en zona: conectar zonas | Rueda: zoom | Doble clic en mapa: crear zona | Doble clic en zona: entrar",
+                                "Right-click + drag: pan | Left-drag zone: move zone (when unlocked) | Right-click zone: connect zones | Wheel: zoom | Double click map: create zone | Double click zone: enter"
                             )}
                         </div>
 
@@ -3460,6 +4130,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                 <span className="h-12 w-1 rounded-full bg-ring/80" />
                             </div>
                         )}
+                    </div>
                     </div>
                 </section>
                 )}
@@ -3502,7 +4173,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                             <h2 className="text-sm font-semibold text-ink">{t("Zona", "Zone")}</h2>
                             <p className="text-xs text-ink-muted">
                                 {t(
-                                    "Haz clic en una zona para editar su informacion. Al principio no hay nada: crea zonas con doble clic sobre el mapa.",
+                                    "Haz clic en una zona para editar su información. Al principio no hay nada: crea zonas con doble clic sobre el mapa.",
                                     "Click a zone to edit it. At first there is nothing: create zones by double-clicking the map."
                                 )}
                             </p>
@@ -3716,7 +4387,11 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                                 </p>
                                             ) : (
                                                 references.map((link) => {
-                                                    const target = nodesById.get(link.to_node_id) ?? null;
+                                                    const targetNodeId = linkedNodeIdForReference(
+                                                        link,
+                                                        selectedZoneNodeId
+                                                    );
+                                                    const target = nodesById.get(targetNodeId) ?? null;
                                                     return (
                                                         <div
                                                             key={link.id}
@@ -3781,7 +4456,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                             value={docTitleDraft}
                                             onChange={(event) => setDocTitleDraft(event.target.value)}
                                             className="w-full rounded-md border border-ring bg-white px-2 py-1.5 text-sm"
-                                            placeholder={t("Titulo de ficha", "Sheet title")}
+                                            placeholder={t("TÍtulo de ficha", "Sheet title")}
                                         />
                                         <div className="grid grid-cols-2 gap-2">
                                             <select
@@ -3840,7 +4515,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                             </div>
                                             <p className="text-[11px] text-ink-muted">
                                                 {t(
-                                                    "El texto marcado con este estilo cambia automaticamente entre modo claro y oscuro.",
+                                                    "El texto marcado con este estilo cambia automáticamente entre modo claro y oscuro.",
                                                     "Text marked with this style adapts automatically between light and dark mode."
                                                 )}
                                             </p>
@@ -3853,7 +4528,6 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                     value={docHtmlDraft}
                                     locale={locale}
                                     onChange={setDocHtmlDraft}
-                                    forceHideToolbar={hideUpperTools}
                                 />
                             </section>
                         </>

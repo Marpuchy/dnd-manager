@@ -19,7 +19,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
         name: "Defensa sin armadura",
         class: "barbarian",
         level: 1,
-        description: "Si bien no llevas ninguna armadura, tu Clase de Armadura base es igual a 10 más tus modificadores de Destreza y Constitución. Puedes usar un escudo y aun así obtener este beneficio."
+        description: "Si bien no llevas ninguna armadura, tu Clase de Armadura base es igual a 10 más tus modificadores de Destreza y Constitución. Puedes usar un escudo y aún así obtener este beneficio."
       },
       {
         id: "barbarian:lvl1:weapon-mastery:3",
@@ -319,7 +319,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
       },
       {
         id: "bard:lvl10:magical-secrets:1",
-        name: "Secretos magicos",
+        name: "Secretos mÁgicos",
         class: "bard",
         level: 10,
         description: "Has aprendido secretos de varias tradiciones mágicas. Siempre que alcances un nivel de Bardo (incluido este nivel) y el número de Hechizos preparados en la tabla de Características de Bardo aumente, puedes elegir cualquiera de tus nuevos hechizos preparados de las listas de hechizos de Bardo, Clérigo, Druida y Mago, y los hechizos elegidos cuentan como hechizos de Bardo para ti (consulta la sección de una clase para ver su lista de hechizos). Además, siempre que reemplaces un hechizo preparado para esta clase, podrás reemplazarlo con un hechizo de esas listas."
@@ -2688,7 +2688,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
     classFeatures: [
       {
         id: "artificer:lvl1:magical-tinkering",
-        name: "Retoques magicos",
+        name: "Retoques mÁgicos",
         class: "artificer",
         level: 1,
         description:
@@ -2700,7 +2700,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
         class: "artificer",
         level: 1,
         description:
-          "Lanzas conjuros usando Inteligencia como caracteristica de lanzamiento. El artificiero prepara conjuros de su lista y puede usar herramientas como foco."
+          "Lanzas conjuros usando Inteligencia como característica de lanzamiento. El artificiero prepara conjuros de su lista y puede usar herramientas como foco."
       },
       {
         id: "artificer:lvl2:infuse-item",
@@ -2708,7 +2708,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
         class: "artificer",
         level: 2,
         description:
-          "Aprendes infusiones y puedes convertir objetos no magicos en objetos magicos al final de un descanso largo. El numero de infusiones activas depende de tu nivel."
+          "Aprendes infusiones y puedes convertir objetos no mÁgicos en objetos mÁgicos al final de un descanso largo. El numero de infusiones activas depende de tu nivel."
       },
       {
         id: "artificer:lvl3:right-tool-for-the-job",
@@ -2728,11 +2728,11 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
       },
       {
         id: "artificer:lvl4:asi",
-        name: "Mejora de puntuacion de caracteristica",
+        name: "Mejora de puntuacion de característica",
         class: "artificer",
         level: 4,
         description:
-          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+          "Aumenta una puntuacion de característica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
       },
       {
         id: "artificer:lvl5:specialist-feature",
@@ -2747,7 +2747,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
         class: "artificer",
         level: 6,
         description:
-          "Tu bonificador por competencia se duplica en pruebas de caracteristica con herramientas en las que seas competente."
+          "Tu bonificador por competencia se duplica en pruebas de característica con herramientas en las que seas competente."
       },
       {
         id: "artificer:lvl7:flash-of-genius",
@@ -2755,15 +2755,15 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
         class: "artificer",
         level: 7,
         description:
-          "Cuando tu o una criatura a 30 pies haga una prueba o salvacion, puedes usar tu reaccion para sumar tu modificador de Inteligencia. Usos por descanso largo: minimo 1."
+          "Cuando tu o una criatura a 30 pies haga una prueba o salvaciÓn, puedes usar tu reacción para sumar tu modificador de Inteligencia. Usos por descanso largo: mÍnimo 1."
       },
       {
         id: "artificer:lvl8:asi",
-        name: "Mejora de puntuacion de caracteristica",
+        name: "Mejora de puntuacion de característica",
         class: "artificer",
         level: 8,
         description:
-          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+          "Aumenta una puntuacion de característica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
       },
       {
         id: "artificer:lvl9:specialist-feature",
@@ -2774,11 +2774,11 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
       },
       {
         id: "artificer:lvl10:magic-item-adept",
-        name: "Adepto de objetos magicos",
+        name: "Adepto de objetos mÁgicos",
         class: "artificer",
         level: 10,
         description:
-          "Puedes vincularte a 4 objetos magicos y fabricar objetos comunes o poco comunes mas rapido y barato."
+          "Puedes vincularte a 4 objetos mÁgicos y fabricar objetos comunes o poco comunes mÁs rÁpido y barato."
       },
       {
         id: "artificer:lvl11:spell-storing-item",
@@ -2790,19 +2790,19 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
       },
       {
         id: "artificer:lvl12:asi",
-        name: "Mejora de puntuacion de caracteristica",
+        name: "Mejora de puntuacion de característica",
         class: "artificer",
         level: 12,
         description:
-          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+          "Aumenta una puntuacion de característica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
       },
       {
         id: "artificer:lvl14:magic-item-savant",
-        name: "Experto en objetos magicos",
+        name: "Experto en objetos mÁgicos",
         class: "artificer",
         level: 14,
         description:
-          "Puedes vincularte a 5 objetos magicos e ignorar requisitos de clase, raza, conjuro o nivel para vincularte."
+          "Puedes vincularte a 5 objetos mÁgicos e ignorar requisitos de clase, raza, conjuro o nivel para vincularte."
       },
       {
         id: "artificer:lvl15:specialist-feature",
@@ -2813,26 +2813,26 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
       },
       {
         id: "artificer:lvl16:asi",
-        name: "Mejora de puntuacion de caracteristica",
+        name: "Mejora de puntuacion de característica",
         class: "artificer",
         level: 16,
         description:
-          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+          "Aumenta una puntuacion de característica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
       },
       {
         id: "artificer:lvl18:magic-item-master",
-        name: "Maestro de objetos magicos",
+        name: "Maestro de objetos mÁgicos",
         class: "artificer",
         level: 18,
-        description: "Puedes vincularte a 6 objetos magicos a la vez."
+        description: "Puedes vincularte a 6 objetos mÁgicos a la vez."
       },
       {
         id: "artificer:lvl19:asi",
-        name: "Mejora de puntuacion de caracteristica",
+        name: "Mejora de puntuacion de característica",
         class: "artificer",
         level: 19,
         description:
-          "Aumenta una puntuacion de caracteristica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
+          "Aumenta una puntuacion de característica en 2, o dos puntuaciones en 1, o elige una dote si se usan dotes."
       },
       {
         id: "artificer:lvl20:soul-of-artifice",
@@ -2888,7 +2888,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:alchemist",
             subclassName: "Alquimista",
             description:
-              "Cuando lanzas conjuros usando suministros de alquimista como foco, anades tu modificador de Inteligencia a una tirada de curacion o dano elegible."
+              "Cuando lanzas conjuros usando suministros de alquimista como foco, anades tu modificador de Inteligencia a una tirada de curacion o daño elegible."
           },
           {
             id: "artificer:alchemist:lvl9:restorative-reagents",
@@ -2964,7 +2964,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             level: 5,
             subclassId: "artificer:armorer",
             subclassName: "Armero",
-            description: "Puedes atacar dos veces cuando realizas la accion de Ataque."
+            description: "Puedes atacar dos veces cuando realizas la acción de Ataque."
           },
           {
             id: "artificer:armorer:lvl9:armor-modifications",
@@ -2984,7 +2984,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:armorer",
             subclassName: "Armero",
             description:
-              "Tus modelos Guardian e Infiltrador mejoran con efectos de control y movilidad mas potentes."
+              "Tus modelos Guardian e Infiltrador mejoran con efectos de control y movilidad mÁs potentes."
           }
         ]
       },
@@ -3021,7 +3021,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:artillerist",
             subclassName: "Artillero",
             description:
-              "Creas un canon magico (Lanzallamas, Ballesta de Fuerza o Protector) que puedes ordenar con accion adicional."
+              "Creas un canon magico (Lanzallamas, Ballesta de Fuerza o Protector) que puedes ordenar con acción adicional."
           },
           {
             id: "artificer:artillerist:lvl5:arcane-firearm",
@@ -3031,7 +3031,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:artillerist",
             subclassName: "Artillero",
             description:
-              "Conviertes una vara, baston o varita en arma de fuego arcana y anades dano extra a una tirada de dano de conjuro de artificiero."
+              "Conviertes una vara, baston o varita en arma de fuego arcana y anades daño extra a una tirada de daño de conjuro de artificiero."
           },
           {
             id: "artificer:artillerist:lvl9:explosive-cannon",
@@ -3041,7 +3041,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:artillerist",
             subclassName: "Artillero",
             description:
-              "Tus canones hacen mas dano y puedes detonarlos para crear una explosion en area."
+              "Tus caÑones hacen mÁs daño y puedes detonarlos para crear una explosiÓn en Área."
           },
           {
             id: "artificer:artillerist:lvl15:fortified-position",
@@ -3051,7 +3051,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:artillerist",
             subclassName: "Artillero",
             description:
-              "Tu y tus aliados cercanos al canon obteneis mejor proteccion y puedes controlar dos canones a la vez."
+              "Tu y tus aliados cercanos al canon obteneis mejor proteccion y puedes controlar dos caÑones a la vez."
           }
         ]
       },
@@ -3088,7 +3088,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:battle-smith",
             subclassName: "Herrero de Batalla",
             description:
-              "Ganas competencia con armas marciales y puedes usar Inteligencia para ataque y dano con armas magicas."
+              "Ganas competencia con armas marciales y puedes usar Inteligencia para ataque y daño con armas magicas."
           },
           {
             id: "artificer:battle-smith:lvl3:steel-defender",
@@ -3098,7 +3098,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:battle-smith",
             subclassName: "Herrero de Batalla",
             description:
-              "Construyes un Defensor de Acero que actua en combate y puede proteger aliados con su reaccion."
+              "Construyes un Defensor de Acero que actua en combate y puede proteger aliados con su reacción."
           },
           {
             id: "artificer:battle-smith:lvl5:extra-attack",
@@ -3107,7 +3107,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             level: 5,
             subclassId: "artificer:battle-smith",
             subclassName: "Herrero de Batalla",
-            description: "Puedes atacar dos veces cuando realizas la accion de Ataque."
+            description: "Puedes atacar dos veces cuando realizas la acción de Ataque."
           },
           {
             id: "artificer:battle-smith:lvl9:arcane-jolt",
@@ -3117,7 +3117,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:battle-smith",
             subclassName: "Herrero de Batalla",
             description:
-              "Cuando tu o tu Defensor de Acero impactais, puedes hacer dano de fuerza extra o curar a una criatura cercana."
+              "Cuando tu o tu Defensor de Acero impactais, puedes hacer daño de fuerza extra o curar a una criatura cercana."
           },
           {
             id: "artificer:battle-smith:lvl15:improved-defender",
@@ -3127,7 +3127,7 @@ export const CLASS_PROGRESSIONS_2024_ES: Record<string, ClassProgression> = {
             subclassId: "artificer:battle-smith",
             subclassName: "Herrero de Batalla",
             description:
-              "Tu Defensor de Acero mejora dano, resistencia y reaccion Deflect Attack."
+              "Tu Defensor de Acero mejora daño, resistencia y reacción Deflect Attack."
           }
         ]
       }

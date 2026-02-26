@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -35,7 +35,7 @@ export default function CampaignsPage() {
       console.warn("Missing NEXT_PUBLIC_SUPABASE_* env vars for client");
       setError(
         t(
-          "Error de configuracion: falta la URL/KEY de Supabase. Contacta al administrador.",
+          "Error de configuración: falta la URL/KEY de Supabase. Contacta al administrador.",
           "Configuration error: missing Supabase URL/KEY. Contact an administrator."
         )
       );
@@ -84,7 +84,7 @@ export default function CampaignsPage() {
       } catch (err: any) {
         console.error("Error loading campaigns:", err);
         if (!cancelled) {
-          setError(t("Error cargando tus campanas.", "Error loading your campaigns."));
+          setError(t("Error cargando tus Campañas.", "Error loading your campaigns."));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -101,7 +101,7 @@ export default function CampaignsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-surface text-ink flex items-center justify-center">
-        <p>{t("Cargando tus campanas...", "Loading your campaigns...")}</p>
+        <p>{t("Cargando tus Campañas...", "Loading your campaigns...")}</p>
       </main>
     );
   }
@@ -111,7 +111,7 @@ export default function CampaignsPage() {
 
   return (
     <main className="min-h-screen bg-surface text-ink p-6 space-y-6 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold text-ink">{t("Tus campanas", "Your campaigns")}</h1>
+      <h1 className="text-3xl font-bold text-ink">{t("Tus Campañas", "Your campaigns")}</h1>
 
       {error && (
         <p className="text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-2">
@@ -123,7 +123,7 @@ export default function CampaignsPage() {
         <h2 className="text-xl font-semibold text-ink">{t("Como DM", "As DM")}</h2>
         {dmCampaigns.length === 0 ? (
           <p className="text-sm text-ink-muted">
-            {t("No eres DM en ninguna campana.", "You are not DM in any campaign.")}
+            {t("No eres DM en ninguna Campaña.", "You are not DM in any campaign.")}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -152,7 +152,7 @@ export default function CampaignsPage() {
         {playerCampaigns.length === 0 ? (
           <p className="text-sm text-ink-muted">
             {t(
-              "No participas en ninguna campana como jugador.",
+              "No participas en ninguna Campaña como jugador.",
               "You are not participating in any campaign as a player."
             )}
           </p>
@@ -183,15 +183,16 @@ export default function CampaignsPage() {
           href="/campaigns/create"
           className="border border-accent/60 rounded-lg px-4 py-2 hover:bg-accent/10"
         >
-          {t("Crear campana (DM)", "Create campaign (DM)")}
+          {t("Crear Campaña (DM)", "Create campaign (DM)")}
         </Link>
         <Link
           href="/campaigns/join"
           className="border border-accent/60 rounded-lg px-4 py-2 hover:bg-accent/10"
         >
-          {t("Unirme a una campana", "Join a campaign")}
+          {t("Unirme a una Campaña", "Join a campaign")}
         </Link>
       </div>
     </main>
   );
 }
+

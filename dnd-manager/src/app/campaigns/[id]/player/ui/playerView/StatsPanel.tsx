@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useMemo } from "react";
 import { Details, Stats } from "../../playerShared";
@@ -191,9 +191,9 @@ export default function StatsPanel({
     (ability) => ability.actionType !== "action"
   );
   const actionTypeLabel: Record<string, string> = {
-    action: tr(locale, "Accion", "Action"),
-    bonus: tr(locale, "Accion bonus", "Bonus action"),
-    reaction: tr(locale, "Reaccion", "Reaction"),
+    action: tr(locale, "Acción", "Action"),
+    bonus: tr(locale, "Acción bonus", "Bonus action"),
+    reaction: tr(locale, "Reacción", "Reaction"),
     passive: tr(locale, "Pasiva", "Passive"),
   };
   const skillProficiencies = details?.skillProficiencies ?? {};
@@ -296,7 +296,7 @@ export default function StatsPanel({
         pushMarkdownField(tr(locale, "Coste", "Cost"), parts.join(", "));
       }
     }
-    pushMarkdownField(tr(locale, "Descripcion", "Description"), desc);
+    pushMarkdownField(tr(locale, "Descripción", "Description"), desc);
 
     return lines.join("\n\n");
   }
@@ -399,7 +399,7 @@ export default function StatsPanel({
     },
     {
       key: abilityShort.CON,
-      label: tr(locale, "Constitucion", "Constitution"),
+      label: tr(locale, "Constitución", "Constitution"),
       value: totalCon,
       raw: "CON",
       icon: Heart,
@@ -413,7 +413,7 @@ export default function StatsPanel({
     },
     {
       key: abilityShort.WIS,
-      label: tr(locale, "Sabiduria", "Wisdom"),
+      label: tr(locale, "Sabiduría", "Wisdom"),
       value: totalWis,
       raw: "WIS",
       icon: Eye,
@@ -528,7 +528,7 @@ export default function StatsPanel({
               icon={<Heart className="h-3.5 w-3.5" />}
             />
             <MetricCardCompact
-              label={tr(locale, "Percepcion pasiva", "Passive perception")}
+              label={tr(locale, "Percepción pasiva", "Passive perception")}
               value={passivePerception}
               icon={<Eye className="h-3.5 w-3.5" />}
             />
@@ -972,7 +972,7 @@ export default function StatsPanel({
                         <Markdown content={content} className="text-ink-muted text-xs mt-2" />
                       ) : (
                         <p className="text-[11px] text-ink-muted mt-2">
-                          {tr(locale, "Sin descripcion.", "No description.")}
+                          {tr(locale, "Sin descripción.", "No description.")}
                         </p>
                       )}
                     </details>
@@ -1003,7 +1003,7 @@ export default function StatsPanel({
                         <Markdown content={content} className="text-ink-muted text-xs mt-2" />
                       ) : (
                         <p className="text-[11px] text-ink-muted mt-2">
-                          {tr(locale, "Sin descripcion.", "No description.")}
+                          {tr(locale, "Sin descripción.", "No description.")}
                         </p>
                       )}
                     </details>

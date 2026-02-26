@@ -60,6 +60,10 @@
   font-size: 18px;
 }
 
+:root[data-show-hints="off"] .hint-copy {
+  display: none !important;
+}
+
 @theme inline {
   --color-surface: var(--surface);
   --color-panel: var(--panel);

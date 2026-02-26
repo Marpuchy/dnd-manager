@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { useRouter } from "next/navigation";
@@ -244,7 +244,7 @@ export default function SettingsPanel({
         if (!campaignId || !zoneTrashSupported || zoneTrash.length === 0) return;
         const confirmed = window.confirm(
             t(
-                "Vaciar toda la papelera de zonas ahora? Esta accion no se puede deshacer.",
+                "Vaciar toda la papelera de zonas ahora? Esta acción no se puede deshacer.",
                 "Empty all zone trash now? This action cannot be undone."
             )
         );
@@ -285,7 +285,7 @@ export default function SettingsPanel({
         try {
             const { error } = await supabase.auth.signOut();
             if (error) {
-                console.error("Error cerrando sesion:", error);
+                console.error("Error cerrando sesión:", error);
             }
             onClose();
             router.replace("/login");
@@ -348,8 +348,8 @@ export default function SettingsPanel({
                             className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                             disabled={loading}
                         >
-                            <option value="es">{t("Espanol", "Spanish")}</option>
-                            <option value="en">{t("Ingles", "English")}</option>
+                            <option value="es">{t("Español", "Spanish")}</option>
+                            <option value="en">{t("Inglés", "English")}</option>
                         </select>
                     </div>
 
@@ -364,12 +364,12 @@ export default function SettingsPanel({
                                 className="w-full rounded-md bg-white/80 border border-ring px-2 py-2 text-sm text-ink outline-none focus:border-accent"
                                 disabled={loading}
                             >
-                                <option value="comfortable">{t("Comoda", "Comfortable")}</option>
+                                <option value="comfortable">{t("Cómoda", "Comfortable")}</option>
                                 <option value="compact">{t("Compacta", "Compact")}</option>
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs text-ink-muted">{t("Tamano de fuente", "Font size")}</label>
+                            <label className="text-xs text-ink-muted">{t("Tamaño de fuente", "Font size")}</label>
                             <select
                                 value={settings.fontScale}
                                 onChange={(event) =>
@@ -378,7 +378,7 @@ export default function SettingsPanel({
                                 className="w-full rounded-md bg-white/80 border border-ring px-2 py-2 text-sm text-ink outline-none focus:border-accent"
                                 disabled={loading}
                             >
-                                <option value="sm">{t("Pequeno", "Small")}</option>
+                                <option value="sm">{t("Pequeño", "Small")}</option>
                                 <option value="md">{t("Medio", "Medium")}</option>
                                 <option value="lg">{t("Grande", "Large")}</option>
                             </select>
@@ -406,7 +406,7 @@ export default function SettingsPanel({
                                 }
                                 disabled={loading}
                             />
-                            {t("Mostrar ayudas", "Show hints")}
+                            {t("Modo con ayudas", "Hints mode")}
                         </label>
                     </div>
 
@@ -419,7 +419,7 @@ export default function SettingsPanel({
                                     </p>
                                     <p className="text-[11px] text-ink-muted">
                                         {t(
-                                            "Las zonas en papelera se borran automaticamente tras 30 dias.",
+                                            "Las zonas en papelera se borran automáticamente tras 30 dÍas.",
                                             "Zones in trash are deleted automatically after 30 days."
                                         )}
                                     </p>
@@ -479,7 +479,7 @@ export default function SettingsPanel({
                                                         : daysLeft <= 0
                                                           ? t("Caduca hoy", "Expires today")
                                                           : t(
-                                                                `Caduca en ${daysLeft} dias`,
+                                                                `Caduca en ${daysLeft} dÍas`,
                                                                 `Expires in ${daysLeft} days`
                                                             )}
                                                 </p>
@@ -533,8 +533,8 @@ export default function SettingsPanel({
                             className="w-full text-xs px-3 py-2 rounded-md border border-red-300/60 bg-red-50/70 text-red-700 hover:bg-red-50 disabled:opacity-60"
                         >
                             {loggingOut
-                                ? t("Cerrando sesion...", "Signing out...")
-                                : t("Cerrar sesion", "Sign out")}
+                                ? t("Cerrando sesión...", "Signing out...")
+                                : t("Cerrar sesión", "Sign out")}
                         </button>
                     </div>
                 </div>

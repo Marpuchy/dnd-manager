@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -183,9 +183,9 @@ export default function AbilityPanel({
     }, [details.spellDetails, customSpellEntries]);
 
     const actionTypeLabel: Record<string, string> = {
-        action: t("Accion", "Action"),
-        bonus: t("Accion bonus", "Bonus action"),
-        reaction: t("Reaccion", "Reaction"),
+        action: t("Acción", "Action"),
+        bonus: t("Acción bonus", "Bonus action"),
+        reaction: t("Reacción", "Reaction"),
         passive: t("Pasiva", "Passive"),
     };
     const baseSubclassOptions = useMemo(
@@ -339,7 +339,7 @@ export default function AbilityPanel({
                             pushMarkdownField(t("Coste", "Cost"), costParts.join(", "));
                         }
                     }
-                    pushMarkdownField(t("Descripcion", "Description"), desc);
+                    pushMarkdownField(t("Descripción", "Description"), desc);
 
                     const level = Number.isFinite(Number(ability.level))
                         ? Number(ability.level)

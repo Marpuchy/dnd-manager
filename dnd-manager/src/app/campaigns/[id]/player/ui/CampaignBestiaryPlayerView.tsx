@@ -244,7 +244,7 @@ export default function CampaignBestiaryPlayerView({ campaignId, locale }: Campa
 
             <div className="min-h-0 flex-1 grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-3 overflow-hidden">
                 <aside className="min-h-0 rounded-xl border border-ring bg-panel/75 p-3 flex flex-col gap-3 overflow-hidden">
-                    <h2 className="text-sm font-semibold text-ink">{t("Bestiario de campana", "Campaign bestiary")}</h2>
+                    <h2 className="text-sm font-semibold text-ink">{t("Bestiario de Campaña", "Campaign bestiary")}</h2>
 
                     <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden styled-scrollbar pr-1">
                         {loading ? (
@@ -299,3 +299,4 @@ export default function CampaignBestiaryPlayerView({ campaignId, locale }: Campa
         </div>
     );
 }
+

@@ -170,7 +170,7 @@ export function getPreparedSpellsInfo(
 
   const abilityName =
     abilityKey === "wis"
-      ? tr(locale, "Sabiduria (SAB)", "Wisdom (WIS)")
+      ? tr(locale, "Sabiduría (SAB)", "Wisdom (WIS)")
       : abilityKey === "int"
       ? tr(locale, "Inteligencia (INT)", "Intelligence (INT)")
       : abilityKey === "cha"
@@ -179,7 +179,7 @@ export function getPreparedSpellsInfo(
       ? tr(locale, "Fuerza (FUE)", "Strength (STR)")
       : abilityKey === "dex"
       ? tr(locale, "Destreza (DES)", "Dexterity (DEX)")
-      : tr(locale, "Constitucion (CON)", "Constitution (CON)");
+      : tr(locale, "Constitución (CON)", "Constitution (CON)");
 
   return { total, abilityName, apiClass };
 }
@@ -233,7 +233,7 @@ export function getClassMagicExtras(
       lines.push(
         tr(
           locale,
-          "Aun no tienes acceso a Forma Salvaje (druida < nivel 2).",
+          "Aún no tienes acceso a Forma Salvaje (druida < nivel 2).",
           "You do not have access to Wild Shape yet (druid < level 2)."
         )
       );
@@ -252,13 +252,13 @@ export function formatCastingTime(ct?: string, locale = "es"): string {
   if (!ct) return "-";
   const lower = ct.toLowerCase();
   if (lower.includes("bonus action")) {
-    return locale === "en" ? `Bonus action (${ct})` : `Accion adicional (${ct})`;
+    return locale === "en" ? `Bonus action (${ct})` : `Acción adicional (${ct})`;
   }
   if (lower.includes("reaction")) {
-    return locale === "en" ? `Reaction (${ct})` : `Reaccion (${ct})`;
+    return locale === "en" ? `Reaction (${ct})` : `Reacción (${ct})`;
   }
   if (lower.includes("action")) {
-    return locale === "en" ? `Action (${ct})` : `Accion (${ct})`;
+    return locale === "en" ? `Action (${ct})` : `Acción (${ct})`;
   }
   return ct;
 }

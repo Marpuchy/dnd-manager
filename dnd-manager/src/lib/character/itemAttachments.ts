@@ -4,7 +4,7 @@ import { tr } from "@/lib/i18n/translate";
 
 export function getItemAttachmentTypeLabel(type: string, locale: string) {
   const map: Record<string, { es: string; en: string }> = {
-    action: { es: "Accion", en: "Action" },
+    action: { es: "Acción", en: "Action" },
     ability: { es: "Habilidad", en: "Ability" },
     trait: { es: "Rasgo", en: "Trait" },
     spell: { es: "Hechizo", en: "Spell" },
@@ -22,9 +22,9 @@ function getActionTypeLabel(
   locale: string
 ) {
   if (!value) return "";
-  if (value === "action") return tr(locale, "Accion", "Action");
-  if (value === "bonus") return tr(locale, "Accion bonus", "Bonus action");
-  if (value === "reaction") return tr(locale, "Reaccion", "Reaction");
+  if (value === "action") return tr(locale, "Acción", "Action");
+  if (value === "bonus") return tr(locale, "Acción bonus", "Bonus action");
+  if (value === "reaction") return tr(locale, "Reacción", "Reaction");
   return tr(locale, "Pasiva", "Passive");
 }
 
@@ -32,9 +32,9 @@ function getAbilityLabel(ability: AbilityKey, locale: string) {
   const labels: Record<AbilityKey, { es: string; en: string }> = {
     STR: { es: "Fuerza", en: "Strength" },
     DEX: { es: "Destreza", en: "Dexterity" },
-    CON: { es: "Constitucion", en: "Constitution" },
+    CON: { es: "Constitución", en: "Constitution" },
     INT: { es: "Inteligencia", en: "Intelligence" },
-    WIS: { es: "Sabiduria", en: "Wisdom" },
+    WIS: { es: "Sabiduría", en: "Wisdom" },
     CHA: { es: "Carisma", en: "Charisma" },
   };
   const entry = labels[ability];
@@ -121,7 +121,7 @@ function isDuplicateMetadataLine(
     attachment.range &&
     (normalized.startsWith("alcance:") ||
       normalized.startsWith("range:") ||
-      normalized.startsWith("area:"))
+      normalized.startsWith("Área:"))
   ) {
     return true;
   }
@@ -161,7 +161,7 @@ function isDuplicateMetadataLine(
     attachment.save &&
     attachment.save.type &&
     attachment.save.type !== "none" &&
-    (normalized.startsWith("salvacion:") ||
+    (normalized.startsWith("salvaciÓn:") ||
       normalized.startsWith("saving throw:"))
   ) {
     return true;
@@ -194,7 +194,7 @@ function splitDescriptionIntoLines(text: string) {
   return text
     .replace(/\r/g, "")
     .replace(
-      /\s+(?=(?:alcance|range|area|[áa]rea|salvaci[oó]n|saving throw|duraci[oó]n|duration|componentes|components|materiales|materials|tiempo de lanzamiento|casting time|da[nñ]o|damage|efecto inicial|uso)\s*:)/giu,
+      /\s+(?=(?:alcance|range|Área|[áa]rea|salvaci[oó]n|saving throw|duraci[oó]n|duration|componentes|components|materiales|materials|tiempo de lanzamiento|casting time|da[nñ]o|damage|efecto inicial|uso)\s*:)/giu,
       "\n"
     )
     .replace(
@@ -469,7 +469,7 @@ export function formatItemAttachmentMarkdown(
       const saveType =
         attachment.save.type === "attack"
           ? tr(locale, "Ataque", "Attack")
-          : tr(locale, "Salvacion", "Saving throw");
+          : tr(locale, "SalvaciÓn", "Saving throw");
       const resolvedAbility =
         attachment.save.saveAbility ??
         attachment.save.dcStat ??
@@ -492,7 +492,7 @@ export function formatItemAttachmentMarkdown(
         .join(" - ");
       pushMarkdownField(
         lines,
-        tr(locale, "Tirada / salvacion", "Roll / save"),
+        tr(locale, "Tirada / salvaciÓn", "Roll / save"),
         `${saveType}${detail ? ` (${detail})` : ""}`
       );
     }
@@ -571,6 +571,6 @@ export function formatItemAttachmentMarkdown(
     }
   }
 
-  pushMarkdownField(lines, tr(locale, "Descripcion", "Description"), description);
+  pushMarkdownField(lines, tr(locale, "DescripciÓn", "Description"), description);
   return lines.join("\n\n");
 }

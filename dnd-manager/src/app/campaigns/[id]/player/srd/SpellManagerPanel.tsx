@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -232,7 +232,7 @@ export function SpellManagerPanel({
                 if (count >= preparedInfo.total) {
                     setError(
                         t(
-                            `Has alcanzado tu maximo de ${preparedInfo.total} conjuros preparados.`,
+                            `Has alcanzado tu mÁximo de ${preparedInfo.total} conjuros preparados.`,
                             `You reached your maximum of ${preparedInfo.total} prepared spells.`
                         )
                     );

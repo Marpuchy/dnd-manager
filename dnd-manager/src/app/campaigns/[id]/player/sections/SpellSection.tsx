@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SpellSummary, parseSpellLines } from "../playerShared";
 import { getSpellSlotsFor } from "@/lib/spellSlots";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
@@ -237,7 +237,7 @@ export function SpellSection({
       {spellLevelFields.every((f) => parseSpellLines(f.value || "").length === 0) && (
         <p className="text-xs text-ink-muted">
           {t(
-            "Aun no has anadido conjuros. Usa el buscador de habilidades de abajo para anadirlos.",
+            "Aún no has añadido conjuros. Usa el buscador de habilidades de abajo para añadirlos.",
             "No spells added yet. Use the search below to add them."
           )}
         </p>
@@ -393,7 +393,7 @@ function MiniSpellSearch({
             <input
               type="text"
               placeholder={t(
-                "Buscar habilidades por nombre o descripcion...",
+                "Buscar habilidades por nombre o descripción...",
                 "Search abilities by name or description..."
               )}
               value={searchTerm}
@@ -433,7 +433,7 @@ function MiniSpellSearch({
       {!isLoading && spells.length === 0 && !error && (
         <p className="text-xs text-ink-muted">
           {t(
-            "Sin resultados para esta clase y nivel. Puedes anadir o quitar conjuros desde aqui cuando haya datos.",
+            "Sin resultados para esta clase y nivel. Puedes añadir o quitar conjuros desde aqu? cuando haya datos.",
             "No results for this class and level. You can add or remove spells here when data is available."
           )}
         </p>
@@ -466,7 +466,7 @@ function MiniSpellSearch({
                       : "border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                   }`}
                 >
-                  {learned ? t("Eliminar", "Delete") : t("Anadir", "Add")}
+                  {learned ? t("Eliminar", "Delete") : t("Añadir", "Add")}
                 </button>
               </div>
 
@@ -474,13 +474,13 @@ function MiniSpellSearch({
 
               <details className="mt-1 text-xs text-ink-muted whitespace-pre-wrap">
                 <summary className="cursor-pointer text-[11px] text-ink-muted">
-                  {t("Ver descripcion completa", "View full description")}
+                  {t("Ver descripción completa", "View full description")}
                 </summary>
                 <div className="mt-1 text-ink">
                   {fullDesc ??
                     shortDesc ??
                     t(
-                      "Sin descripcion ampliada disponible en la SRD.",
+                      "Sin descripción ampliada disponible en la SRD.",
                       "No extended SRD description available."
                     )}
                 </div>

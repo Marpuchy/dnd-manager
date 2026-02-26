@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
@@ -97,7 +97,7 @@ function ClassAbilityCard({
                 />
             ) : (
                 <p className="text-[11px] text-ink-muted mt-2">
-                    {tr(locale, "Sin descripcion.", "No description.")}
+                    {tr(locale, "Sin descripción.", "No description.")}
                 </p>
             )}
         </details>
@@ -192,7 +192,7 @@ function renderCustomActionContent(action: CustomFeatureEntry, locale: string) {
             pushMarkdownField(tr(locale, "Coste", "Cost"), parts.join(", "));
         }
     }
-    pushMarkdownField(tr(locale, "Descripcion", "Description"), description);
+    pushMarkdownField(tr(locale, "Descripción", "Description"), description);
 
     return lines.join("\n\n");
 }
@@ -327,7 +327,7 @@ export default function AbilityPanelView({
                     </p>
 
                     <p className="text-ink-muted mt-1">
-                        {tr(locale, "Caracteristica de lanzamiento", "Casting ability")}:{" "}
+                        {tr(locale, "Característica de lanzamiento", "Casting ability")}:{" "}
                         <strong>{preparedInfo.abilityName}</strong>
                     </p>
 
@@ -382,7 +382,7 @@ export default function AbilityPanelView({
                                         </div>
                                     ) : (
                                         <p className="mt-2 text-[11px] text-ink-muted">
-                                            {tr(locale, "Sin descripcion.", "No description.")}
+                                            {tr(locale, "Sin descripción.", "No description.")}
                                         </p>
                                     )}
                                 </details>

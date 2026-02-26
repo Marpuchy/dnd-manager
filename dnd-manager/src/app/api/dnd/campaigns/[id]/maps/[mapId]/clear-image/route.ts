@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         } = await authedClient.auth.getUser();
 
         if (userError || !user) {
-            return NextResponse.json({ error: "Sesion no valida." }, { status: 401 });
+            return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
         }
 
         const [ownerRes, memberRes] = await Promise.all([
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         const isDmMember = Boolean(memberRes.data?.user_id);
         if (!isOwner && !isDmMember) {
             return NextResponse.json(
-                { error: "No tienes permisos de DM para esta campana." },
+                { error: "No tienes permisos de DM para esta Campaña." },
                 { status: 403 }
             );
         }
@@ -254,3 +254,4 @@ export async function POST(req: NextRequest, context: RouteContext) {
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
+

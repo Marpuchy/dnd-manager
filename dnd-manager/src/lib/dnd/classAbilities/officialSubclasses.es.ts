@@ -34,7 +34,7 @@ export const OFFICIAL_SUBCLASS_NAMES_ES: Record<string, string> = {
   "cleric:order-domain": "Dominio del Orden",
   "cleric:peace-domain": "Dominio de la Paz",
   "cleric:tempest-domain": "Dominio de la Tempestad",
-  "cleric:trickery-domain": "Dominio de Engano",
+  "cleric:trickery-domain": "Dominio de Engaño",
   "cleric:twilight-domain": "Dominio Crepuscular",
   "cleric:war-domain": "Dominio de la Guerra",
   "druid:circle-of-the-land": "Circulo de la Tierra",

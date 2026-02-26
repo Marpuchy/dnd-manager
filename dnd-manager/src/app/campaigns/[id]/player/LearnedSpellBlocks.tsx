@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import { ChevronRight } from "lucide-react";
@@ -172,7 +172,7 @@ function LearnedSpellCard({ level, spell, meta }: CardProps) {
                 {description && (
                     <div className="pt-2 border-t border-ring/60">
                         <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
-                            {tr(locale, "Descripcion", "Description")}
+                            {tr(locale, "Descripción", "Description")}
                         </p>
                         <div className="mt-2">
                             <Markdown

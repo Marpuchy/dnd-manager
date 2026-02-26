@@ -212,7 +212,7 @@ const SAVING_THROW_DEFINITIONS: ModifierDefinition[] = [
     },
     {
         id: "save-con",
-        labelEs: "Constitucion",
+        labelEs: "Constitución",
         labelEn: "Constitution",
         ability: "CON",
         aliases: ["con", "constitution", "constitucion", "savecon", "savingthrowcon", "saveconstitucion"],
@@ -226,7 +226,7 @@ const SAVING_THROW_DEFINITIONS: ModifierDefinition[] = [
     },
     {
         id: "save-wis",
-        labelEs: "Sabiduria",
+        labelEs: "Sabiduría",
         labelEn: "Wisdom",
         ability: "WIS",
         aliases: ["wis", "wisdom", "sab", "sabiduria", "savewis", "savingthrowwis", "savesabiduria"],
@@ -327,7 +327,7 @@ const SKILL_DEFINITIONS: ModifierDefinition[] = [
     },
     {
         id: "skill-perception",
-        labelEs: "Percepcion",
+        labelEs: "Percepción",
         labelEn: "Perception",
         ability: "WIS",
         aliases: ["perception", "percepcion"],
@@ -341,17 +341,17 @@ const SKILL_DEFINITIONS: ModifierDefinition[] = [
     },
     {
         id: "skill-deception",
-        labelEs: "Engano",
+        labelEs: "Engaño",
         labelEn: "Deception",
         ability: "CHA",
         aliases: ["deception", "engano"],
     },
     {
         id: "skill-intimidation",
-        labelEs: "Intimidacion",
+        labelEs: "Intimidación",
         labelEn: "Intimidation",
         ability: "CHA",
-        aliases: ["intimidation", "intimidacion"],
+        aliases: ["intimidation", "intimidacion", "intimidación"],
     },
     {
         id: "skill-performance",
@@ -362,7 +362,7 @@ const SKILL_DEFINITIONS: ModifierDefinition[] = [
     },
     {
         id: "skill-persuasion",
-        labelEs: "Persuasion",
+        labelEs: "Persuasión",
         labelEn: "Persuasion",
         ability: "CHA",
         aliases: ["persuasion"],
@@ -956,7 +956,7 @@ export function CreatureSheet({
                         {data.flavor ? (
                             <section className="rounded-md bg-[#fff8eb]/85 px-3 py-2.5">
                                 <h4 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7d2018]">
-                                    {label(locale, "Descripcion", "Description")}
+                                    {label(locale, "Descripción", "Description")}
                                 </h4>
                                 <div className="mt-1 h-[1.5px] w-full bg-gradient-to-r from-[#8f3328]/75 via-[#b15344]/50 to-transparent" />
                                 <p className="mt-2 whitespace-pre-wrap text-[13px] leading-5">{data.flavor}</p>

@@ -1,4 +1,4 @@
-﻿// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
+// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
 "use client";
 
 import React, { FormEvent } from "react";
@@ -29,6 +29,7 @@ import ItemManagerSection from "../sections/ItemManagerSection";
 import CustomContentManager from "../sections/CustomContentManager";
 import type { CharacterFormFields } from "../hooks/useCharacterForm";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
+import { useUserSettings } from "@/app/components/SettingsProvider";
 
 import {
     upsertStats,
@@ -70,6 +71,8 @@ export function CharacterForm({
     const routeCampaignId = (params as any)?.id ?? null;
     const locale = useClientLocale();
     const t = (es: string, en: string) => tr(locale, es, en);
+    const { settings } = useUserSettings();
+    const showHints = settings.showHints;
 
     const {
         // Datos básicos
@@ -376,16 +379,16 @@ export function CharacterForm({
         () => [
             { key: "STR", label: t("Fuerza (STR)", "Strength (STR)") },
             { key: "DEX", label: t("Destreza (DEX)", "Dexterity (DEX)") },
-            { key: "CON", label: t("Constitucion (CON)", "Constitution (CON)") },
+            { key: "CON", label: t("Constitución (CON)", "Constitution (CON)") },
             { key: "INT", label: t("Inteligencia (INT)", "Intelligence (INT)") },
-            { key: "WIS", label: t("Sabiduria (WIS)", "Wisdom (WIS)") },
+            { key: "WIS", label: t("Sabiduría (WIS)", "Wisdom (WIS)") },
             { key: "CHA", label: t("Carisma (CHA)", "Charisma (CHA)") },
             { key: "AC", label: t("Clase de armadura (AC)", "Armor class (AC)") },
             { key: "HP_MAX", label: t("Vida maxima", "Maximum life") },
             { key: "HP_CURRENT", label: t("Vida actual", "Current life") },
             { key: "SPEED", label: t("Velocidad", "Speed") },
             { key: "INITIATIVE", label: t("Iniciativa", "Initiative") },
-            { key: "PASSIVE_PERCEPTION", label: t("Percepcion pasiva", "Passive perception") },
+            { key: "PASSIVE_PERCEPTION", label: t("Percepción pasiva", "Passive perception") },
             { key: "PROFICIENCY", label: t("Competencia", "Proficiency") },
         ],
         [locale]
@@ -928,7 +931,7 @@ export function CharacterForm({
             if (sessErr) {
                 console.error("Error obteniendo sesión:", inspectError(sessErr));
                 alert(
-                    `${t("Error obteniendo sesion", "Error fetching session")}: ${inspectError(sessErr)}`
+                    `${t("Error obteniendo sesión", "Error fetching session")}: ${inspectError(sessErr)}`
                 );
                 setSaving(false);
                 return;
@@ -1342,7 +1345,7 @@ export function CharacterForm({
                                     rows={3}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                     placeholder={t(
-                                        "Titulo, lema o nota personal...",
+                                        "TÍtulo, lema o nota personal...",
                                         "Title, motto, or personal note..."
                                     )}
                                 />
@@ -1377,12 +1380,14 @@ export function CharacterForm({
                                             </option>
                                         ))}
                                     </select>
-                                    <p className="text-[11px] text-ink-muted">
-                                        {t(
-                                            "Se usa para calcular espacios de conjuro y cargar habilidades.",
-                                            "Used to calculate spell slots and class features."
-                                        )}
-                                    </p>
+                                    {showHints && (
+                                        <p className="hint-copy text-[11px] text-ink-muted">
+                                            {t(
+                                                "Se usa para calcular espacios de conjuro y cargar habilidades.",
+                                                "Used to calculate spell slots and class features."
+                                            )}
+                                        </p>
+                                    )}
                                 </div>
 
                                 {charClass && (
@@ -1391,17 +1396,19 @@ export function CharacterForm({
                                             <label className="text-sm text-ink">
                                                 {t("Subclase / Circulo", "Subclass / Circle")}
                                             </label>
-                                            <p className="text-[11px] text-ink-muted">
-                                                {canChooseSubclass
-                                                    ? t(
-                                                          "Selecciona una subclase para aplicar rasgos automaticamente.",
-                                                          "Select a subclass to apply features automatically."
-                                                      )
-                                                    : t(
-                                                          `Disponible a partir del nivel ${subclassUnlockLevel}.`,
-                                                          `Available from level ${subclassUnlockLevel}.`
-                                                      )}
-                                            </p>
+                                            {showHints && (
+                                                <p className="hint-copy text-[11px] text-ink-muted">
+                                                    {canChooseSubclass
+                                                        ? t(
+                                                              "Selecciona una subclase para aplicar rasgos automáticamente.",
+                                                              "Select a subclass to apply features automatically."
+                                                          )
+                                                        : t(
+                                                              `Disponible a partir del nivel ${subclassUnlockLevel}.`,
+                                                              `Available from level ${subclassUnlockLevel}.`
+                                                          )}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <select
@@ -1546,7 +1553,7 @@ export function CharacterForm({
                                 {characterType === "companion" && (
                                     <div className="flex flex-col gap-1 text-sm">
                                         <label className="text-sm text-ink">
-                                            {t("Dueno", "Owner")}
+                                            {t("Dueño", "Owner")}
                                         </label>
                                         <select
                                             value={companionOwnerId ?? ""}
@@ -1555,7 +1562,7 @@ export function CharacterForm({
                                             required
                                         >
                                             <option value="">
-                                                {t("Selecciona dueno", "Select owner")}
+                                                {t("Selecciona dueño", "Select owner")}
                                             </option>
                                             {ownerOptionsSafe.map((owner) => (
                                                 <option key={owner.id} value={owner.id}>
@@ -1563,12 +1570,14 @@ export function CharacterForm({
                                                 </option>
                                             ))}
                                         </select>
-                                        <p className="text-[11px] text-ink-muted">
-                                            {t(
-                                                "El companero debe estar asignado a un personaje de la campana.",
-                                                "The companion must be assigned to a campaign character."
-                                            )}
-                                        </p>
+                                        {showHints && (
+                                            <p className="hint-copy text-[11px] text-ink-muted">
+                                                {t(
+                                                    "El compañero debe estar asignado a un personaje de la Campaña.",
+                                                    "The companion must be assigned to a campaign character."
+                                                )}
+                                            </p>
+                                        )}
                                         {ownerOptionsSafe.length === 0 && (
                                             <p className="text-[11px] text-red-700">
                                                 {t(
@@ -1593,7 +1602,7 @@ export function CharacterForm({
                                     />
                                     <div className="space-y-1">
                                         <label className="text-sm text-ink">
-                                            {t("Caracteristica de conjuro", "Spellcasting ability")}
+                                            {t("Característica de conjuro", "Spellcasting ability")}
                                         </label>
                                         <select
                                             value={customCastingAbility}
@@ -1604,7 +1613,7 @@ export function CharacterForm({
                                                 {t("Inteligencia (INT)", "Intelligence (INT)")}
                                             </option>
                                             <option value="wis">
-                                                {t("Sabiduria (SAB)", "Wisdom (WIS)")}
+                                                {t("Sabiduría (SAB)", "Wisdom (WIS)")}
                                             </option>
                                             <option value="cha">
                                                 {t("Carisma (CAR)", "Charisma (CHA)")}
@@ -1616,7 +1625,7 @@ export function CharacterForm({
                                                 {t("Destreza (DES)", "Dexterity (DEX)")}
                                             </option>
                                             <option value="con">
-                                                {t("Constitucion (CON)", "Constitution (CON)")}
+                                                {t("Constitución (CON)", "Constitution (CON)")}
                                             </option>
                                         </select>
                                     </div>
@@ -1871,7 +1880,7 @@ export function CharacterForm({
                                         onClick={addManualAdjustment}
                                         className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
                                     >
-                                        {t("Anadir", "Add")}
+                                        {t("Añadir", "Add")}
                                     </button>
                                 </div>
                             </div>
@@ -2050,7 +2059,7 @@ export function CharacterForm({
                                 value={appearance ?? ""}
                                 onChange={setAppearance ?? (() => {})}
                                 helper={t(
-                                    "Descripcion fisica, rasgos visibles, marcas, etc.",
+                                    "Descripción fisica, rasgos visibles, marcas, etc.",
                                     "Physical description, visible features, marks, etc."
                                 )}
                             />
@@ -2094,14 +2103,14 @@ export function CharacterForm({
                                 onClick={addCustomSection}
                                 className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                             >
-                                {t("Anadir seccion", "Add section")}
+                                {t("Añadir seccion", "Add section")}
                             </button>
                         </div>
 
                         {customSectionsSafe.length === 0 ? (
                             <p className="text-xs text-ink-muted">
                                 {t(
-                                    "Aun no has creado secciones personalizadas.",
+                                    "Aún no has creado secciones personalizadas.",
                                     "You have not created custom sections yet."
                                 )}
                             </p>
@@ -2111,7 +2120,7 @@ export function CharacterForm({
                                     <div key={section.id} className="rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
                                         <div className="flex items-center justify-between gap-2">
                                             <TextField
-                                                label={t("Titulo", "Title")}
+                                                label={t("TÍtulo", "Title")}
                                                 value={section.title}
                                                 onChange={(value) => updateCustomSection(index, { title: value })}
                                             />
@@ -2154,5 +2163,6 @@ export function CharacterForm({
 }
 
 export default CharacterForm;
+
 
 

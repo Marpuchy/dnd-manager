@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { Character, Details, Stats, Tab, prettyClassLabel } from "../playerShared";
@@ -146,7 +146,7 @@ export default function CharacterView({
         return (
             <div className="border border-ring rounded-2xl bg-panel/80 overflow-hidden">
                 <div className="px-3 py-2 border-b border-ring bg-white/70 text-ink text-xs uppercase tracking-[0.3em]">
-                    {t("Companeros", "Companions")}
+                    {t("Compañeros", "Companions")}
                 </div>
                 <div className="p-3 space-y-3">
                     {companionsToShow.map((companion) => {
@@ -263,7 +263,7 @@ export default function CharacterView({
                                     : "border-transparent text-ink-muted hover:text-ink"
                             }`}
                         >
-                            {t("Companeros", "Companions")}
+                            {t("Compañeros", "Companions")}
                         </button>
                     )}
                 </div>

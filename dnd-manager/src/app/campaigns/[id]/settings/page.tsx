@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -261,7 +261,7 @@ export default function CampaignSettingsPage() {
         }
         const confirmed = window.confirm(
             t(
-                "Vaciar toda la papelera de zonas ahora? Esta accion no se puede deshacer.",
+                "Vaciar toda la papelera de zonas ahora? Esta acción no se puede deshacer.",
                 "Empty all zone trash now? This action cannot be undone."
             )
         );
@@ -294,7 +294,7 @@ export default function CampaignSettingsPage() {
         try {
             const { error } = await supabase.auth.signOut();
             if (error) {
-                console.error("Error cerrando sesion:", error);
+                console.error("Error cerrando sesión:", error);
             }
             router.replace("/login");
             router.refresh();
@@ -400,6 +400,10 @@ export default function CampaignSettingsPage() {
                                     "Configure language, visual mode, AI and accessibility in a full-page view."
                                 )}
                             </p>
+                            <p className="mt-2 text-xs text-ink-muted">
+                                {t("ID de campaña", "Campaign ID")}:{" "}
+                                <span className="font-mono text-ink">{campaignId}</span>
+                            </p>
                         </div>
                         <button
                             type="button"
@@ -413,7 +417,165 @@ export default function CampaignSettingsPage() {
                 </header>
 
                 <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="hidden">
+                        <div>
+                            <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
+                                <Bot className="h-4 w-4 text-ember" />
+                                {t("Ajustes IA", "AI settings")}
+                            </h2>
+                            <p className="text-xs text-ink-muted mt-1">
+                                {t("Permisos de prompts IA.", "AI prompts permissions.")}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <button
+                                type="button"
+                                disabled={settingsLoading}
+                                onClick={() => handleAiPromptConsentToggle(!aiPromptConsent)}
+                                className={`${optionClass(aiPromptConsent)} md:col-span-2`}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium">
+                                        {t("Permiso de prompts IA", "AI prompts permission")}
+                                    </span>
+                                    <span
+                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                            aiPromptConsent
+                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
+                                                : "border-amber-400/70 bg-amber-100 text-amber-900"
+                                        }`}
+                                    >
+                                        {aiPromptConsent
+                                            ? t("Concedido", "Granted")
+                                            : t("No concedido", "Not granted")}
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
+                                    {t(
+                                        "Controla si tus prompts se pueden usar para mejorar el entrenamiento global de la IA.",
+                                        "Controls whether your prompts can be used to improve global AI training."
+                                    )}
+                                </p>
+                            </button>
+
+                            <details open className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
+                                <summary className="cursor-pointer select-none font-semibold text-ink">
+                                    {t(
+                                        "Documentación del permiso de prompts",
+                                        "Prompts permission documentation"
+                                    )}
+                                </summary>
+                                <div className="mt-2 space-y-1.5">
+                                    <p>
+                                        {t(
+                                            "Por qué existe: permite mejorar la calidad del asistente con ejemplos reales de uso.",
+                                            "Why it exists: it helps improve assistant quality using real usage examples."
+                                        )}
+                                    </p>
+                                    <p>
+                                        {t(
+                                            "Para qué sirve: el sistema aprende patrones de peticiones y respuestas para proponer cambios más precisos.",
+                                            "What it is for: the system learns request/response patterns to propose more accurate changes."
+                                        )}
+                                    </p>
+                                    <p>
+                                        {t(
+                                            "Qué información compromete: el texto de tus prompts y contexto funcional del cambio dentro de la campaña (por ejemplo, tipo de entidad o sección de trabajo). No incluye tu contraseña ni tokens.",
+                                            "What information it exposes: your prompt text and functional context of the change inside the campaign (for example, entity type or working section). It does not include your password or tokens."
+                                        )}
+                                    </p>
+                                    <p className="text-ink-muted">
+                                        {t(
+                                            "Recomendación: no escribas datos personales sensibles en los prompts si activas este permiso.",
+                                            "Recommendation: do not include sensitive personal data in prompts if you enable this permission."
+                                        )}
+                                    </p>
+                                </div>
+                            </details>
+                        </div>
+                    </article>
+
+                    <article className="order-2 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                        <div>
+                            <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
+                                <Bot className="h-4 w-4 text-ember" />
+                                {t("Ajustes IA", "AI settings")}
+                            </h2>
+                            <p className="text-xs text-ink-muted mt-1">
+                                {t("Permisos de prompts IA.", "AI prompts permissions.")}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <button
+                                type="button"
+                                disabled={settingsLoading}
+                                onClick={() => handleAiPromptConsentToggle(!aiPromptConsent)}
+                                className={`${optionClass(aiPromptConsent)} md:col-span-2`}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium">
+                                        {t("Permiso de prompts IA", "AI prompts permission")}
+                                    </span>
+                                    <span
+                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                            aiPromptConsent
+                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
+                                                : "border-amber-400/70 bg-amber-100 text-amber-900"
+                                        }`}
+                                    >
+                                        {aiPromptConsent
+                                            ? t("Concedido", "Granted")
+                                            : t("No concedido", "Not granted")}
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
+                                    {t(
+                                        "Controla si tus prompts se pueden usar para mejorar el entrenamiento global de la IA.",
+                                        "Controls whether your prompts can be used to improve global AI training."
+                                    )}
+                                </p>
+                            </button>
+
+                            <details open className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
+                                <summary className="cursor-pointer select-none font-semibold text-ink">
+                                    {t(
+                                        "Documentación del permiso de prompts",
+                                        "Prompts permission documentation"
+                                    )}
+                                </summary>
+                                <div className="mt-2 space-y-1.5">
+                                    <p>
+                                        {t(
+                                            "Por qué existe: permite mejorar la calidad del asistente con ejemplos reales de uso.",
+                                            "Why it exists: it helps improve assistant quality using real usage examples."
+                                        )}
+                                    </p>
+                                    <p>
+                                        {t(
+                                            "Para qué sirve: el sistema aprende patrones de peticiones y respuestas para proponer cambios más precisos.",
+                                            "What it is for: the system learns request/response patterns to propose more accurate changes."
+                                        )}
+                                    </p>
+                                    <p>
+                                        {t(
+                                            "Qué información compromete: el texto de tus prompts y contexto funcional del cambio dentro de la campaña (por ejemplo, tipo de entidad o sección de trabajo). No incluye tu contraseña ni tokens.",
+                                            "What information it exposes: your prompt text and functional context of the change inside the campaign (for example, entity type or working section). It does not include your password or tokens."
+                                        )}
+                                    </p>
+                                    <p className="text-ink-muted">
+                                        {t(
+                                            "Recomendación: no escribas datos personales sensibles en los prompts si activas este permiso.",
+                                            "Recommendation: do not include sensitive personal data in prompts if you enable this permission."
+                                        )}
+                                    </p>
+                                </div>
+                            </details>
+                        </div>
+                    </article>
+
+                    <article className="order-1 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <Globe2 className="h-4 w-4 text-ember" />
@@ -459,7 +621,7 @@ export default function CampaignSettingsPage() {
                         </div>
                     </article>
 
-                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="order-3 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <Palette className="h-4 w-4 text-ember" />
@@ -508,8 +670,45 @@ export default function CampaignSettingsPage() {
                                 </p>
                             </button>
                         </div>
+
+                        <div className="space-y-3">
+                            <p className="text-xs uppercase tracking-[0.16em] text-ink-muted inline-flex items-center gap-2">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                {t("Animaciones", "Animations")}
+                            </p>
+                            <button
+                                type="button"
+                                disabled={settingsLoading}
+                                onClick={() =>
+                                    void updateSettings({ animations: !settings.animations })
+                                }
+                                className={`${optionClass(settings.animations)} w-full`}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="inline-flex items-center gap-2">
+                                        <Sparkles className="h-4 w-4 text-ember" />
+                                        <span className="font-medium">{t("Animaciones", "Animations")}</span>
+                                    </span>
+                                    <span
+                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                            settings.animations
+                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
+                                                : "border-ring bg-white/80 text-ink-muted"
+                                        }`}
+                                    >
+                                        {settings.animations ? t("Activadas", "Enabled") : t("Desactivadas", "Disabled")}
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
+                                    {t(
+                                        "Suaviza transiciones, iconos y paneles.",
+                                        "Smooth transitions, icons, and panels."
+                                    )}
+                                </p>
+                            </button>
+                        </div>
                     </article>
-                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="order-4 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <LayoutGrid className="h-4 w-4 text-ember" />
@@ -579,9 +778,66 @@ export default function CampaignSettingsPage() {
                                 </button>
                             </div>
                         </div>
+
+                        <div className="space-y-3">
+                            <p className="text-xs uppercase tracking-[0.16em] text-ink-muted inline-flex items-center gap-2">
+                                <LayoutGrid className="h-3.5 w-3.5" />
+                                {t("Modo de ayudas", "Hints mode")}
+                            </p>
+                            <div className={optionClass(settings.showHints)}>
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium">
+                                        {t("Modo de ayudas", "Hints mode")}
+                                    </span>
+                                    <span
+                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                            settings.showHints
+                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
+                                                : "border-ring bg-white/80 text-ink-muted"
+                                        }`}
+                                    >
+                                        {settings.showHints
+                                            ? t("Con ayudas", "With hints")
+                                            : t("Normal", "Normal")}
+                                    </span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={settingsLoading}
+                                        onClick={() => void updateSettings({ showHints: false })}
+                                        className={`rounded-md border px-2 py-1.5 text-xs ${
+                                            settings.showHints
+                                                ? "border-ring bg-white/80 text-ink-muted hover:bg-white"
+                                                : "border-accent/70 bg-accent/10 text-ink"
+                                        }`}
+                                    >
+                                        {t("Normal", "Normal")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={settingsLoading}
+                                        onClick={() => void updateSettings({ showHints: true })}
+                                        className={`rounded-md border px-2 py-1.5 text-xs ${
+                                            settings.showHints
+                                                ? "border-accent/70 bg-accent/10 text-ink"
+                                                : "border-ring bg-white/80 text-ink-muted hover:bg-white"
+                                        }`}
+                                    >
+                                        {t("Con ayudas", "With hints")}
+                                    </button>
+                                </div>
+                                <p className="mt-2 text-[10px] text-ink-muted leading-snug hint-copy">
+                                    {t(
+                                        "En modo con ayudas se muestran explicaciones cortas en formularios y paneles.",
+                                        "With hints mode shows short explanatory copy in forms and panels."
+                                    )}
+                                </p>
+                            </div>
+                        </div>
                     </article>
 
-                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="hidden">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <Bot className="h-4 w-4 text-ember" />
@@ -627,31 +883,48 @@ export default function CampaignSettingsPage() {
                                 </p>
                             </button>
 
-                            <button
-                                type="button"
-                                disabled={settingsLoading}
-                                onClick={() => void updateSettings({ showHints: !settings.showHints })}
-                                className={optionClass(settings.showHints)}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="font-medium">{t("Mostrar ayudas", "Show hints")}</span>
-                                    <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                                            settings.showHints
-                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
-                                                : "border-ring bg-white/80 text-ink-muted"
-                                        }`}
-                                    >
-                                        {settings.showHints ? t("Sí", "Yes") : t("No", "No")}
+                            <div className="md:col-span-2 rounded-xl border border-ring bg-white/75 p-2.5 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium text-sm text-ink">
+                                        {t("Modo de ayudas", "Hints mode")}
+                                    </span>
+                                    <span className="text-[11px] text-ink-muted">
+                                        {settings.showHints
+                                            ? t("Con ayudas", "With hints")
+                                            : t("Normal", "Normal")}
                                     </span>
                                 </div>
-                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                    {t(
-                                        "Muestra explicaciones cortas en formularios y secciones.",
-                                        "Show short explanations in forms and sections."
-                                    )}
-                                </p>
-                            </button>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={settingsLoading}
+                                        onClick={() => void updateSettings({ showHints: false })}
+                                        className={optionClass(!settings.showHints)}
+                                    >
+                                        <p className="text-sm font-medium">{t("Normal", "Normal")}</p>
+                                        <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
+                                            {t(
+                                                "Oculta textos explicativos y deja la interfaz limpia.",
+                                                "Hide explanatory text and keep the interface clean."
+                                            )}
+                                        </p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={settingsLoading}
+                                        onClick={() => void updateSettings({ showHints: true })}
+                                        className={optionClass(settings.showHints)}
+                                    >
+                                        <p className="text-sm font-medium">{t("Con ayudas", "With hints")}</p>
+                                        <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
+                                            {t(
+                                                "Muestra descripciones y sugerencias en formularios y secciones.",
+                                                "Show descriptions and hints in forms and sections."
+                                            )}
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
 
                             <button
                                 type="button"
@@ -686,7 +959,7 @@ export default function CampaignSettingsPage() {
                                 </p>
                             </button>
 
-                            <details className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
+                            <details open className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
                                 <summary className="cursor-pointer select-none font-semibold text-ink">
                                     {t(
                                         "Documentación del permiso de prompts",

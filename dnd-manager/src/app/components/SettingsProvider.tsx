@@ -23,7 +23,7 @@ const defaultSettings: UserSettings = {
     density: "comfortable",
     animations: true,
     fontScale: "md",
-    showHints: true,
+    showHints: false,
 };
 
 type SettingsContextValue = {

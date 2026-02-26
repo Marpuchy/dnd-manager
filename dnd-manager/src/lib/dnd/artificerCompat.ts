@@ -1,4 +1,4 @@
-import { getSpellSlotsFor } from "@/lib/spellSlots";
+﻿import { getSpellSlotsFor } from "@/lib/spellSlots";
 
 export type ArtificerLocale = "en" | "es";
 
@@ -216,8 +216,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "You create a bonfire in a 5-foot cube on ground you can see. Creatures in the fire take fire damage on a failed Dexterity save when it appears, enters their space, or ends their turn there.",
         },
         es: {
-            short: "Creas una hoguera magica en el suelo que quema a las criaturas que entran o terminan su turno dentro.",
-            full: "Creas una hoguera en un cubo de 5 pies en un punto del suelo que puedas ver. Una criatura sufre dano de fuego con una tirada de Destreza fallida cuando aparece, entra o termina su turno ahi.",
+            short: "Creas una hoguera mágica en el suelo que quema a las criaturas que entran o terminan su turno dentro.",
+            full: "Creas una hoguera en un cubo de 5 pies en un punto del suelo que puedas ver. Una criatura sufre daño de fuego con una tirada de Destreza fallida cuando aparece, entra o termina su turno ahi.",
         },
     },
     frostbite: {
@@ -226,8 +226,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "A creature you can see must make a Constitution save. On a failure, it takes cold damage and has disadvantage on the next weapon attack roll it makes before the end of its next turn.",
         },
         es: {
-            short: "Un frio entumecedor ataca a una criatura, causa dano de frio y dificulta su siguiente ataque con arma.",
-            full: "Una criatura que puedas ver debe superar una salvacion de Constitucion. Si falla, sufre dano de frio y tiene desventaja en su siguiente tirada de ataque con arma antes del final de su proximo turno.",
+            short: "Un frío entumecedor ataca a una criatura, causa daño de frío y dificulta su siguiente ataque con arma.",
+            full: "Una criatura que puedas ver debe superar una salvación de Constitución. Si falla, sufre daño de frío y tiene desventaja en su siguiente tirada de ataque con arma antes del final de su próximo turno.",
         },
     },
     "magic-stone": {
@@ -236,8 +236,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "You touch up to three pebbles and imbue them with magic. A creature can throw one or sling it as a ranged spell attack that deals magical bludgeoning damage on a hit.",
         },
         es: {
-            short: "Imbuyes guijarros con magia para lanzarlos y causar dano contundente magico.",
-            full: "Tocas hasta tres guijarros y los cargas con magia. Una criatura puede lanzarlos o dispararlos con honda como ataque de conjuro a distancia que causa dano contundente magico al impactar.",
+            short: "Imbuyes guijarros con magia para lanzarlos y causar daño contundente magico.",
+            full: "Tocas hasta tres guijarros y los cargas con magia. Una criatura puede lanzarlos o dispararlos con honda como ataque de conjuro a distancia que causa daño contundente magico al impactar.",
         },
     },
     "thorn-whip": {
@@ -246,8 +246,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "Make a melee spell attack against a creature in range. On a hit, the target takes piercing damage and can be pulled up to 10 feet closer to you.",
         },
         es: {
-            short: "Un latigo de espinas golpea a un objetivo, causa dano perforante y lo arrastra.",
-            full: "Haz un ataque de conjuro cuerpo a cuerpo contra una criatura en alcance. Si impacta, el objetivo sufre dano perforante y puedes arrastrarlo hasta 10 pies hacia ti.",
+            short: "Un latigo de espinas golpea a un objetivo, causa daño perforante y lo arrastra.",
+            full: "Haz un ataque de conjuro cuerpo a cuerpo contra una criatura en alcance. Si impacta, el objetivo sufre daño perforante y puedes arrastrarlo hasta 10 pies hacia ti.",
         },
     },
     "absorb-elements": {
@@ -256,8 +256,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "When you take acid, cold, fire, lightning, or thunder damage, you can use your reaction to gain resistance to that instance of damage. Your next melee attack adds extra damage of the absorbed type.",
         },
         es: {
-            short: "Como reaccion, absorbes energia elemental entrante, ganas resistencia y potencias tu siguiente golpe cuerpo a cuerpo.",
-            full: "Cuando recibes dano de acido, frio, fuego, rayo o trueno, puedes usar tu reaccion para obtener resistencia ante ese dano. Tu siguiente ataque cuerpo a cuerpo inflige dano extra del tipo absorbido.",
+            short: "Como reacción, absorbes energía elemental entrante, ganas resistencia y potencias tu siguiente golpe cuerpo a cuerpo.",
+            full: "Cuando recibes daño de ácido, frío, fuego, rayo o trueno, puedes usar tu reacción para obtener resistencia ante ese daño. Tu siguiente ataque cuerpo a cuerpo inflige daño extra del tipo absorbido.",
         },
     },
     catapult: {
@@ -266,8 +266,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "Choose one object weighing 1 to 5 pounds and launch it in a line. A creature in its path must make a Dexterity save or take bludgeoning damage from the impact.",
         },
         es: {
-            short: "Lanzas un objeto sin sujetar por el aire; las criaturas golpeadas reciben dano contundente alto.",
-            full: "Elige un objeto de 1 a 5 libras y disparalo en linea recta. Una criatura en su trayectoria debe superar una salvacion de Destreza o sufre dano contundente por el impacto.",
+            short: "Lanzas un objeto sin sujetar por el aire; las criaturas golpeadas reciben daño contundente alto.",
+            full: "Elige un objeto de 1 a 5 libras y dispáralo en línea recta. Una criatura en su trayectoria debe superar una salvación de Destreza o sufre daño contundente por el impacto.",
         },
     },
     snare: {
@@ -276,8 +276,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "You create a hidden magical snare in a 5-foot radius on the ground. The first creature that triggers it makes a Dexterity save or is hoisted and restrained until released.",
         },
         es: {
-            short: "Colocas una trampa magica invisible en el suelo que inmoviliza y eleva a la primera criatura que la active.",
-            full: "Creas una trampa magica oculta en un radio de 5 pies sobre el suelo. La primera criatura que la activa hace una salvacion de Destreza o queda elevada e inmovilizada hasta ser liberada.",
+            short: "Colocas una trampa mágica invisible en el suelo que inmoviliza y eleva a la primera criatura que la active.",
+            full: "Creas una trampa mágica oculta en un radio de 5 pies sobre el suelo. La primera criatura que la activa hace una salvación de Destreza o queda elevada e inmovilizada hasta ser liberada.",
         },
     },
     "tashas-caustic-brew": {
@@ -286,8 +286,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "You spray acid in a line. Affected creatures take acid damage on a failed Dexterity save and continue taking acid damage at the start of each turn until they use an action to remove the acid.",
         },
         es: {
-            short: "Un chorro de acido cubre criaturas en linea y las quema de forma repetida hasta limpiarlo.",
-            full: "Rocias acido en linea recta. Las criaturas afectadas reciben dano de acido con una salvacion de Destreza fallida y siguen recibiendolo al inicio de cada turno hasta usar una accion para limpiarse.",
+            short: "Un chorro de ácido cubre criaturas en línea y las quema de forma repetida hasta limpiarlo.",
+            full: "Rocías ácido en línea recta. Las criaturas afectadas reciben daño de ácido con una salvación de Destreza fallida y siguen recibiéndolo al inicio de cada turno hasta usar una acción para limpiarse.",
         },
     },
     pyrotechnics: {
@@ -297,7 +297,7 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
         },
         es: {
             short: "Transforma una llama existente en fuegos artificiales cegadores o una nube de humo.",
-            full: "Elige una llama no magica en alcance y conviertela en fuegos artificiales brillantes o humo denso. Los fuegos pueden cegar y el humo crea ocultacion intensa.",
+            full: "Elige una llama no mágica en alcance y conviértela en fuegos artificiales brillantes o humo denso. Los fuegos pueden cegar y el humo crea ocultación intensa.",
         },
     },
     skywrite: {
@@ -307,7 +307,7 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
         },
         es: {
             short: "Conjuras palabras flotantes en el cielo visibles desde gran distancia.",
-            full: "Formas hasta diez palabras en una zona del cielo. El mensaje permanece durante la duracion y puede verse claramente desde muy lejos.",
+            full: "Formas hasta diez palabras en una zona del cielo. El mensaje permanece durante la duración y puede verse claramente desde muy lejos.",
         },
     },
     catnap: {
@@ -316,7 +316,7 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "Willing creatures of your choice fall unconscious for 10 minutes and cannot be awakened by noise. After the duration, they gain the benefits of a short rest.",
         },
         es: {
-            short: "Hasta tres criaturas voluntarias toman una siesta magica breve y obtienen descanso corto.",
+            short: "Hasta tres criaturas voluntarias toman una siesta mágica breve y obtienen descanso corto.",
             full: "Criaturas voluntarias elegidas quedan inconscientes 10 minutos y no despiertan por ruido. Al terminar, obtienen los beneficios de un descanso corto.",
         },
     },
@@ -326,8 +326,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "A nonmagical weapon becomes a magic weapon and gains a bonus to attack rolls. Hits also deal extra acid, cold, fire, lightning, or thunder damage.",
         },
         es: {
-            short: "Imbuyes un arma con poder elemental, aumentando su precision y dano elemental.",
-            full: "Un arma no magica se vuelve magica y gana bonificador a tiradas de ataque. Sus impactos tambien infligen dano adicional de acido, frio, fuego, rayo o trueno.",
+            short: "Imbuyes un arma con poder elemental, aumentando su precision y daño elemental.",
+            full: "Un arma no mágica se vuelve mágica y gana bonificador a tiradas de ataque. Sus impactos también infligen daño adicional de ácido, frío, fuego, rayo o trueno.",
         },
     },
     "flame-arrows": {
@@ -336,8 +336,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "You touch quiver ammunition and enchant a number of pieces. A fired piece deals extra fire damage to the target on a hit, then loses the enchantment.",
         },
         es: {
-            short: "Encantas municion para que cada disparo cause dano extra de fuego al impactar.",
-            full: "Tocas municion de un carcaj y encantas varias piezas. Una pieza disparada inflige dano extra de fuego al objetivo si impacta y despues pierde el encantamiento.",
+            short: "Encantas municion para que cada disparo cause daño extra de fuego al impactar.",
+            full: "Tocas municion de un carcaj y encantas varias piezas. Una pieza disparada inflige daño extra de fuego al objetivo si impacta y despues pierde el encantamiento.",
         },
     },
     "intellect-fortress": {
@@ -346,8 +346,8 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "A creature you can see gains resistance to psychic damage and advantage on Intelligence, Wisdom, and Charisma saving throws for the duration.",
         },
         es: {
-            short: "Creas una defensa psiquica que otorga resistencia mental y al dano psiquico.",
-            full: "Una criatura que puedas ver obtiene resistencia al dano psiquico y ventaja en salvaciones de Inteligencia, Sabiduria y Carisma durante la duracion.",
+            short: "Creas una defensa psíquica que otorga resistencia mental y al daño psíquico.",
+            full: "Una criatura que puedas ver obtiene resistencia al daño psíquico y ventaja en salvaciones de Inteligencia, Sabiduría y Carisma durante la duración.",
         },
     },
     "tiny-servant": {
@@ -367,16 +367,16 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
         },
         es: {
             short: "Ocultas un cofre en el Plano Etereo y lo recuperas con su replica miniatura.",
-            full: "Ocultas un cofre grande con su contenido en el Plano Etereo mientras conservas una replica pequena. Con la replica puedes traer de vuelta el cofre temporalmente.",
+            full: "Ocultas un cofre grande con su contenido en el Plano Etereo mientras conservas una replica pequeña. Con la replica puedes traer de vuelta el cofre temporalmente.",
         },
     },
     "mordenkainens-faithful-hound": {
         en: {
-            short: "Conjure an invisible guard hound that watches an area and bites hostile creatures.",
+            short: "Conjure an invisible guard hound that watches an Área and bites hostile creatures.",
             full: "You create an invisible watchdog at a point in range. It barks at hidden creatures and damages hostile targets that come close.",
         },
         es: {
-            short: "Conjuras un sabueso guardia invisible que vigila un area y muerde a criaturas hostiles.",
+            short: "Conjuras un sabueso guardia invisible que vigila un Área y muerde a criaturas hostiles.",
             full: "Creas un perro guardian invisible en un punto de alcance. Ladra a criaturas ocultas y dana a objetivos hostiles que se acerquen.",
         },
     },
@@ -387,7 +387,7 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
         },
         es: {
             short: "Atrapas una criatura u objeto dentro de una esfera de fuerza resistente.",
-            full: "Una criatura elegida queda encerrada en una esfera de fuerza con una salvacion de Destreza fallida. La esfera bloquea efectos fisicos y puede moverse con fuerza externa.",
+            full: "Una criatura elegida queda encerrada en una esfera de fuerza con una salvación de Destreza fallida. La esfera bloquea efectos físicos y puede moverse con fuerza externa.",
         },
     },
     "summon-construct": {
@@ -406,7 +406,7 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
             full: "You conjure a Large hand of force that appears in range and can be commanded each turn to perform different combat functions such as attack, interpose, or grasp.",
         },
         es: {
-            short: "Creas una mano magica poderosa que puede golpear, empujar, agarrar o proteger.",
+            short: "Creas una mano mágica poderosa que puede golpear, empujar, agarrar o proteger.",
             full: "Conjuras una mano de fuerza grande que aparece en alcance y puede recibir ordenes cada turno para distintas funciones de combate como atacar, interponerse o sujetar.",
         },
     },
@@ -422,11 +422,11 @@ const ARTIFICER_FALLBACK_SPELL_TEXT: Record<string, FallbackSpellText> = {
     },
     "transmute-rock": {
         en: {
-            short: "Turn rock into mud or mud into rock across a large area, hindering movement or trapping creatures.",
-            full: "You reshape terrain in a cube area, converting stone to thick mud or mud to hard stone. The effect can restrain creatures and alter movement dramatically.",
+            short: "Turn rock into mud or mud into rock across a large Área, hindering movement or trapping creatures.",
+            full: "You reshape terrain in a cube Área, converting stone to thick mud or mud to hard stone. The effect can restrain creatures and alter movement dramatically.",
         },
         es: {
-            short: "Transformas roca en barro o barro en roca en un area amplia, dificultando movimiento o atrapando criaturas.",
+            short: "Transformas roca en barro o barro en roca en un Área amplia, dificultando movimiento o atrapando criaturas.",
             full: "Remodelas el terreno en un gran cubo, convirtiendo piedra en barro espeso o barro en roca dura. El efecto puede inmovilizar criaturas y cambiar mucho el desplazamiento.",
         },
     },
@@ -558,7 +558,7 @@ function buildArtificerClassLearningRecord(
         saving_throws: [
             {
                 index: "con",
-                name: locale === "es" ? "Constitucion" : "Constitution",
+                name: locale === "es" ? "Constitución" : "Constitution",
                 url: "/api/ability-scores/con",
             },
             {
@@ -710,3 +710,4 @@ export function augmentClassLearningWithArtificer<T extends { index?: string }>(
         byIndex: nextByIndex,
     };
 }
+

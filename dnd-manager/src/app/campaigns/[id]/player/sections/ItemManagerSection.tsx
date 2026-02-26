@@ -44,7 +44,7 @@ const ATTACHMENT_TYPE_OPTIONS: Array<{
     es: string;
     en: string;
 }> = [
-    { value: "action", es: "Accion", en: "Action" },
+    { value: "action", es: "Acción", en: "Action" },
     { value: "ability", es: "Habilidad", en: "Ability" },
     { value: "trait", es: "Rasgo", en: "Trait" },
     { value: "spell", es: "Hechizo", en: "Spell" },
@@ -65,9 +65,9 @@ const SPELL_SCHOOLS = [
 ];
 
 const CASTING_TIME_OPTIONS = [
-    { es: "Accion", en: "Action" },
-    { es: "Accion adicional", en: "Bonus action" },
-    { es: "Reaccion", en: "Reaction" },
+    { es: "Acción", en: "Action" },
+    { es: "Acción adicional", en: "Bonus action" },
+    { es: "Reacción", en: "Reaction" },
     { es: "1 minuto", en: "1 minute" },
     { es: "10 minutos", en: "10 minutes" },
     { es: "1 hora", en: "1 hour" },
@@ -77,9 +77,9 @@ const CASTING_TIME_OPTIONS = [
 const SAVE_ABILITIES: { value: AbilityKey; es: string; en: string }[] = [
     { value: "STR", es: "Fuerza (STR)", en: "Strength (STR)" },
     { value: "DEX", es: "Destreza (DEX)", en: "Dexterity (DEX)" },
-    { value: "CON", es: "Constitucion (CON)", en: "Constitution (CON)" },
+    { value: "CON", es: "Constitución (CON)", en: "Constitution (CON)" },
     { value: "INT", es: "Inteligencia (INT)", en: "Intelligence (INT)" },
-    { value: "WIS", es: "Sabiduria (WIS)", en: "Wisdom (WIS)" },
+    { value: "WIS", es: "Sabiduría (WIS)", en: "Wisdom (WIS)" },
     { value: "CHA", es: "Carisma (CHA)", en: "Charisma (CHA)" },
 ];
 
@@ -88,9 +88,9 @@ const ATTACHMENT_ACTION_TYPES: Array<{
     es: string;
     en: string;
 }> = [
-    { value: "action", es: "Accion", en: "Action" },
-    { value: "bonus", es: "Accion bonus", en: "Bonus action" },
-    { value: "reaction", es: "Reaccion", en: "Reaction" },
+    { value: "action", es: "Acción", en: "Action" },
+    { value: "bonus", es: "Acción bonus", en: "Bonus action" },
+    { value: "reaction", es: "Reacción", en: "Reaction" },
     { value: "passive", es: "Pasiva", en: "Passive" },
 ];
 
@@ -150,7 +150,7 @@ function getAttachmentTypeLabel(type: ItemAttachmentEntry["type"], locale: strin
     return getItemAttachmentTypeLabel(type, locale);
 }
 
-function buildItemConfigurationBase(name = "Configuracion A"): ItemConfiguration {
+function buildItemConfigurationBase(name = "Configuración A"): ItemConfiguration {
     return {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name,
@@ -193,7 +193,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
     const [attachmentDescription, setAttachmentDescription] = useState("");
     const [attachmentSchool, setAttachmentSchool] = useState("");
     const [attachmentCastingTime, setAttachmentCastingTime] = useState(
-        CASTING_TIME_OPTIONS[0]?.es ?? "Accion"
+        CASTING_TIME_OPTIONS[0]?.es ?? "Acción"
     );
     const [attachmentCastingTimeNote, setAttachmentCastingTimeNote] = useState("");
     const [attachmentRange, setAttachmentRange] = useState("");
@@ -267,7 +267,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         setAttachmentLevel("");
         setAttachmentDescription("");
         setAttachmentSchool("");
-        setAttachmentCastingTime(CASTING_TIME_OPTIONS[0]?.es ?? "Accion");
+        setAttachmentCastingTime(CASTING_TIME_OPTIONS[0]?.es ?? "Acción");
         setAttachmentCastingTimeNote("");
         setAttachmentRange("");
         setAttachmentDuration("");
@@ -612,7 +612,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
         const spellCastingTime: SpellCastingTime | undefined =
             attachmentCastingTime || attachmentCastingTimeNote
                 ? {
-                      value: attachmentCastingTime || (CASTING_TIME_OPTIONS[0]?.es ?? "Accion"),
+                      value: attachmentCastingTime || (CASTING_TIME_OPTIONS[0]?.es ?? "Acción"),
                       note: attachmentCastingTimeNote.trim() || undefined,
                   }
                 : undefined;
@@ -759,7 +759,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                     }}
                     className="text-xs px-3 py-1 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20"
                 >
-                    {t("Anadir objeto", "Add item")}
+                    {t("Añadir objeto", "Add item")}
                 </button>
             </div>
 
@@ -842,7 +842,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
 
                     <details className="rounded-xl border border-ring bg-white/80 p-3">
                         <summary className="cursor-pointer text-xs text-ink-muted">
-                            {t("Descripcion (Markdown)", "Description (Markdown)")}
+                            {t("Descripción (Markdown)", "Description (Markdown)")}
                         </summary>
                         <div className="mt-2">
                             <textarea
@@ -857,7 +857,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                     <div className="rounded-xl border border-ring bg-white/80 p-3 space-y-2">
                         <p className="text-xs font-semibold text-ink">{t("Modificadores", "Modifiers")}</p>
                         {modifiers.length === 0 ? (
-                            <p className="text-[11px] text-ink-muted">{t("Aun no hay modificadores.", "No modifiers yet.")}</p>
+                            <p className="text-[11px] text-ink-muted">{t("Aún no hay modificadores.", "No modifiers yet.")}</p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
                                 {modifiers.map((mod, index) => (
@@ -919,7 +919,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             onClick={addModifier}
                             className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                         >
-                            {t("Anadir modificador", "Add modifier")}
+                            {t("Añadir modificador", "Add modifier")}
                         </button>
                     </div>
 
@@ -1132,7 +1132,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                         </div>
                         <p className="text-[11px] text-ink-muted">
                             {t(
-                                "Puedes adjuntar una accion, habilidad, rasgo, hechizo o cualquier contenido personalizado del objeto.",
+                                "Puedes adjuntar una acción, habilidad, rasgo, hechizo o cualquier contenido personalizado del objeto.",
                                 "Attach an action, ability, trait, spell, or any custom content to this item."
                             )}
                         </p>
@@ -1140,7 +1140,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                         {selectedAttachmentList.length === 0 ? (
                             <p className="text-[11px] text-ink-muted">
                                 {t(
-                                    "Aun no has anadido contenido adjunto.",
+                                    "Aún no has añadido contenido adjunto.",
                                     "No attached content yet."
                                 )}
                             </p>
@@ -1283,7 +1283,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                 <div className="grid gap-2 md:grid-cols-2">
                                     <div className="space-y-1">
                                         <label className="text-[11px] text-ink-muted">
-                                            {t("Tipo de accion", "Action type")}
+                                            {t("Tipo de acción", "Action type")}
                                         </label>
                                         <select
                                             value={attachmentActionType}
@@ -1662,7 +1662,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
 
                                 <details className="rounded-lg border border-ring bg-white/85 p-2">
                                     <summary className="cursor-pointer text-[11px] text-ink-muted">
-                                        {t("Tirada / salvacion", "Roll / save")}
+                                        {t("Tirada / salvaciÓn", "Roll / save")}
                                     </summary>
                                     <div className="mt-2 space-y-2">
                                         <div className="space-y-1">
@@ -1681,7 +1681,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                                                 <option value="none">{t("Ninguno", "None")}</option>
                                                 <option value="attack">{t("Ataque", "Attack")}</option>
                                                 <option value="save">
-                                                    {t("Salvacion", "Saving throw")}
+                                                    {t("SalvaciÓn", "Saving throw")}
                                                 </option>
                                             </select>
                                         </div>
@@ -1781,12 +1781,12 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
 
                                 <details className="rounded-lg border border-ring bg-white/85 p-2">
                                     <summary className="cursor-pointer text-[11px] text-ink-muted">
-                                        {t("Dano", "Damage")}
+                                        {t("Daño", "Damage")}
                                     </summary>
                                     <div className="mt-2 grid gap-2 md:grid-cols-2">
                                         <div className="space-y-1">
                                             <label className="text-[11px] text-ink-muted">
-                                                {t("Tipo de dano", "Damage type")}
+                                                {t("Tipo de daño", "Damage type")}
                                             </label>
                                             <input
                                                 value={attachmentDamageType}
@@ -1826,7 +1826,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                         )}
                         <div className="space-y-1">
                             <label className="text-[11px] text-ink-muted">
-                                {t("Descripcion (Markdown)", "Description (Markdown)")}
+                                {t("Descripción (Markdown)", "Description (Markdown)")}
                             </label>
                             <textarea
                                 value={attachmentDescription}
@@ -1846,7 +1846,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                             onClick={addAttachment}
                             className="text-[11px] px-3 py-1 rounded-md border border-ring bg-white/70 hover:bg-white"
                         >
-                            {t("Anadir adjunto", "Add attachment")}
+                            {t("Añadir adjunto", "Add attachment")}
                         </button>
                     </div>
 
@@ -2118,7 +2118,7 @@ export default function ItemManagerSection({ items, setItems }: ItemManagerSecti
                         </span>
                     </div>
                     {items.length === 0 ? (
-                        <p className="text-xs text-ink-muted">{t("No has anadido objetos.", "No items added.")}</p>
+                        <p className="text-xs text-ink-muted">{t("No has añadido objetos.", "No items added.")}</p>
                     ) : (
                         <div className="space-y-2">
                             {items.map((item) => {

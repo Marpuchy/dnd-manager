@@ -1008,11 +1008,11 @@ export default function StoryPlayerView({
                 <h2 className="text-lg font-semibold text-ink">
                     {previewAsPlayer
                         ? t("Vista del jugador", "Player view")
-                        : t("Historia de la campana", "Campaign story")}
+                        : t("Historia de la Campaña", "Campaign story")}
                 </h2>
                 <div className="rounded-xl border border-ring bg-panel/80 p-4 text-sm text-ink-muted">
                     {t(
-                        "Todavia no hay modulos visibles para jugadores.",
+                        "Todavía no hay modulos visibles para jugadores.",
                         "There are no player-visible modules yet."
                     )}
                 </div>
@@ -1027,7 +1027,7 @@ export default function StoryPlayerView({
                     <h2 className="text-lg font-semibold text-ink">
                         {previewAsPlayer
                             ? t("Vista del jugador", "Player view")
-                            : t("Historia de la campana", "Campaign story")}
+                            : t("Historia de la Campaña", "Campaign story")}
                     </h2>
                     <p className="text-xs text-ink-muted">
                         {t(
@@ -1102,7 +1102,7 @@ export default function StoryPlayerView({
                                     : "border-ring bg-panel/80 text-ink hover:bg-panel"
                             } disabled:cursor-not-allowed disabled:opacity-45`}
                         >
-                            {`A${entry.act.act_number} · ${entry.act.title}`}
+                            {`A${entry.act.act_number} Â· ${entry.act.title}`}
                         </button>
                     );
                 })}
@@ -1371,7 +1371,7 @@ export default function StoryPlayerView({
                                 />
                             ) : (
                                 <p className="text-sm text-ink-muted">
-                                    {t("Sin descripcion publicada todavia.", "No published description yet.")}
+                                    {t("Sin descripción publicada todavía.", "No published description yet.")}
                                 </p>
                             )}
                         </>
@@ -1493,3 +1493,4 @@ export default function StoryPlayerView({
         </div>
     );
 }
+

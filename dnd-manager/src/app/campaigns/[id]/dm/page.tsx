@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -44,6 +44,15 @@ type MenuEntry = {
 
 type PlayerPanelMode = "idle" | "view" | "edit" | "spellManager";
 
+type TrashConsumeAnimation = {
+    characterId: string;
+    label: string;
+    fromX: number;
+    fromY: number;
+    dx: number;
+    dy: number;
+};
+
 export default function CampaignDMPage() {
     const params = useParams<{ id: string }>();
     const router = useRouter();
@@ -66,6 +75,9 @@ export default function CampaignDMPage() {
     const [isOverTrash, setIsOverTrash] = useState(false);
     const [draggedCharacterId, setDraggedCharacterId] = useState<string | null>(null);
     const [dragOverCharacterId, setDragOverCharacterId] = useState<string | null>(null);
+    const [consumingCharacterId, setConsumingCharacterId] = useState<string | null>(null);
+    const [trashConsumeAnimation, setTrashConsumeAnimation] =
+        useState<TrashConsumeAnimation | null>(null);
     const [selectionPulse, setSelectionPulse] = useState(0);
     const [showCompanions, setShowCompanions] = useState(false);
     const [bestiaryRefreshNonce, setBestiaryRefreshNonce] = useState(0);
@@ -73,7 +85,11 @@ export default function CampaignDMPage() {
         useState<string | null>(null);
 
     const [inviteCode, setInviteCode] = useState<string | null>(null);
+    const [campaignTitle, setCampaignTitle] = useState<string | null>(null);
     const [characters, setCharacters] = useState<Character[]>([]);
+    const trashDropRef = useRef<HTMLDivElement | null>(null);
+    const characterItemRefs = useRef<Record<string, HTMLLIElement | null>>({});
+    const trashDeleteTimerRef = useRef<number | null>(null);
 
     const { fields: formFields, loadFromCharacter } = useCharacterForm();
 
@@ -99,14 +115,18 @@ export default function CampaignDMPage() {
         {
             id: "characters",
             icon: "\uD83E\uDDD9",
-            es: "Gestor de personajes de la campana",
+            es: "Gestor de personajes de la Campaña",
             en: "Campaign character manager",
         },
     ];
 
     async function loadPanelData(campaignId: string): Promise<Character[]> {
         const [campaignRes, charsRes] = await Promise.all([
-            supabase.from("campaigns").select("invite_code").eq("id", campaignId).maybeSingle(),
+            supabase
+                .from("campaigns")
+                .select("invite_code, name")
+                .eq("id", campaignId)
+                .maybeSingle(),
             supabase
                 .from("characters")
                 .select(
@@ -120,6 +140,7 @@ export default function CampaignDMPage() {
         if (charsRes.error) throw charsRes.error;
 
         setInviteCode(campaignRes.data?.invite_code ?? null);
+        setCampaignTitle(campaignRes.data?.name?.trim() || null);
         const list = (charsRes.data ?? []) as Character[];
         const sorted = [...list].sort((a, b) => {
             const ao =
@@ -257,6 +278,14 @@ export default function CampaignDMPage() {
             setPlayerPanelMode("view");
         }
     }, [characters, editingCharacterId]);
+
+    useEffect(() => {
+        return () => {
+            if (trashDeleteTimerRef.current !== null) {
+                window.clearTimeout(trashDeleteTimerRef.current);
+            }
+        };
+    }, []);
 
     const editingCharacter =
         characters.find((character) => character.id === editingCharacterId) ?? null;
@@ -444,6 +473,7 @@ export default function CampaignDMPage() {
 
     function handleDragStartCharacter(event: DragEvent, characterId: string) {
         setDraggedCharacterId(characterId);
+        setIsOverTrash(false);
         try {
             const payload = JSON.stringify({ type: "character", id: characterId });
             event.dataTransfer.setData("application/x-dnd-manager-item", payload);
@@ -508,6 +538,7 @@ export default function CampaignDMPage() {
     function handleDragEndCharacter() {
         setDraggedCharacterId(null);
         setDragOverCharacterId(null);
+        setIsOverTrash(false);
     }
 
     function getSelectionBlobStyle(rawClass: string | null | undefined): CSSProperties {
@@ -530,9 +561,12 @@ export default function CampaignDMPage() {
         return (
             <li
                 key={character.id}
+                ref={(node) => {
+                    characterItemRefs.current[character.id] = node;
+                }}
                 onClick={() => handleOpenCharacterView(character.id)}
                 style={selectedStyle}
-                draggable
+                draggable={consumingCharacterId !== character.id}
                 onDragStart={(event) =>
                     handleDragStartCharacter(event, character.id)
                 }
@@ -551,6 +585,10 @@ export default function CampaignDMPage() {
                     isSelected
                         ? "border-transparent"
                         : "border-ring bg-white/70 hover:bg-white"
+                } ${
+                    consumingCharacterId === character.id
+                        ? "character-trash-consuming"
+                        : ""
                 }`}
             >
                 {isSelected && selectionPulse > 0 && (
@@ -626,7 +664,43 @@ export default function CampaignDMPage() {
             if (parsed?.type !== "character" || !parsed.id) return;
             const character = characters.find((entry) => entry.id === parsed.id);
             if (!character) return;
-            void handleDeleteCharacter(character);
+
+            const sourceRect =
+                characterItemRefs.current[character.id]?.getBoundingClientRect();
+            const targetRect = trashDropRef.current?.getBoundingClientRect();
+            if (sourceRect && targetRect) {
+                const fromX = sourceRect.left + sourceRect.width / 2;
+                const fromY = sourceRect.top + sourceRect.height / 2;
+                const toX = targetRect.left + targetRect.width / 2;
+                const toY = targetRect.top + targetRect.height / 2;
+                setTrashConsumeAnimation({
+                    characterId: character.id,
+                    label: character.name,
+                    fromX,
+                    fromY,
+                    dx: toX - fromX,
+                    dy: toY - fromY,
+                });
+            } else {
+                setTrashConsumeAnimation(null);
+            }
+
+            setConsumingCharacterId(character.id);
+            if (trashDeleteTimerRef.current !== null) {
+                window.clearTimeout(trashDeleteTimerRef.current);
+            }
+            trashDeleteTimerRef.current = window.setTimeout(() => {
+                void (async () => {
+                    setTrashConsumeAnimation((current) =>
+                        current?.characterId === character.id ? null : current
+                    );
+                    await handleDeleteCharacter(character);
+                    setConsumingCharacterId((current) =>
+                        current === character.id ? null : current
+                    );
+                    trashDeleteTimerRef.current = null;
+                })();
+            }, 340);
         } catch {
             // ignore
         }
@@ -716,7 +790,7 @@ export default function CampaignDMPage() {
     async function handleDeleteCharacter(character: Character) {
         const confirmed = window.confirm(
             t(
-                `Eliminar a ${character.name}? Esta accion no se puede deshacer.`,
+                `Eliminar a ${character.name}? Esta acción no se puede deshacer.`,
                 `Delete ${character.name}? This action cannot be undone.`
             )
         );
@@ -825,6 +899,9 @@ export default function CampaignDMPage() {
         );
     }
 
+    const trashIsOpen = isOverTrash || consumingCharacterId !== null;
+    const trashIsActive = draggedCharacterId !== null || consumingCharacterId !== null;
+
     return (
         <main className="relative h-screen bg-surface text-ink flex overflow-hidden">
             <svg
@@ -845,6 +922,23 @@ export default function CampaignDMPage() {
                     </filter>
                 </defs>
             </svg>
+            {trashConsumeAnimation && (
+                <div className="pointer-events-none fixed inset-0 z-[120]">
+                    <div
+                        className="trash-consume-chip"
+                        style={{
+                            left: `${trashConsumeAnimation.fromX}px`,
+                            top: `${trashConsumeAnimation.fromY}px`,
+                            ["--trash-dx" as string]: `${trashConsumeAnimation.dx}px`,
+                            ["--trash-dy" as string]: `${trashConsumeAnimation.dy}px`,
+                        }}
+                    >
+                        <span className="truncate max-w-[12rem]">
+                            {trashConsumeAnimation.label}
+                        </span>
+                    </div>
+                </div>
+            )}
             <aside
                 className={`relative z-10 h-full overflow-y-auto overflow-x-hidden styled-scrollbar border-r border-ring rounded-r-3xl bg-panel/90 p-4 space-y-3 transition-[width,box-shadow,background-color] duration-300 ease-in-out motion-reduce:transition-none ${
                     sidebarOpen ? "w-72 shadow-[0_18px_50px_rgba(45,29,12,0.18)]" : "w-16 shadow-none"
@@ -862,7 +956,7 @@ export default function CampaignDMPage() {
                             {t("Panel de master", "Master panel")}
                         </h2>
                         <p className="text-xs text-ink-muted">
-                            {t("Campana", "Campaign")} #{String(params.id)}
+                            {campaignTitle || t("Campaña sin título", "Untitled campaign")}
                         </p>
                     </div>
 
@@ -976,10 +1070,14 @@ export default function CampaignDMPage() {
             </button>
 
             <section
-                className={`flex-1 min-h-0 p-6 ${
-                    activeSection === "story" || activeSection === "bestiary"
-                        ? "flex flex-col gap-4 overflow-hidden"
-                        : "space-y-4 overflow-y-auto styled-scrollbar"
+                className={`flex-1 min-h-0 ${
+                    activeSection === "story"
+                        ? "pl-0 pr-6 py-6 flex flex-col gap-4 overflow-hidden"
+                        : activeSection === "bestiary"
+                            ? "p-6 flex flex-col gap-4 overflow-hidden"
+                            : activeSection === "players"
+                                ? "px-6 pt-6 pb-2 space-y-4 overflow-hidden flex flex-col"
+                            : "p-6 space-y-4 overflow-y-auto styled-scrollbar"
                 }`}
             >
                 <div className="flex items-center justify-end">
@@ -1004,25 +1102,26 @@ export default function CampaignDMPage() {
                 )}
 
                 {activeSection === "players" && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 min-h-0 flex flex-col">
                         <h1 className="text-xl font-semibold text-ink">
                             {t("Gestor de jugadores", "Player manager")}
                         </h1>
-                        <p className="text-sm text-ink-muted">
+                        <p className="hint-copy text-sm text-ink-muted">
                             {t(
-                                "Aqui aparecen los personajes de jugadores en la campana.",
+                                "Aquí aparecen los personajes de jugadores en la Campaña.",
                                 "This section shows player characters in the campaign."
                             )}
                         </p>
 
-                        <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-                            <div className="space-y-3 max-h-[calc(100vh-12rem)] overflow-y-auto styled-scrollbar pr-1">
-                                <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-3">
+                        <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-stretch min-h-0 flex-1">
+                            <div className="max-h-[calc(100vh-10.5rem)] min-h-[460px]">
+                                <div className="h-full overflow-y-auto styled-scrollbar pr-1">
+                                    <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-3">
                                     {playerCharacters.length === 0 &&
                                     companionCharacters.length === 0 ? (
                                         <p className="text-sm text-ink-muted">
                                             {t(
-                                                "No hay personajes en la campana.",
+                                                "No hay personajes en la Campaña.",
                                                 "No characters in this campaign."
                                             )}
                                         </p>
@@ -1088,103 +1187,172 @@ export default function CampaignDMPage() {
                                             </div>
                                         </>
                                     )}
-                                </div>
-
-                                <div className="border border-ring rounded-xl bg-panel/80 p-3">
-                                    <div
-                                        onDragOver={handleTrashDragOver}
-                                        onDragLeave={handleTrashDragLeave}
-                                        onDrop={handleTrashDrop}
-                                        className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${
-                                            isOverTrash
-                                                ? "border-red-500 bg-red-500/10"
-                                                : "border-red-300/60 bg-white/60"
-                                        }`}
-                                    >
-                                        <div>
-                                            <p className="text-sm font-medium text-red-600 text-center">
-                                                {t(
-                                                    "Arrastra aqui para eliminar",
-                                                    "Drag here to delete"
-                                                )}
-                                            </p>
-                                            <p className="text-[11px] text-ink-muted text-center">
-                                                {t(
-                                                    "Suelta para eliminar el personaje arrastrado",
-                                                    "Release to remove the dragged character"
-                                                )}
-                                            </p>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 min-h-[440px] max-h-[calc(100vh-12rem)] overflow-y-auto styled-scrollbar">
-                                {playerEditorOpen && editingCharacter && playerPanelMode === "edit" ? (
-                                    <div className="p-3 pt-4">
-                                        <CharacterForm
-                                            key={`dm-edit-${editingCharacter.id}`}
-                                            mode="edit"
-                                            autoSave
-                                            autoSaveDelayMs={10000}
-                                            onSaved={async (characterId) => {
-                                                const updatedList = await loadPanelData(
-                                                    String(params.id)
-                                                );
-                                                const updatedCharacter = updatedList.find(
-                                                    (character) => character.id === characterId
-                                                );
-                                                if (updatedCharacter) {
-                                                    loadFromCharacter(updatedCharacter);
-                                                }
-                                            }}
-                                            onCancel={() => {
-                                                setPlayerPanelMode("view");
-                                                void loadPanelData(String(params.id));
-                                            }}
-                                            fields={{
-                                                ...formFields,
-                                                campaignId: String(params.id),
-                                                characterId: editingCharacter.id,
-                                            }}
-                                            ownerOptions={ownerOptions}
-                                            characterId={editingCharacter.id}
-                                            profileImage={editingCharacter.profile_image ?? null}
-                                            onImageUpdated={() => {
-                                                void loadPanelData(String(params.id));
-                                            }}
-                                        />
-                                    </div>
-                                ) : playerEditorOpen &&
-                                  editingCharacter &&
-                                  playerPanelMode === "spellManager" ? (
-                                    <div className="p-3 pt-4">
-                                        <SpellManagerPanel
-                                            character={editingCharacter}
-                                            isDMMode
-                                            onClose={() => setPlayerPanelMode("view")}
-                                            onDetailsChange={handlePlayerDetailsChange}
-                                        />
-                                    </div>
-                                ) : playerEditorOpen && editingCharacter && playerPanelMode === "view" ? (
-                                    <div className="p-3 pt-4">
-                                        <CharacterView
-                                            character={editingCharacter}
-                                            companions={characters}
-                                            activeTab={playerViewTab}
-                                            onTabChange={setPlayerViewTab}
-                                            onDetailsChange={handlePlayerDetailsChange}
-                                            onOpenSpellManager={handleOpenSpellManager}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="p-4 text-sm text-ink-muted">
-                                        {t(
-                                            "Selecciona un jugador y pulsa Editar para abrir su vista.",
-                                            "Select a player and click Edit to open their view."
+                            <div className="space-y-3 min-h-0">
+                                <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 min-h-[460px] max-h-[calc(100vh-10.5rem)] flex flex-col overflow-hidden">
+                                    <div className="min-h-0 flex-1 overflow-y-auto styled-scrollbar">
+                                        {playerEditorOpen &&
+                                        editingCharacter &&
+                                        playerPanelMode === "edit" ? (
+                                            <div className="p-3 pt-4">
+                                                <CharacterForm
+                                                    key={`dm-edit-${editingCharacter.id}`}
+                                                    mode="edit"
+                                                    autoSave
+                                                    autoSaveDelayMs={10000}
+                                                    onSaved={async (characterId) => {
+                                                        const updatedList = await loadPanelData(
+                                                            String(params.id)
+                                                        );
+                                                        const updatedCharacter = updatedList.find(
+                                                            (character) => character.id === characterId
+                                                        );
+                                                        if (updatedCharacter) {
+                                                            loadFromCharacter(updatedCharacter);
+                                                        }
+                                                    }}
+                                                    onCancel={() => {
+                                                        setPlayerPanelMode("view");
+                                                        void loadPanelData(String(params.id));
+                                                    }}
+                                                    fields={{
+                                                        ...formFields,
+                                                        campaignId: String(params.id),
+                                                        characterId: editingCharacter.id,
+                                                    }}
+                                                    ownerOptions={ownerOptions}
+                                                    characterId={editingCharacter.id}
+                                                    profileImage={editingCharacter.profile_image ?? null}
+                                                    onImageUpdated={() => {
+                                                        void loadPanelData(String(params.id));
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : playerEditorOpen &&
+                                          editingCharacter &&
+                                          playerPanelMode === "spellManager" ? (
+                                            <div className="p-3 pt-4">
+                                                <SpellManagerPanel
+                                                    character={editingCharacter}
+                                                    isDMMode
+                                                    onClose={() => setPlayerPanelMode("view")}
+                                                    onDetailsChange={handlePlayerDetailsChange}
+                                                />
+                                            </div>
+                                        ) : playerEditorOpen &&
+                                          editingCharacter &&
+                                          playerPanelMode === "view" ? (
+                                            <div className="p-3 pt-4">
+                                                <CharacterView
+                                                    character={editingCharacter}
+                                                    companions={characters}
+                                                    activeTab={playerViewTab}
+                                                    onTabChange={setPlayerViewTab}
+                                                    onDetailsChange={handlePlayerDetailsChange}
+                                                    onOpenSpellManager={handleOpenSpellManager}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="hint-copy p-4 text-sm text-ink-muted">
+                                                {t(
+                                                    "Selecciona un jugador y pulsa Editar para abrir su vista.",
+                                                    "Select a player and click Edit to open their view."
+                                                )}
+                                            </div>
                                         )}
                                     </div>
-                                )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-auto xl:w-[340px]">
+                            <div className="border border-ring rounded-xl bg-panel/80 p-3">
+                                <div
+                                    ref={trashDropRef}
+                                    onDragOver={handleTrashDragOver}
+                                    onDragLeave={handleTrashDragLeave}
+                                    onDrop={handleTrashDrop}
+                                    title={t(
+                                        "Arrastra un personaje aquí para eliminarlo",
+                                        "Drag a character here to delete"
+                                    )}
+                                    aria-label={t(
+                                        "Arrastra un personaje aquí para eliminarlo",
+                                        "Drag a character here to delete"
+                                    )}
+                                    className={`rounded-md p-3 border-2 min-h-16 flex items-center justify-center transition-colors ${
+                                        isOverTrash
+                                            ? "border-red-500 bg-red-500/10"
+                                            : "border-red-300/60 bg-white/60"
+                                    } ${trashIsActive ? "shadow-[inset_0_0_0_1px_rgba(220,38,38,0.14)]" : ""}`}
+                                >
+                                    <span
+                                        aria-hidden
+                                        className={`trash-drop-icon ${
+                                            trashIsOpen ? "is-open" : ""
+                                        } ${consumingCharacterId ? "is-consuming" : ""}`}
+                                    >
+                                        <svg
+                                            viewBox="0 0 64 64"
+                                            className="trash-drop-icon__svg"
+                                            role="presentation"
+                                        >
+                                            <g className="trash-drop-icon__lid-group">
+                                                <rect
+                                                    className="trash-drop-icon__handle"
+                                                    x="26"
+                                                    y="13"
+                                                    width="14"
+                                                    height="3"
+                                                    rx="1"
+                                                />
+                                                <rect
+                                                    className="trash-drop-icon__lid"
+                                                    x="15"
+                                                    y="18"
+                                                    width="34"
+                                                    height="4"
+                                                    rx="1.5"
+                                                />
+                                            </g>
+                                            <g className="trash-drop-icon__body-group">
+                                                <path
+                                                    className="trash-drop-icon__body"
+                                                    d="M18 24 H46 V48 C46 52.4 42.4 56 38 56 H26 C21.6 56 18 52.4 18 48 Z"
+                                                />
+                                                <line
+                                                    className="trash-drop-icon__slat"
+                                                    x1="26"
+                                                    y1="30"
+                                                    x2="26"
+                                                    y2="49"
+                                                />
+                                                <line
+                                                    className="trash-drop-icon__slat"
+                                                    x1="32"
+                                                    y1="30"
+                                                    x2="32"
+                                                    y2="49"
+                                                />
+                                                <line
+                                                    className="trash-drop-icon__slat"
+                                                    x1="38"
+                                                    y1="30"
+                                                    x2="38"
+                                                    y2="49"
+                                                />
+                                            </g>
+                                        </svg>
+                                    </span>
+                                    <span className="sr-only">
+                                        {t(
+                                            "Arrastra un personaje aquí para eliminarlo",
+                                            "Drag a character here to delete"
+                                        )}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1211,13 +1379,13 @@ export default function CampaignDMPage() {
                     <div className="space-y-3">
                         <h1 className="text-xl font-semibold text-ink">
                             {t(
-                                "Gestor de personajes de la campana",
+                                "Gestor de personajes de la Campaña",
                                 "Campaign character manager"
                             )}
                         </h1>
-                        <p className="text-sm text-ink-muted">
+                        <p className="hint-copy text-sm text-ink-muted">
                             {t(
-                                "Este apartado queda vacio por ahora.",
+                                "Este apartado queda vacío por ahora.",
                                 "This section is intentionally empty for now."
                             )}
                         </p>
@@ -1271,6 +1439,151 @@ export default function CampaignDMPage() {
                     margin-bottom: 0.5rem;
                     gap: 0.75rem;
                 }
+
+                .character-trash-consuming {
+                    pointer-events: none;
+                    animation: dm-character-trash-consume 340ms ease-in forwards;
+                }
+
+                .trash-drop-icon {
+                    position: relative;
+                    width: 44px;
+                    height: 44px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    filter: drop-shadow(0 4px 10px rgba(127, 29, 29, 0.2));
+                    transition: transform 220ms ease, filter 220ms ease;
+                }
+
+                .trash-drop-icon__svg {
+                    width: 100%;
+                    height: 100%;
+                    overflow: visible;
+                }
+
+                .trash-drop-icon__lid-group {
+                    transform-origin: 18px 20px;
+                    transition: transform 220ms ease;
+                }
+
+                .trash-drop-icon__body-group {
+                    transform-origin: 32px 40px;
+                }
+
+                .trash-drop-icon__handle {
+                    fill: rgba(254, 226, 226, 0.98);
+                    stroke: rgba(127, 29, 29, 0.84);
+                    stroke-width: 1.4;
+                }
+
+                .trash-drop-icon__lid {
+                    fill: rgba(185, 28, 28, 0.94);
+                    stroke: rgba(127, 29, 29, 0.9);
+                    stroke-width: 1.5;
+                }
+
+                .trash-drop-icon__body {
+                    fill: rgba(254, 226, 226, 0.98);
+                    stroke: rgba(127, 29, 29, 0.9);
+                    stroke-width: 2;
+                }
+
+                .trash-drop-icon__slat {
+                    stroke: rgba(185, 28, 28, 0.88);
+                    stroke-width: 1.9;
+                    stroke-linecap: round;
+                }
+
+                .trash-drop-icon.is-open {
+                    transform: scale(1.04);
+                    filter: drop-shadow(0 6px 14px rgba(127, 29, 29, 0.26));
+                }
+
+                .trash-drop-icon.is-open .trash-drop-icon__lid-group {
+                    transform: rotate(-32deg) translate(-3px, -2px);
+                }
+
+                .trash-drop-icon.is-consuming .trash-drop-icon__body-group {
+                    animation: dm-trash-body-wobble 260ms ease-in-out infinite;
+                }
+
+                .trash-drop-icon.is-consuming .trash-drop-icon__lid-group {
+                    animation: dm-trash-lid-flutter 240ms ease-in-out infinite;
+                }
+
+                .trash-consume-chip {
+                    position: fixed;
+                    transform: translate(-50%, -50%);
+                    border-radius: 9999px;
+                    padding: 0.35rem 0.65rem;
+                    font-size: 0.72rem;
+                    line-height: 1rem;
+                    color: rgb(127 29 29);
+                    border: 1px solid rgba(220, 38, 38, 0.45);
+                    background: rgba(254, 226, 226, 0.95);
+                    box-shadow: 0 10px 18px rgba(185, 28, 28, 0.24);
+                    animation: dm-trash-fly 340ms cubic-bezier(0.18, 0.82, 0.26, 1) forwards;
+                }
+
+                @keyframes dm-trash-fly {
+                    0% {
+                        opacity: 1;
+                        transform: translate(-50%, -50%) scale(1);
+                    }
+                    75% {
+                        opacity: 0.88;
+                        transform: translate(
+                                calc(-50% + var(--trash-dx)),
+                                calc(-50% + var(--trash-dy))
+                            )
+                            scale(0.42);
+                    }
+                    100% {
+                        opacity: 0;
+                        transform: translate(
+                                calc(-50% + var(--trash-dx)),
+                                calc(-50% + var(--trash-dy))
+                            )
+                            scale(0.12);
+                    }
+                }
+
+                @keyframes dm-character-trash-consume {
+                    0% {
+                        opacity: 1;
+                        transform: scale(1);
+                        filter: blur(0);
+                    }
+                    100% {
+                        opacity: 0.08;
+                        transform: scale(0.74);
+                        filter: blur(1px);
+                    }
+                }
+
+                @keyframes dm-trash-body-wobble {
+                    0%,
+                    100% {
+                        transform: rotate(0deg) scale(1);
+                    }
+                    25% {
+                        transform: rotate(-2deg) scale(1.02);
+                    }
+                    75% {
+                        transform: rotate(2deg) scale(1.02);
+                    }
+                }
+
+                @keyframes dm-trash-lid-flutter {
+                    0%,
+                    100% {
+                        transform: rotate(-30deg) translate(-3px, -2px);
+                    }
+                    50% {
+                        transform: rotate(-38deg) translate(-5px, -4px);
+                    }
+                }
             `}</style>
             <AIAssistantPanel
                 open={assistantOpen}
@@ -1305,4 +1618,7 @@ export default function CampaignDMPage() {
         </main>
     );
 }
+
+
+
 

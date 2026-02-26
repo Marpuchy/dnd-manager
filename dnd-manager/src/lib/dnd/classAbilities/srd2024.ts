@@ -827,7 +827,7 @@ export const CLASS_PROGRESSIONS_2024: Record<string, ClassProgression> = {
             level: 3,
             subclassId: "druid:circle-of-the-land",
             subclassName: "Circle of the Land",
-            description: "As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points.\n\nThe damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6)."
+            description: "As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that Área regains 2d6 Hit Points.\n\nThe damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6)."
           },
           {
             id: "druid:circle-of-the-land:lvl6:natural-recovery",
@@ -854,7 +854,7 @@ export const CLASS_PROGRESSIONS_2024: Record<string, ClassProgression> = {
             level: 14,
             subclassId: "druid:circle-of-the-land",
             subclassName: "Circle of the Land",
-            description: "As a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last there for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that area, and your allies gain the current Resistance of your Natures Ward while there.\n\nAs a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself."
+            description: "As a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last there for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that Área, and your allies gain the current Resistance of your Natures Ward while there.\n\nAs a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself."
           }
         ]
       }
@@ -3048,7 +3048,7 @@ export const CLASS_PROGRESSIONS_2024: Record<string, ClassProgression> = {
             subclassId: "artificer:artillerist",
             subclassName: "Artillerist",
             description:
-              "Your cannons deal more damage and can be detonated to create an area explosion."
+              "Your cannons deal more damage and can be detonated to create an Área explosiÓn."
           },
           {
             id: "artificer:artillerist:lvl15:fortified-position",

@@ -74,7 +74,7 @@ const RULE_PATTERNS: Array<{ pattern: RegExp; rule: string }> = [
   },
   {
     pattern: /\b(hit dice|dados de golpe|hp|vida|constitucion|con)\b/,
-    rule: "Ajustar dados de golpe y Constitucion de forma coherente con los HP declarados.",
+    rule: "Ajustar dados de golpe y Constitución de forma coherente con los HP declarados.",
   },
   {
     pattern: /\b(notas|rasgos|traits|trait|notes)\b/,
@@ -82,7 +82,7 @@ const RULE_PATTERNS: Array<{ pattern: RegExp; rule: string }> = [
   },
   {
     pattern: /\b(letania|letania maldita|maldita|susurro|cd\s*\d+)\b/,
-    rule: "Detectar texto de habilidad con pista de tipo (accion/reaccion/pasiva) y convertirlo en bloque estructurado.",
+    rule: "Detectar texto de habilidad con pista de tipo (acción/reacción/pasiva) y convertirlo en bloque estructurado.",
   },
 ];
 
