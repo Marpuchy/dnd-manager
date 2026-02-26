@@ -12,6 +12,7 @@ import {
     type BestiaryBlock,
     type CreatureSheetData,
 } from "../../shared/bestiaryShared";
+import { getBestiarySelectionStyle, SelectionBlobOverlay } from "../../shared/selectionBlobShared";
 
 type CampaignBestiaryPlayerViewProps = {
     campaignId: string;
@@ -33,10 +34,13 @@ type PlayerEntry = {
     proficiencyBonus: number | null;
     abilityScores: AbilityScores;
     speed: Record<string, unknown>;
+    savingThrows: Record<string, unknown>;
+    skills: Record<string, unknown>;
     senses: Record<string, unknown>;
     languages: string;
     flavor: string;
     notes: string;
+    tags: string[];
     traits: BestiaryBlock[];
     actions: BestiaryBlock[];
     bonusActions: BestiaryBlock[];
@@ -74,12 +78,34 @@ function asInt(value: unknown): number | null {
     return n == null ? null : Math.round(n);
 }
 
+function extractTags(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => asText(item))
+            .filter(Boolean);
+    }
+
+    const raw = asText(value);
+    if (!raw) return [];
+
+    return raw
+        .split(/[,;/|]/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+}
+
 function compareEntries(a: PlayerEntry, b: PlayerEntry): number {
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     return a.createdAt.localeCompare(b.createdAt);
 }
 
 function toEntry(raw: Record<string, unknown>): PlayerEntry {
+    const metadata = asRecord(raw.metadata);
+    const metadataTags = extractTags(metadata.tags);
+    const typeTags = extractTags(raw.creature_type);
+    const entryKindTags = extractTags(raw.entry_kind);
+    const tags = Array.from(new Set([...metadataTags, ...typeTags, ...entryKindTags]));
+
     return {
         id: asText(raw.id),
         name: asText(raw.name),
@@ -95,10 +121,13 @@ function toEntry(raw: Record<string, unknown>): PlayerEntry {
         proficiencyBonus: asInt(raw.proficiency_bonus),
         abilityScores: normalizeAbilityScores(raw.ability_scores),
         speed: toLooseRecord(raw.speed),
+        savingThrows: toLooseRecord(raw.saving_throws),
+        skills: toLooseRecord(raw.skills),
         senses: toLooseRecord(raw.senses),
         languages: asText(raw.languages),
         flavor: asText(raw.flavor),
         notes: asText(raw.notes),
+        tags,
         traits: toBestiaryBlocks(raw.traits),
         actions: toBestiaryBlocks(raw.actions),
         bonusActions: toBestiaryBlocks(raw.bonus_actions),
@@ -124,6 +153,7 @@ export default function CampaignBestiaryPlayerView({ campaignId, locale }: Campa
 
     const [entries, setEntries] = useState<PlayerEntry[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [selectionPulse, setSelectionPulse] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -190,10 +220,13 @@ export default function CampaignBestiaryPlayerView({ campaignId, locale }: Campa
             proficiencyBonus: selected.proficiencyBonus,
             abilityScores: selected.abilityScores,
             speed: selected.speed,
+            savingThrows: selected.savingThrows,
+            skills: selected.skills,
             senses: selected.senses,
             languages: selected.languages || null,
             flavor: selected.flavor || null,
             notes: selected.notes || null,
+            tags: selected.tags,
             traits: selected.traits,
             actions: selected.actions,
             bonusActions: selected.bonusActions,
@@ -220,18 +253,36 @@ export default function CampaignBestiaryPlayerView({ campaignId, locale }: Campa
                             <p className="text-xs text-ink-muted">{t("No hay criaturas visibles para jugadores.", "No creatures visible to players.")}</p>
                         ) : (
                             <ul className="space-y-2">
-                                {entries.map((entry) => (
-                                    <li key={entry.id}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedId(entry.id)}
-                                            className={`w-full rounded-md border px-3 py-2 text-left ${selectedId === entry.id ? "border-accent/70 bg-accent/12" : "border-ring bg-white/80 hover:bg-white"}`}
-                                        >
-                                            <p className="text-sm font-medium text-ink truncate">{entry.name}</p>
-                                            <p className="mt-0.5 text-[11px] text-ink-muted truncate">{entry.creatureType || t("Sin tipo", "No type")} · CR {entry.challengeRating ?? "-"}</p>
-                                        </button>
-                                    </li>
-                                ))}
+                                {entries.map((entry) => {
+                                    const isSelected = selectedId === entry.id;
+                                    const selectedStyle = isSelected ? getBestiarySelectionStyle() : undefined;
+
+                                    return (
+                                        <li key={entry.id}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectionPulse((value) => value + 1);
+                                                    setSelectedId(entry.id);
+                                                }}
+                                                style={selectedStyle}
+                                                className={`relative isolate overflow-hidden w-full rounded-md border px-3 py-2 text-left transition-[border-color,box-shadow,background-color] ${
+                                                    isSelected
+                                                        ? "border-transparent"
+                                                        : "border-ring bg-white/80 hover:bg-white"
+                                                }`}
+                                            >
+                                                {isSelected ? (
+                                                    <SelectionBlobOverlay entryId={entry.id} pulse={selectionPulse} />
+                                                ) : null}
+                                                <div className="relative z-10">
+                                                    <p className="text-sm font-medium text-ink truncate">{entry.name}</p>
+                                                    <p className="mt-0.5 text-[11px] text-ink-muted truncate">{entry.creatureType || t("Sin tipo", "No type")} · CR {entry.challengeRating ?? "-"}</p>
+                                                </div>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>
@@ -239,7 +290,7 @@ export default function CampaignBestiaryPlayerView({ campaignId, locale }: Campa
 
                 <section className="min-h-0 overflow-y-auto overflow-x-hidden styled-scrollbar pr-1">
                     {sheetData ? (
-                        <CreatureSheet data={sheetData} locale={locale} className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]" />
+                        <CreatureSheet data={sheetData} locale={locale} statsMode="hex" className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]" />
                     ) : (
                         <div className="rounded-xl border border-ring bg-panel/75 p-4 text-sm text-ink-muted">{t("Selecciona una criatura visible.", "Select a visible creature.")}</div>
                     )}

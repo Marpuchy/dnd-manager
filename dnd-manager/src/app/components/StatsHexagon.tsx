@@ -17,6 +17,11 @@ type BonusDetail = {
     value: number;
 };
 
+type HexColor = {
+    stroke: string;
+    fill: string;
+};
+
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Constantes de escala
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -34,6 +39,14 @@ export const CLASS_COLORS: Record<
     string,
     { stroke: string; fill: string }
 > = {
+    aberration: {
+        stroke: "#7c3aed",
+        fill: "rgba(124,58,237,0.35)",
+    },
+    beast: {
+        stroke: "#65a30d",
+        fill: "rgba(101,163,13,0.35)",
+    },
     barbarian: {
         stroke: "#dc2626",
         fill: "rgba(220,38,38,0.35)",
@@ -42,25 +55,77 @@ export const CLASS_COLORS: Record<
         stroke: "#c026d3",
         fill: "rgba(192,38,211,0.35)",
     },
+    celestial: {
+        stroke: "#0891b2",
+        fill: "rgba(8,145,178,0.35)",
+    },
     cleric: {
         stroke: "#eab308",
         fill: "rgba(234,179,8,0.35)",
+    },
+    construct: {
+        stroke: "#64748b",
+        fill: "rgba(100,116,139,0.35)",
+    },
+    demon: {
+        stroke: "#b91c1c",
+        fill: "rgba(185,28,28,0.35)",
+    },
+    devil: {
+        stroke: "#991b1b",
+        fill: "rgba(153,27,27,0.35)",
+    },
+    dragon: {
+        stroke: "#dc2626",
+        fill: "rgba(220,38,38,0.35)",
     },
     druid: {
         stroke: "#16a34a",
         fill: "rgba(22,163,74,0.35)",
     },
+    elemental: {
+        stroke: "#0284c7",
+        fill: "rgba(2,132,199,0.35)",
+    },
+    fey: {
+        stroke: "#0f766e",
+        fill: "rgba(15,118,110,0.35)",
+    },
+    fiend: {
+        stroke: "#b91c1c",
+        fill: "rgba(185,28,28,0.35)",
+    },
     fighter: {
         stroke: "#f97316",
         fill: "rgba(249,115,22,0.35)",
+    },
+    giant: {
+        stroke: "#c2410c",
+        fill: "rgba(194,65,12,0.35)",
+    },
+    humanoid: {
+        stroke: "#2563eb",
+        fill: "rgba(37,99,235,0.35)",
     },
     monk: {
         stroke: "#0ea5e9",
         fill: "rgba(14,165,233,0.35)",
     },
+    monstrosity: {
+        stroke: "#9333ea",
+        fill: "rgba(147,51,234,0.35)",
+    },
+    ooze: {
+        stroke: "#84cc16",
+        fill: "rgba(132,204,22,0.35)",
+    },
     paladin: {
         stroke: "#fde047",
         fill: "rgba(253,224,71,0.35)",
+    },
+    plant: {
+        stroke: "#15803d",
+        fill: "rgba(21,128,61,0.35)",
     },
     ranger: {
         stroke: "#22c55e",
@@ -73,6 +138,14 @@ export const CLASS_COLORS: Record<
     sorcerer: {
         stroke: "#a855f7",
         fill: "rgba(168,85,247,0.35)",
+    },
+    swarm: {
+        stroke: "#4b5563",
+        fill: "rgba(75,85,99,0.35)",
+    },
+    undead: {
+        stroke: "#6d28d9",
+        fill: "rgba(109,40,217,0.35)",
     },
     warlock: {
         stroke: "#7c3aed",
@@ -125,6 +198,7 @@ export default function StatsHexagon({
                                          bonuses,
                                          bonusDetails,
                                          characterClass,
+                                         colorOverride,
                                          labels,
                                          size,
                                      }: {
@@ -132,6 +206,7 @@ export default function StatsHexagon({
     bonuses?: Record<StatKey, boolean>;
     bonusDetails?: Record<StatKey, BonusDetail[]>;
     characterClass?: string;
+    colorOverride?: HexColor;
     labels?: Partial<Record<StatKey, string>>;
     size?: number;
 }) {
@@ -168,7 +243,7 @@ export default function StatsHexagon({
         (_, i) => (Math.PI * 2 * i) / ORDER.length - Math.PI / 2
     );
 
-    const hexColor = getClassColor(characterClass);
+    const hexColor = colorOverride ?? getClassColor(characterClass);
 
     const statPoints = angles
         .map((angle, i) => {

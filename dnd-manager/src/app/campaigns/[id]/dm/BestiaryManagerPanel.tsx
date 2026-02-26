@@ -1,6 +1,12 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type WheelEvent } from "react";
+import {
+    useEffect,
+    useMemo,
+    useState,
+    type ChangeEvent,
+    type WheelEvent,
+} from "react";
 import { Plus, RefreshCw, Save, Search, Trash2, Upload, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
@@ -16,6 +22,7 @@ import {
     type BestiaryBlock,
     type CreatureSheetData,
 } from "../shared/bestiaryShared";
+import { getBestiarySelectionStyle, SelectionBlobOverlay } from "../shared/selectionBlobShared";
 
 type BestiaryManagerPanelProps = {
     campaignId: string;
@@ -43,10 +50,13 @@ type CampaignEntry = {
     proficiencyBonus: number | null;
     abilityScores: AbilityScores;
     speed: Record<string, unknown>;
+    savingThrows: Record<string, unknown>;
+    skills: Record<string, unknown>;
     senses: Record<string, unknown>;
     languages: string;
     flavor: string;
     notes: string;
+    tags: string[];
     traits: BestiaryBlock[];
     actions: BestiaryBlock[];
     bonusActions: BestiaryBlock[];
@@ -75,10 +85,13 @@ type Draft = {
     proficiencyBonus: string;
     abilityScores: AbilityScores;
     speed: Record<string, unknown>;
+    savingThrows: Record<string, unknown>;
+    skills: Record<string, unknown>;
     senses: Record<string, unknown>;
     languages: string;
     flavor: string;
     notes: string;
+    tags: string[];
     traits: BestiaryBlock[];
     actions: BestiaryBlock[];
     bonusActions: BestiaryBlock[];
@@ -196,6 +209,109 @@ function parseLooseRecordFromEditorText(value: string): Record<string, unknown> 
     return next;
 }
 
+function extractTags(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => asText(item))
+            .filter(Boolean);
+    }
+
+    const raw = asText(value);
+    if (!raw) return [];
+
+    return raw
+        .split(/[,;/|]/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+}
+
+function normalizeLookupKey(value: string): string {
+    return value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+}
+
+function parseCommonProficiencies(
+    value: unknown
+): { savingThrows: Record<string, unknown>; skills: Record<string, unknown> } {
+    const savingThrows: Record<string, unknown> = {};
+    const skills: Record<string, unknown> = {};
+
+    if (!Array.isArray(value)) {
+        return { savingThrows, skills };
+    }
+
+    const saveAliasMap: Record<string, string> = {
+        strength: "STR",
+        str: "STR",
+        fuerza: "STR",
+        dexterity: "DEX",
+        dex: "DEX",
+        destreza: "DEX",
+        constitution: "CON",
+        con: "CON",
+        constitucion: "CON",
+        intelligence: "INT",
+        int: "INT",
+        inteligencia: "INT",
+        wisdom: "WIS",
+        wis: "WIS",
+        sabiduria: "WIS",
+        charisma: "CHA",
+        cha: "CHA",
+        carisma: "CHA",
+    };
+
+    for (const entry of value) {
+        const row = asRecord(entry);
+        const rawValue = asNum(row.value);
+        if (rawValue == null) continue;
+
+        const proficiency = asRecord(row.proficiency);
+        const rawIndex = asText(proficiency.index || row.index);
+        const rawName = asText(proficiency.name || row.name || rawIndex);
+
+        const normalizedIndex = normalizeLookupKey(rawIndex);
+        const normalizedName = normalizeLookupKey(rawName);
+        const isSave = normalizedIndex.startsWith("savingthrow") || normalizedName.startsWith("savingthrow");
+        const isSkill = normalizedIndex.startsWith("skill") || normalizedName.startsWith("skill");
+
+        if (isSave) {
+            const saveToken = rawName
+                .split(/[:()]/)
+                .map((part) => normalizeLookupKey(part))
+                .find((part) => saveAliasMap[part]);
+            if (saveToken) {
+                savingThrows[saveAliasMap[saveToken]] = Math.round(rawValue);
+                continue;
+            }
+
+            const suffix = normalizedIndex.replace(/^savingthrow/, "");
+            if (saveAliasMap[suffix]) {
+                savingThrows[saveAliasMap[suffix]] = Math.round(rawValue);
+            }
+            continue;
+        }
+
+        if (isSkill) {
+            const keyFromIndex = normalizedIndex.replace(/^skill/, "");
+            if (keyFromIndex) {
+                skills[keyFromIndex] = Math.round(rawValue);
+                continue;
+            }
+
+            const keyFromName = normalizedName.replace(/^skill/, "");
+            if (keyFromName) {
+                skills[keyFromName] = Math.round(rawValue);
+            }
+        }
+    }
+
+    return { savingThrows, skills };
+}
+
 function bestiaryBlocksToEditorText(blocks: BestiaryBlock[]): string {
     return blocks
         .map((block) => {
@@ -251,6 +367,12 @@ function visibilityError(error: unknown): boolean {
 }
 
 function toEntry(raw: Record<string, unknown>): CampaignEntry {
+    const metadata = asRecord(raw.metadata);
+    const metadataTags = extractTags(metadata.tags);
+    const typeTags = extractTags(raw.creature_type);
+    const entryKindTags = extractTags(raw.entry_kind);
+    const tags = Array.from(new Set([...metadataTags, ...typeTags, ...entryKindTags]));
+
     return {
         id: asText(raw.id),
         name: asText(raw.name),
@@ -267,10 +389,13 @@ function toEntry(raw: Record<string, unknown>): CampaignEntry {
         proficiencyBonus: asInt(raw.proficiency_bonus),
         abilityScores: normalizeAbilityScores(raw.ability_scores),
         speed: toLooseRecord(raw.speed),
+        savingThrows: toLooseRecord(raw.saving_throws),
+        skills: toLooseRecord(raw.skills),
         senses: toLooseRecord(raw.senses),
         languages: asText(raw.languages),
         flavor: asText(raw.flavor),
         notes: asText(raw.notes),
+        tags,
         traits: toBestiaryBlocks(raw.traits),
         actions: toBestiaryBlocks(raw.actions),
         bonusActions: toBestiaryBlocks(raw.bonus_actions),
@@ -301,10 +426,13 @@ function entryToDraft(entry: CampaignEntry): Draft {
         proficiencyBonus: toInputNumber(entry.proficiencyBonus),
         abilityScores: entry.abilityScores,
         speed: entry.speed,
+        savingThrows: entry.savingThrows,
+        skills: entry.skills,
         senses: entry.senses,
         languages: entry.languages,
         flavor: entry.flavor,
         notes: entry.notes,
+        tags: entry.tags,
         traits: entry.traits,
         actions: entry.actions,
         bonusActions: entry.bonusActions,
@@ -334,10 +462,13 @@ function emptyDraft(sortOrder: number): Draft {
         proficiencyBonus: "",
         abilityScores: { ...DEFAULT_ABILITY_SCORES },
         speed: {},
+        savingThrows: {},
+        skills: {},
         senses: {},
         languages: "",
         flavor: "",
         notes: "",
+        tags: [],
         traits: [],
         actions: [],
         bonusActions: [],
@@ -369,6 +500,8 @@ function toPayload(draft: Draft, campaignId: string, includeVisibility: boolean)
         proficiency_bonus: fromInputNumber(draft.proficiencyBonus, true),
         ability_scores: draft.abilityScores,
         speed: draft.speed,
+        saving_throws: draft.savingThrows,
+        skills: draft.skills,
         senses: draft.senses,
         languages: draft.languages.trim() || null,
         flavor: draft.flavor.trim() || null,
@@ -440,6 +573,7 @@ export default function BestiaryManagerPanel({
     const [entries, setEntries] = useState<CampaignEntry[]>([]);
     const [loadingEntries, setLoadingEntries] = useState(true);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [selectionPulse, setSelectionPulse] = useState(0);
     const [creating, setCreating] = useState(false);
     const [campaignPanelMode, setCampaignPanelMode] = useState<"view" | "edit">("view");
     const [draft, setDraft] = useState<Draft | null>(null);
@@ -587,6 +721,7 @@ export default function BestiaryManagerPanel({
     useEffect(() => {
         if (!focusEntryId) return;
         if (!entries.some((entry) => entry.id === focusEntryId)) return;
+        setSelectionPulse((value) => value + 1);
         setSelectedId(focusEntryId);
     }, [entries, focusEntryId]);
 
@@ -861,6 +996,7 @@ export default function BestiaryManagerPanel({
         if (!commonDetail) return;
         const index = asText(commonDetail.index);
         if (!index) return;
+        const commonProficiencies = parseCommonProficiencies(commonDetail.proficiencies);
 
         const existing = entries.find((entry) => entry.sourceType === "SRD" && entry.sourceIndex === index);
         if (existing) {
@@ -901,6 +1037,8 @@ export default function BestiaryManagerPanel({
                     CHA: commonDetail.charisma,
                 }),
                 speed: toLooseRecord(commonDetail.speed),
+                saving_throws: commonProficiencies.savingThrows,
+                skills: commonProficiencies.skills,
                 senses: toLooseRecord(commonDetail.senses),
                 languages: asText(commonDetail.languages) || null,
                 traits: toBestiaryBlocks(commonDetail.special_abilities),
@@ -1160,10 +1298,13 @@ export default function BestiaryManagerPanel({
             proficiencyBonus: fromInputNumber(draft.proficiencyBonus, true),
             abilityScores: draft.abilityScores,
             speed: draft.speed,
+            savingThrows: draft.savingThrows,
+            skills: draft.skills,
             senses: draft.senses,
             languages: draft.languages || null,
             flavor: draft.flavor || null,
             notes: draft.notes || null,
+            tags: draft.tags,
             traits: draft.traits,
             actions: draft.actions,
             bonusActions: draft.bonusActions,
@@ -1175,6 +1316,7 @@ export default function BestiaryManagerPanel({
 
     const commonSheet: CreatureSheetData | null = useMemo(() => {
         if (!commonDetail) return null;
+        const commonProficiencies = parseCommonProficiencies(commonDetail.proficiencies);
         return {
             name: asText(commonDetail.name) || asText(commonDetail.localized_name) || asText(commonDetail.index),
             subtitle: [asText(commonDetail.size), asText(commonDetail.type), asText(commonDetail.alignment)].filter(Boolean).join(" · "),
@@ -1200,8 +1342,16 @@ export default function BestiaryManagerPanel({
                 CHA: commonDetail.charisma,
             }),
             speed: toLooseRecord(commonDetail.speed),
+            savingThrows: commonProficiencies.savingThrows,
+            skills: commonProficiencies.skills,
             senses: toLooseRecord(commonDetail.senses),
             languages: asText(commonDetail.languages) || null,
+            tags: Array.from(
+                new Set([
+                    ...extractTags(asText(commonDetail.type)),
+                    ...extractTags(asText(commonDetail.subtype)),
+                ])
+            ),
             traits: toBestiaryBlocks(commonDetail.special_abilities),
             actions: toBestiaryBlocks(commonDetail.actions),
             bonusActions: toBestiaryBlocks(commonDetail.bonus_actions),
@@ -1298,33 +1448,45 @@ export default function BestiaryManagerPanel({
                                 <p className="text-xs text-ink-muted">{t("Aun no hay criaturas en campana.", "No campaign creatures yet.")}</p>
                             ) : (
                                 <ul className="space-y-2">
-                                    {entries.map((entry) => (
-                                        <li key={entry.id}>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setCreating(false);
-                                                    setCampaignPanelMode("view");
-                                                    setSelectedId(entry.id);
-                                                }}
-                                                className={`w-full rounded-md border px-3 py-2 text-left ${
-                                                    !creating && selectedId === entry.id
-                                                        ? "border-accent/70 bg-accent/12"
-                                                        : "border-ring bg-white/80 hover:bg-white"
-                                                }`}
-                                            >
-                                                <p className="text-sm font-medium text-ink truncate">{entry.name}</p>
-                                                <p className="mt-0.5 text-[11px] text-ink-muted truncate">
-                                                    {entry.creatureType || t("Sin tipo", "No type")} · CR {entry.challengeRating ?? "-"}
-                                                </p>
-                                                <p className="mt-1 text-[10px] text-ink-muted">
-                                                    {entry.isPlayerVisible
-                                                        ? t("Visible a jugadores", "Visible to players")
-                                                        : t("Solo DM", "DM only")}
-                                                </p>
-                                            </button>
-                                        </li>
-                                    ))}
+                                    {entries.map((entry) => {
+                                        const isSelected = !creating && selectedId === entry.id;
+                                        const selectedStyle = isSelected ? getBestiarySelectionStyle() : undefined;
+
+                                        return (
+                                            <li key={entry.id}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectionPulse((value) => value + 1);
+                                                        setCreating(false);
+                                                        setCampaignPanelMode("view");
+                                                        setSelectedId(entry.id);
+                                                    }}
+                                                    style={selectedStyle}
+                                                    className={`relative isolate overflow-hidden w-full rounded-md border px-3 py-2 text-left transition-[border-color,box-shadow,background-color] ${
+                                                        isSelected
+                                                            ? "border-transparent"
+                                                            : "border-ring bg-white/80 hover:bg-white"
+                                                    }`}
+                                                >
+                                                    {isSelected ? (
+                                                        <SelectionBlobOverlay entryId={entry.id} pulse={selectionPulse} />
+                                                    ) : null}
+                                                    <div className="relative z-10">
+                                                        <p className="text-sm font-medium text-ink truncate">{entry.name}</p>
+                                                        <p className="mt-0.5 text-[11px] text-ink-muted truncate">
+                                                            {entry.creatureType || t("Sin tipo", "No type")} · CR {entry.challengeRating ?? "-"}
+                                                        </p>
+                                                        <p className="mt-1 text-[10px] text-ink-muted">
+                                                            {entry.isPlayerVisible
+                                                                ? t("Visible a jugadores", "Visible to players")
+                                                                : t("Solo DM", "DM only")}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             )}
                         </div>
@@ -1575,7 +1737,7 @@ export default function BestiaryManagerPanel({
                                         </div>
                                     </div>
 
-                                    {campaignSheet ? <CreatureSheet data={campaignSheet} locale={locale} className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]" /> : null}
+                                    {campaignSheet ? <CreatureSheet data={campaignSheet} locale={locale} statsMode="hex" className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]" /> : null}
                                 </div>
                             )
                         ) : (
@@ -1724,6 +1886,7 @@ export default function BestiaryManagerPanel({
                                 <CreatureSheet
                                     data={commonSheet}
                                     locale={locale}
+                                    statsMode="hex"
                                     className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]"
                                     headerRight={
                                         <button
