@@ -1126,7 +1126,7 @@ export default function CampaignDMPage() {
                                             key={`dm-edit-${editingCharacter.id}`}
                                             mode="edit"
                                             autoSave
-                                            autoSaveDelayMs={300}
+                                            autoSaveDelayMs={10000}
                                             onSaved={async (characterId) => {
                                                 const updatedList = await loadPanelData(
                                                     String(params.id)

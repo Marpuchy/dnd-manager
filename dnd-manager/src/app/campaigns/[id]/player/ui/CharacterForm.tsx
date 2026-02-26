@@ -1067,6 +1067,9 @@ export function CharacterForm({
                     abilities: abilities ?? null,
                     notes: notes ?? null,
                     portraitNote: portraitNote ?? null,
+                    hitDie: {
+                        sides: hitDieSides ?? 8
+                    },
                     armors: Array.isArray(armors) ? armors : [],
                     weaponEquipped:
                         weaponName ||
@@ -1676,8 +1679,8 @@ export function CharacterForm({
                                     label={t("Vida maxima (calculada)", "Max hit points (calculated)")}
                                     value={previewMaxHp}
                                     sub={t(
-                                        `(${hitDieSides} x nivel) + ${conMod >= 0 ? `+${conMod}` : conMod}`,
-                                        `(${hitDieSides} x level) + ${conMod >= 0 ? `+${conMod}` : conMod}`
+                                        `(${hitDieSides} ${conMod >= 0 ? '+' : ''}${conMod}) x nivel`,
+                                        `(${hitDieSides} ${conMod >= 0 ? '+' : ''}${conMod}) x level`
                                     )}
                                 />
                             </div>

@@ -15,12 +15,22 @@ import {
     ExternalLink,
     Link2,
     Plus,
+    RefreshCw,
     Save,
+    Search,
     Trash2,
     Upload,
+    X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
+import { CreatureSheet } from "../shared/bestiaryShared";
+import {
+    toBestiaryEntryRecord,
+    toCreatureSheetDataFromBestiaryEntry,
+    type BestiaryEntryRecord,
+} from "../shared/bestiaryEntryShared";
+import { OverlayModal } from "../shared/OverlayModal";
 import StoryPlayerView from "../player/ui/StoryPlayerView";
 
 type StoryManagerPanelProps = {
@@ -98,6 +108,7 @@ type ZoneRow = {
     target_map_id: string | null;
     target_url: string | null;
     sort_order: number;
+    possible_encounters: string[]; // Array de IDs de criaturas del bestiario
 };
 
 type DocumentRow = {
@@ -1121,8 +1132,13 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
     const [zoneIconDraft, setZoneIconDraft] = useState("*");
     const [zoneColorDraft, setZoneColorDraft] = useState("#4f46e5");
     const [zoneOpacityDraft, setZoneOpacityDraft] = useState("100");
-    const [zoneRadiusDraft, setZoneRadiusDraft] = useState("54");
-    const [zoneVisibleDraft, setZoneVisibleDraft] = useState(false);
+    const [zoneRadiusDraft, setZoneRadiusDraft] = useState(String(DEFAULT_ZONE_RADIUS));
+    const [zoneVisibleDraft, setZoneVisibleDraft] = useState(true);
+    const [zonePossibleEncountersDraft, setZonePossibleEncountersDraft] = useState<string[]>([]);
+
+    const [bestiaryCreatures, setBestiaryCreatures] = useState<BestiaryEntryRecord[]>([]);
+    const [encounterModalOpen, setEncounterModalOpen] = useState(false);
+    const [selectedEncounterForView, setSelectedEncounterForView] = useState<BestiaryEntryRecord | null>(null);
 
     const [referenceQuery, setReferenceQuery] = useState("");
 
@@ -1245,6 +1261,12 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         const nextOpacity = clamp(Number(zoneOpacityDraft) || 100, 0, 100);
         const nextColor = colorFromHexAndOpacity(zoneColorDraft || "#4f46e5", nextOpacity);
         const nextIcon = zoneIconDraft || base.icon;
+        const currentPossibleEncounters = selectedZone.possible_encounters || [];
+        const nextPossibleEncounters = zonePossibleEncountersDraft || [];
+
+        const encountersChanged = 
+            currentPossibleEncounters.length !== nextPossibleEncounters.length ||
+            currentPossibleEncounters.some((id, index) => id !== nextPossibleEncounters[index]);
 
         return (
             nextName !== selectedZone.name
@@ -1252,6 +1274,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             || !colorsEquivalent(nextColor, base.color)
             || nextIcon !== base.icon
             || zoneVisibleDraft !== Boolean(selectedZone.is_visible)
+            || encountersChanged
         );
     }, [
         selectedZone,
@@ -1261,6 +1284,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         zoneOpacityDraft,
         zoneIconDraft,
         zoneVisibleDraft,
+        zonePossibleEncountersDraft,
     ]);
 
     const selectedDocumentHtml = useMemo(
@@ -1300,6 +1324,14 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         docDefaultTextColorDraft,
     ]);
 
+    const selectedEncounterSheetData = useMemo(
+        () =>
+            selectedEncounterForView
+                ? toCreatureSheetDataFromBestiaryEntry(selectedEncounterForView, locale)
+                : null,
+        [selectedEncounterForView, locale]
+    );
+
     const showMapPanel = !editorPanelExpanded;
     const showEditorPanel = editorPanelExpanded || !editorPanelCollapsed;
 
@@ -1307,7 +1339,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         setLoading(true);
         setError(null);
         try {
-            const [sessionRes, actsRes, nodesRes] = await Promise.all([
+            const [sessionRes, actsRes, nodesRes, bestiaryRes] = await Promise.all([
                 supabase.auth.getSession(),
                 supabase
                     .from("campaign_acts")
@@ -1321,15 +1353,23 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     .eq("campaign_id", campaignId)
                     .order("sort_order", { ascending: true })
                     .order("created_at", { ascending: true }),
+                supabase
+                    .from("campaign_bestiary_entries")
+                    .select("id, name, source_type, source_index, creature_type, creature_size, alignment, challenge_rating, xp, armor_class, hit_points, hit_dice, proficiency_bonus, ability_scores, speed, senses, languages, flavor, notes, traits, actions, bonus_actions, reactions, legendary_actions, lair_actions, weaknesses, image_url, is_player_visible, sort_order, created_at")
+                    .eq("campaign_id", campaignId)
+                    .order("sort_order", { ascending: true })
+                    .order("created_at", { ascending: true }),
             ]);
 
             if (sessionRes.error) throw sessionRes.error;
             if (actsRes.error) throw actsRes.error;
             if (nodesRes.error) throw nodesRes.error;
+            if (bestiaryRes.error) throw bestiaryRes.error;
 
             setUserId(sessionRes.data?.session?.user?.id ?? null);
             setActs((actsRes.data ?? []) as ActRow[]);
             setNodes((nodesRes.data ?? []) as NodeRow[]);
+            setBestiaryCreatures((bestiaryRes.data ?? []).map((creature) => toBestiaryEntryRecord(creature)));
         } catch (err) {
             setError(
                 toErrorMessage(
@@ -1706,9 +1746,8 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             setZoneColorDraft("#4f46e5");
             setZoneOpacityDraft("100");
             setZoneRadiusDraft(String(DEFAULT_ZONE_RADIUS));
-            setZoneVisibleDraft(false);
-            setReferences([]);
-            setSelectedDocument(null);
+            setZoneVisibleDraft(true);
+            setZonePossibleEncountersDraft([]);
             return;
         }
 
@@ -1720,6 +1759,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         setZoneOpacityDraft(String(Math.round(parsedColor.alpha * 100)));
         setZoneRadiusDraft(String(geometry.radius));
         setZoneVisibleDraft(Boolean(selectedZone.is_visible));
+        setZonePossibleEncountersDraft(selectedZone.possible_encounters || []);
 
         const nodeId = selectedZone.node_id ?? selectedZone.target_node_id;
         if (!nodeId) return;
@@ -2311,7 +2351,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 .from("campaign_map_zones")
                 .insert(zonePayload)
                 .select(
-                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order"
+                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order, possible_encounters"
                 )
                 .maybeSingle();
 
@@ -2544,6 +2584,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     icon: zoneIconDraft || base.icon,
                 },
                 is_visible: zoneVisibleDraft,
+                possible_encounters: zonePossibleEncountersDraft || [],
                 updated_by: userId,
             };
 
@@ -2553,7 +2594,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 .eq("id", selectedZone.id)
                 .eq("campaign_id", campaignId)
                 .select(
-                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order"
+                    "id, campaign_id, map_id, node_id, name, shape_type, geometry, is_visible, action_type, target_node_id, target_map_id, target_url, sort_order, possible_encounters"
                 )
                 .maybeSingle();
 
@@ -2598,16 +2639,30 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
         }, { es: "Zona guardada.", en: "Zone saved." }, options);
     }
 
-    async function handleTrashZone() {
+    function handleTrashZone() {
         if (!selectedZone) return;
-        const confirmed = window.confirm(
-            t(
-                "Enviar esta zona a la papelera temporal? Podras restaurarla desde Ajustes durante 30 dias.",
-                "Move this zone to temporary trash? You can restore it from Settings for 30 days."
-            )
-        );
-        if (!confirmed) return;
+        void handleDeleteZone(selectedZone.id);
+    }
 
+    function handleAddEncounter(creatureId: string) {
+        if (!zonePossibleEncountersDraft.includes(creatureId)) {
+            setZonePossibleEncountersDraft(prev => [...prev, creatureId]);
+        }
+    }
+
+    function handleRemoveEncounter(creatureId: string) {
+        setZonePossibleEncountersDraft(prev => prev.filter(id => id !== creatureId));
+    }
+
+    function handleToggleEncounter(creatureId: string) {
+        if (zonePossibleEncountersDraft.includes(creatureId)) {
+            handleRemoveEncounter(creatureId);
+        } else {
+            handleAddEncounter(creatureId);
+        }
+    }
+
+    async function handleDeleteZone(zoneId: string) {
         await runMutation(async () => {
             const { error: softDeleteError } = await supabase
                 .from("campaign_map_zones")
@@ -2616,7 +2671,7 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                     deleted_by: userId,
                     updated_by: userId,
                 })
-                .eq("id", selectedZone.id)
+                .eq("id", zoneId)
                 .eq("campaign_id", campaignId);
 
             if (softDeleteError) {
@@ -2629,12 +2684,12 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                 const { error: legacyDeleteError } = await supabase
                     .from("campaign_map_zones")
                     .delete()
-                    .eq("id", selectedZone.id)
+                    .eq("id", zoneId)
                     .eq("campaign_id", campaignId);
                 if (legacyDeleteError) throw legacyDeleteError;
             }
 
-            setZones((prev) => prev.filter((zone) => zone.id !== selectedZone.id));
+            setZones((prev) => prev.filter((zone) => zone.id !== zoneId));
             setSelectedZoneId(null);
             setReferences([]);
             setSelectedDocument(null);
@@ -3544,6 +3599,63 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
                                                 {t("Visible para jugadores", "Visible to players")}
                                             </span>
                                         </label>
+                                        
+                                        {/* Sección de apariciones posibles */}
+                                        <div className="space-y-2 border-t border-ring pt-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <h3 className="text-sm font-semibold text-ink inline-flex items-center gap-1">
+                                                    <span className="text-lg">🐉</span>
+                                                    {t("Apariciones posibles", "Possible encounters")}
+                                                </h3>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEncounterModalOpen(true)}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-accent/60 bg-accent/10 px-2 py-1 text-xs hover:bg-accent/20"
+                                                >
+                                                    <Plus className="h-3 w-3" />
+                                                    {t("Añadir aparición", "Add encounter")}
+                                                </button>
+                                            </div>
+                                            
+                                            {zonePossibleEncountersDraft.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {zonePossibleEncountersDraft.map((creatureId) => {
+                                                        const creature = bestiaryCreatures.find(c => c.id === creatureId);
+                                                        if (!creature) return null;
+                                                        
+                                                        return (
+                                                            <div
+                                                                key={creature.id}
+                                                                className="flex items-center justify-between gap-2 rounded-md border border-ring bg-white/70 p-2 cursor-pointer hover:bg-white/80 transition-colors"
+                                                                onClick={() => setSelectedEncounterForView(creature)}
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <span className="font-medium text-sm text-ink">{creature.name}</span>
+                                                                    <span className="text-xs text-ink-muted ml-2">
+                                                                        {creature.creature_type} • CR {creature.challenge_rating || '?'}
+                                                                    </span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setZonePossibleEncountersDraft(prev => prev.filter(id => id !== creature.id));
+                                                                    }}
+                                                                    className="text-red-500 hover:text-red-700 text-xs"
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-ink-muted italic">
+                                                    {t("No hay apariciones configuradas", "No encounters configured")}
+                                                </p>
+                                            )}
+                                        </div>
+
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="text-[11px] text-ink-muted">
                                                 {t(
@@ -3751,6 +3863,93 @@ export default function StoryManagerPanel({ campaignId, locale }: StoryManagerPa
             </div>
             )}
             <style jsx global>{STORY_MANAGER_GLOBAL_STYLES}</style>
+
+            <OverlayModal
+                open={encounterModalOpen}
+                onClose={() => setEncounterModalOpen(false)}
+                title={t("Seleccionar apariciones", "Select encounters")}
+                maxWidthClassName="max-w-2xl"
+                bodyClassName="max-h-[60vh] overflow-y-auto styled-scrollbar"
+                footer={
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-ink-muted">
+                            {zonePossibleEncountersDraft.length} {t("seleccionadas", "selected")}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setEncounterModalOpen(false)}
+                            className="rounded-md bg-accent px-4 py-2 text-sm text-white transition-colors hover:bg-accent/90"
+                        >
+                            {t("Hecho", "Done")}
+                        </button>
+                    </div>
+                }
+            >
+                {bestiaryCreatures.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-ink-muted">
+                        {t("No hay criaturas en el bestiario", "No creatures in bestiary")}
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {bestiaryCreatures.map((creature) => {
+                            const isSelected = zonePossibleEncountersDraft.includes(creature.id);
+                            return (
+                                <div
+                                    key={creature.id}
+                                    className={`flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors ${
+                                        isSelected
+                                            ? "border-accent bg-accent/10"
+                                            : "border-ring hover:bg-white/80"
+                                    }`}
+                                    onClick={() => handleToggleEncounter(creature.id)}
+                                >
+                                    <div className="flex-1">
+                                        <div className="font-medium text-ink">{creature.name}</div>
+                                        <div className="text-sm text-ink-muted">
+                                            {creature.creature_type} • CR {creature.challenge_rating || "?"}
+                                        </div>
+                                        {creature.flavor ? (
+                                            <div className="mt-1 line-clamp-2 text-xs text-ink-muted">
+                                                {creature.flavor}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <div
+                                        className={`flex h-5 w-5 items-center justify-center rounded border-2 ${
+                                            isSelected
+                                                ? "border-accent bg-accent"
+                                                : "border-ring"
+                                        }`}
+                                    >
+                                        {isSelected ? <div className="h-2 w-2 rounded-full bg-white" /> : null}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </OverlayModal>
+
+            <OverlayModal
+                open={Boolean(selectedEncounterForView)}
+                onClose={() => setSelectedEncounterForView(null)}
+                title={selectedEncounterForView?.name ?? t("Aparición", "Encounter")}
+                maxWidthClassName="max-w-6xl"
+                bodyClassName="max-h-[82vh] overflow-y-auto styled-scrollbar p-2"
+            >
+                {selectedEncounterSheetData ? (
+                    <CreatureSheet
+                        data={selectedEncounterSheetData}
+                        locale={locale}
+                        statsMode="hex"
+                        className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]"
+                    />
+                ) : (
+                    <p className="text-sm text-ink-muted">
+                        {t("No se pudo cargar la ficha de la criatura.", "Could not load creature sheet.")}
+                    </p>
+                )}
+            </OverlayModal>
         </div>
     );
 }
