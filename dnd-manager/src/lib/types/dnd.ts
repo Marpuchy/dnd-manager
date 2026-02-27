@@ -281,6 +281,14 @@ export type CustomSubclassEntry = {
     source?: string;
 };
 
+export type MulticlassEntry = {
+    id: string;
+    classId: string;
+    level: number;
+    subclassId?: string;
+    subclassName?: string;
+};
+
 export type ManualAdjustmentEntry = {
     id: string;
     target: string;
@@ -331,6 +339,8 @@ export type Details = {
     spellDetails?: Record<string, SpellMeta>;
     classSubclassId?: string;
     classSubclassName?: string;
+    primaryClassLevel?: number;
+    multiclass?: MulticlassEntry[];
     customClassName?: string;
     customCastingAbility?: keyof Stats;
     manualAdjustments?: ManualAdjustmentEntry[];

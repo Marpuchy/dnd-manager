@@ -8,6 +8,7 @@ import type {
     CustomSubclassEntry,
     CustomSpellEntry,
     LearnedSpellRef,
+    MulticlassEntry,
     PassiveModifier,
     SkillProficiencies,
     Spells,
@@ -36,6 +37,8 @@ export type CharacterFormFields = {
     setCharClass: (v: string) => void;
     classSubclassId?: string;
     setClassSubclassId?: (v: string) => void;
+    multiclassEntries?: MulticlassEntry[];
+    setMulticlassEntries?: (v: MulticlassEntry[]) => void;
     charLevel: number;
     setCharLevel: (v: number) => void;
     race: string;
@@ -261,6 +264,7 @@ export function useCharacterForm(): UseCharacterFormResult {
     const [characterType, setCharacterType] = useState<CharacterType>("character");
     const [charClass, setCharClass] = useState("");
     const [classSubclassId, setClassSubclassId] = useState("");
+    const [multiclassEntries, setMulticlassEntries] = useState<MulticlassEntry[]>([]);
     const [charLevel, setCharLevel] = useState<number>(1);
     const [race, setRace] = useState("");
     const [experience, setExperience] = useState<number>(0);
@@ -375,6 +379,7 @@ export function useCharacterForm(): UseCharacterFormResult {
         setCharacterType("character");
         setCharClass("");
         setClassSubclassId("");
+        setMulticlassEntries([]);
         setCharLevel(1);
         setRace("");
         setExperience(0);
@@ -460,6 +465,37 @@ export function useCharacterForm(): UseCharacterFormResult {
         setCharName(char.name);
         setCharClass(normalizeClassForApi(char.class ?? "") || char.class || "");
         setClassSubclassId(char.details?.classSubclassId ?? "");
+        setMulticlassEntries(
+            Array.isArray(char.details?.multiclass)
+                ? char.details.multiclass
+                      .filter(
+                          (entry) =>
+                              entry &&
+                              typeof entry.classId === "string" &&
+                              entry.classId.trim().length > 0 &&
+                              Number.isFinite(Number(entry.level)) &&
+                              Number(entry.level) > 0
+                      )
+                      .map((entry, index) => ({
+                          id:
+                              typeof entry.id === "string" && entry.id.trim().length > 0
+                                  ? entry.id.trim()
+                                  : `multiclass-${index + 1}`,
+                          classId: String(entry.classId).trim(),
+                          level: Math.max(1, Math.min(20, Math.floor(Number(entry.level) || 1))),
+                          subclassId:
+                              typeof entry.subclassId === "string" &&
+                              entry.subclassId.trim().length > 0
+                                  ? entry.subclassId.trim()
+                                  : undefined,
+                          subclassName:
+                              typeof entry.subclassName === "string" &&
+                              entry.subclassName.trim().length > 0
+                                  ? entry.subclassName.trim()
+                                  : undefined,
+                      }))
+                : []
+        );
         setCharLevel(char.level ?? 1);
         setRace(char.race ?? "");
         setExperience(char.experience ?? 0);
@@ -669,6 +705,8 @@ export function useCharacterForm(): UseCharacterFormResult {
             setCharClass,
             classSubclassId,
             setClassSubclassId,
+            multiclassEntries,
+            setMulticlassEntries,
             charLevel,
             setCharLevel,
             race,

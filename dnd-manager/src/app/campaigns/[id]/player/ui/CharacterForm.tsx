@@ -1,4 +1,4 @@
-// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
+﻿// src/app/campaigns/[id]/player/ui/CharacterForm.tsx
 "use client";
 
 import React, { FormEvent } from "react";
@@ -15,6 +15,7 @@ import type {
     AbilityKey,
     CustomSubclassEntry,
     ManualAdjustmentEntry,
+    MulticlassEntry,
     SkillKey,
 } from "@/lib/types/dnd";
 import { Mode, Stats, DND_CLASS_OPTIONS } from "../playerShared";
@@ -70,9 +71,9 @@ export function CharacterForm({
     const params = useParams();
     const routeCampaignId = (params as any)?.id ?? null;
     const locale = useClientLocale();
-    const t = (es: string, en: string) => tr(locale, es, en);
     const { settings } = useUserSettings();
     const showHints = settings.showHints;
+    const t = (es: string, en: string) => tr(locale, es, en);
 
     const {
         // Datos básicos
@@ -83,6 +84,8 @@ export function CharacterForm({
         setCharClass,
         classSubclassId,
         setClassSubclassId,
+        multiclassEntries,
+        setMulticlassEntries,
         charLevel,
         setCharLevel,
         race,
@@ -276,6 +279,36 @@ export function CharacterForm({
         () => (Array.isArray(customSubclasses) ? customSubclasses : []),
         [customSubclasses]
     );
+    const multiclassEntriesSafe = React.useMemo(
+        () =>
+            (Array.isArray(multiclassEntries) ? multiclassEntries : [])
+                .filter(
+                    (entry) =>
+                        entry &&
+                        typeof entry.classId === "string" &&
+                        entry.classId.trim().length > 0 &&
+                        Number.isFinite(Number(entry.level)) &&
+                        Number(entry.level) > 0
+                )
+                .map((entry, index) => ({
+                    id:
+                        typeof entry.id === "string" && entry.id.trim().length > 0
+                            ? entry.id.trim()
+                            : `multiclass-${index + 1}`,
+                    classId: String(entry.classId).trim(),
+                    level: Math.max(1, Math.min(20, Math.floor(Number(entry.level) || 1))),
+                    subclassId:
+                        typeof entry.subclassId === "string" && entry.subclassId.trim().length > 0
+                            ? entry.subclassId.trim()
+                            : undefined,
+                    subclassName:
+                        typeof entry.subclassName === "string" &&
+                        entry.subclassName.trim().length > 0
+                            ? entry.subclassName.trim()
+                            : undefined,
+                })),
+        [multiclassEntries]
+    );
     const customClassSubclasses = React.useMemo(
         () =>
             customSubclassesSafe
@@ -335,6 +368,18 @@ export function CharacterForm({
             setClassSubclassId("");
         }
     }, [availableSubclasses, classSubclassId, setClassSubclassId]);
+    React.useEffect(() => {
+        if (!setClassSubclassId) return;
+        if (!classSubclassId) return;
+        const selected = availableSubclasses.find(
+            (subclass) => subclass.id === classSubclassId
+        );
+        if (!selected) return;
+        const unlockLevel = Number(selected.unlockLevel ?? 3);
+        if (charLevel < unlockLevel) {
+            setClassSubclassId("");
+        }
+    }, [availableSubclasses, classSubclassId, charLevel, setClassSubclassId]);
 
     React.useEffect(() => {
         setIsCreatingCustomSubclass(false);
@@ -374,21 +419,59 @@ export function CharacterForm({
         }
         return next;
     }, [manualAdjustmentsSafe]);
+    const classResourceModifiers = React.useMemo(() => {
+        const next: Record<string, number> = {};
+        for (const adjustment of manualAdjustmentsSafe) {
+            const upperTarget = adjustment.target.toUpperCase();
+            if (!upperTarget.startsWith("SPELL_RESOURCE_")) continue;
+            const resourceKey = upperTarget.replace("SPELL_RESOURCE_", "").trim();
+            if (!resourceKey) continue;
+            const value = Number(adjustment.value);
+            if (!Number.isFinite(value) || value === 0) continue;
+            next[resourceKey] = (next[resourceKey] ?? 0) + Math.floor(value);
+        }
+        return next;
+    }, [manualAdjustmentsSafe]);
+    const classResourceSources = React.useMemo(
+        () => {
+            const totalCharacterLevel = Math.max(
+                1,
+                Math.min(20, Math.floor(Number(charLevel) || 1))
+            );
+            const multiclassLevelTotal = multiclassEntriesSafe.reduce(
+                (sum, entry) => sum + Math.max(1, Math.floor(Number(entry.level) || 1)),
+                0
+            );
+            const primaryClassLevel = Math.max(0, totalCharacterLevel - multiclassLevelTotal);
+            const sources: Array<{ classId?: string | null; level?: number | null }> = [];
+            if (charClass && primaryClassLevel > 0) {
+                sources.push({ classId: charClass, level: primaryClassLevel });
+            }
+            for (const entry of multiclassEntriesSafe) {
+                sources.push({
+                    classId: entry.classId,
+                    level: Math.max(1, Math.floor(Number(entry.level) || 1)),
+                });
+            }
+            return sources;
+        },
+        [charClass, charLevel, multiclassEntriesSafe]
+    );
 
     const statAdjustmentTargets = React.useMemo(
         () => [
             { key: "STR", label: t("Fuerza (STR)", "Strength (STR)") },
             { key: "DEX", label: t("Destreza (DEX)", "Dexterity (DEX)") },
-            { key: "CON", label: t("Constitución (CON)", "Constitution (CON)") },
+            { key: "CON", label: t("Constitucion (CON)", "Constitution (CON)") },
             { key: "INT", label: t("Inteligencia (INT)", "Intelligence (INT)") },
-            { key: "WIS", label: t("Sabiduría (WIS)", "Wisdom (WIS)") },
+            { key: "WIS", label: t("Sabiduria (WIS)", "Wisdom (WIS)") },
             { key: "CHA", label: t("Carisma (CHA)", "Charisma (CHA)") },
             { key: "AC", label: t("Clase de armadura (AC)", "Armor class (AC)") },
             { key: "HP_MAX", label: t("Vida maxima", "Maximum life") },
             { key: "HP_CURRENT", label: t("Vida actual", "Current life") },
             { key: "SPEED", label: t("Velocidad", "Speed") },
             { key: "INITIATIVE", label: t("Iniciativa", "Initiative") },
-            { key: "PASSIVE_PERCEPTION", label: t("Percepción pasiva", "Passive perception") },
+            { key: "PASSIVE_PERCEPTION", label: t("Percepcion pasiva", "Passive perception") },
             { key: "PROFICIENCY", label: t("Competencia", "Proficiency") },
         ],
         [locale]
@@ -461,9 +544,26 @@ export function CharacterForm({
                     key: "SPELL_SLOT",
                     label: t("Espacios de conjuro", "Spell slots"),
                 },
+                {
+                    key: "CLASS_RESOURCE",
+                    label: t("Recursos de clase", "Class resources"),
+                },
             ],
         }),
         [statAdjustmentTargets, skillAdjustmentTargets, locale]
+    );
+    const classResourceAdjustmentOptions = React.useMemo(
+        () => [
+            {
+                key: "WILD_SHAPE",
+                label: t("Forma salvaje (Druida)", "Wild Shape (Druid)"),
+            },
+            {
+                key: "FOCUS_POINTS",
+                label: t("Puntos de enfoque (Monje)", "Focus Points (Monk)"),
+            },
+        ],
+        [locale]
     );
 
     const [adjustmentCategory, setAdjustmentCategory] = React.useState<
@@ -471,6 +571,9 @@ export function CharacterForm({
     >("stats");
     const [adjustmentTarget, setAdjustmentTarget] = React.useState<string>("STR");
     const [adjustmentSpellLevel, setAdjustmentSpellLevel] = React.useState<number>(1);
+    const [adjustmentResourceKey, setAdjustmentResourceKey] = React.useState<string>(
+        "WILD_SHAPE"
+    );
     const [adjustmentValue, setAdjustmentValue] = React.useState<string>("");
 
     React.useEffect(() => {
@@ -484,10 +587,22 @@ export function CharacterForm({
             setAdjustmentTarget(targets[0].key);
         }
     }, [adjustmentCategory, adjustmentTarget, adjustmentTargetsByCategory]);
+    React.useEffect(() => {
+        if (!classResourceAdjustmentOptions.length) return;
+        const exists = classResourceAdjustmentOptions.some(
+            (option) => option.key === adjustmentResourceKey
+        );
+        if (!exists) {
+            setAdjustmentResourceKey(classResourceAdjustmentOptions[0].key);
+        }
+    }, [classResourceAdjustmentOptions, adjustmentResourceKey]);
 
     function buildAdjustmentTargetKey() {
         if (adjustmentCategory === "spells" && adjustmentTarget === "SPELL_SLOT") {
             return `SPELL_SLOT_${adjustmentSpellLevel}`;
+        }
+        if (adjustmentCategory === "spells" && adjustmentTarget === "CLASS_RESOURCE") {
+            return `SPELL_RESOURCE_${adjustmentResourceKey}`;
         }
         return adjustmentTarget;
     }
@@ -529,6 +644,16 @@ export function CharacterForm({
                 "Level"
             )} ${level}`;
         }
+        if (normalized.startsWith("SPELL_RESOURCE_")) {
+            const key = normalized.replace("SPELL_RESOURCE_", "");
+            if (key === "WILD_SHAPE") {
+                return t("Recursos de clase · Forma salvaje", "Class resources · Wild Shape");
+            }
+            if (key === "FOCUS_POINTS") {
+                return t("Recursos de clase · Puntos de enfoque", "Class resources · Focus Points");
+            }
+            return `${t("Recursos de clase", "Class resources")} · ${key}`;
+        }
 
         const statTarget = statAdjustmentTargets.find((option) => option.key === normalized);
         if (statTarget) return statTarget.label;
@@ -547,6 +672,7 @@ export function CharacterForm({
                 companionOwnerId,
                 charClass,
                 classSubclassId,
+                multiclassEntries,
                 charLevel,
                 race,
                 experience,
@@ -613,6 +739,7 @@ export function CharacterForm({
             companionOwnerId,
             charClass,
             classSubclassId,
+            multiclassEntries,
             charLevel,
             race,
             experience,
@@ -905,6 +1032,118 @@ export function CharacterForm({
         setClassSubclassId?.(nextValue);
     }
 
+    function getMulticlassSubclassOptions(classId: string) {
+        const builtIn = getClassSubclasses(classId, undefined, locale).map((subclass) => ({
+            id: subclass.id,
+            name: subclass.name,
+            unlockLevel:
+                Number.isFinite(Number(subclass.unlockLevel)) && Number(subclass.unlockLevel) > 0
+                    ? Number(subclass.unlockLevel)
+                    : 3,
+        }));
+        const custom = customSubclassesSafe
+            .filter(
+                (subclass) =>
+                    subclass?.classId === classId &&
+                    typeof subclass?.id === "string" &&
+                    subclass.id.trim().length > 0 &&
+                    typeof subclass?.name === "string" &&
+                    subclass.name.trim().length > 0
+            )
+            .map((subclass) => ({
+                id: subclass.id.trim(),
+                name: subclass.name.trim(),
+                unlockLevel:
+                    Number.isFinite(Number(subclass.unlockLevel)) &&
+                    Number(subclass.unlockLevel) > 0
+                        ? Number(subclass.unlockLevel)
+                        : 3,
+            }));
+        const merged = [...builtIn];
+        const seen = new Set(merged.map((subclass) => subclass.id));
+        for (const subclass of custom) {
+            if (!seen.has(subclass.id)) {
+                merged.push(subclass);
+                seen.add(subclass.id);
+            }
+        }
+        return merged.sort((a, b) => {
+            if (a.unlockLevel !== b.unlockLevel) return a.unlockLevel - b.unlockLevel;
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    function setSafeMulticlassEntries(nextEntries: MulticlassEntry[]) {
+        if (!setMulticlassEntries) return;
+        const sanitized = nextEntries
+            .filter(
+                (entry) =>
+                    entry &&
+                    typeof entry.classId === "string" &&
+                    entry.classId.trim().length > 0 &&
+                    Number.isFinite(Number(entry.level)) &&
+                    Number(entry.level) > 0
+            )
+            .map((entry, index) => ({
+                id:
+                    typeof entry.id === "string" && entry.id.trim().length > 0
+                        ? entry.id.trim()
+                        : `multiclass-${index + 1}`,
+                classId: String(entry.classId).trim(),
+                level: Math.max(1, Math.min(20, Math.floor(Number(entry.level) || 1))),
+                subclassId:
+                    typeof entry.subclassId === "string" && entry.subclassId.trim().length > 0
+                        ? entry.subclassId.trim()
+                        : undefined,
+                subclassName:
+                    typeof entry.subclassName === "string" && entry.subclassName.trim().length > 0
+                        ? entry.subclassName.trim()
+                        : undefined,
+            }));
+        setMulticlassEntries(sanitized);
+    }
+
+    function addMulticlassEntry() {
+        if (!setMulticlassEntries) return;
+        const usedClassIds = new Set(multiclassEntriesSafe.map((entry) => entry.classId));
+        const classOptions = DND_CLASS_OPTIONS.filter(
+            (option: { id: string }) =>
+                option.id &&
+                option.id !== charClass &&
+                option.id !== "custom" &&
+                !usedClassIds.has(option.id)
+        );
+        const defaultClassId = classOptions[0]?.id;
+        if (!defaultClassId) return;
+        const next = [
+            ...multiclassEntriesSafe,
+            {
+                id: `multiclass-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                classId: defaultClassId,
+                level: 1,
+            },
+        ];
+        setSafeMulticlassEntries(next);
+    }
+
+    function updateMulticlassEntry(index: number, patch: Partial<MulticlassEntry>) {
+        if (!setMulticlassEntries) return;
+        const next = [...multiclassEntriesSafe];
+        const current = next[index];
+        if (!current) return;
+        next[index] = {
+            ...current,
+            ...patch,
+        };
+        setSafeMulticlassEntries(next);
+    }
+
+    function removeMulticlassEntry(index: number) {
+        if (!setMulticlassEntries) return;
+        const next = multiclassEntriesSafe.filter((_, entryIndex) => entryIndex !== index);
+        setSafeMulticlassEntries(next);
+    }
+
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
 
@@ -931,7 +1170,7 @@ export function CharacterForm({
             if (sessErr) {
                 console.error("Error obteniendo sesión:", inspectError(sessErr));
                 alert(
-                    `${t("Error obteniendo sesión", "Error fetching session")}: ${inspectError(sessErr)}`
+                    `${t("Error obteniendo sesion", "Error fetching session")}: ${inspectError(sessErr)}`
                 );
                 setSaving(false);
                 return;
@@ -962,6 +1201,109 @@ export function CharacterForm({
 
             // 1) create or update characters row
             const isExistingCharacter = Boolean(resolvedCharacterId);
+            const totalCharacterLevel = Math.max(
+                1,
+                Math.min(20, Math.floor(Number(charLevel) || 1))
+            );
+            const resolvedClassId = typeof charClass === "string" ? charClass.trim() : "";
+            const rawSelectedSubclassId =
+                typeof classSubclassId === "string" ? classSubclassId.trim() : "";
+            const selectedSubclassId = rawSelectedSubclassId || undefined;
+            const normalizedMulticlass = multiclassEntriesSafe.map((entry, index) => {
+                const classId = String(entry.classId ?? "").trim();
+                const level = Math.max(1, Math.min(20, Math.floor(Number(entry.level) || 1)));
+                const subclassOptions = getMulticlassSubclassOptions(classId);
+                const rawSubclassId =
+                    typeof entry.subclassId === "string" ? entry.subclassId.trim() : "";
+                const matchedSubclass = rawSubclassId
+                    ? subclassOptions.find((subclass) => subclass.id === rawSubclassId)
+                    : undefined;
+                const canUseSubclass =
+                    !!matchedSubclass && level >= Number(matchedSubclass.unlockLevel ?? 3);
+                return {
+                    id:
+                        typeof entry.id === "string" && entry.id.trim().length > 0
+                            ? entry.id.trim()
+                            : `multiclass-${index + 1}`,
+                    classId,
+                    level,
+                    subclassId: canUseSubclass ? matchedSubclass?.id : undefined,
+                    subclassName: canUseSubclass ? matchedSubclass?.name : undefined,
+                };
+            });
+            if (normalizedMulticlass.length > 0 && !resolvedClassId) {
+                alert(
+                    t(
+                        "Debes seleccionar una clase principal antes de añadir multiclase.",
+                        "You must select a main class before adding multiclass."
+                    )
+                );
+                setSaving(false);
+                return;
+            }
+            const multiclassLevelTotal = normalizedMulticlass.reduce(
+                (sum, entry) => sum + entry.level,
+                0
+            );
+            if (multiclassLevelTotal > totalCharacterLevel) {
+                alert(
+                    t(
+                        "La suma de niveles de multiclase no puede superar el nivel total del personaje.",
+                        "Total multiclass levels cannot exceed the character level."
+                    )
+                );
+                setSaving(false);
+                return;
+            }
+            const resolvedPrimaryClassLevel = Math.max(
+                0,
+                totalCharacterLevel - multiclassLevelTotal
+            );
+            if (resolvedClassId && resolvedPrimaryClassLevel < 1) {
+                alert(
+                    t(
+                        "La clase principal debe conservar al menos 1 nivel.",
+                        "The main class must keep at least 1 level."
+                    )
+                );
+                setSaving(false);
+                return;
+            }
+            const normalizedMainSubclass = (() => {
+                if (!selectedSubclassId || !resolvedClassId) {
+                    return {
+                        id: undefined as string | undefined,
+                        name: undefined as string | undefined,
+                    };
+                }
+                const options = getMulticlassSubclassOptions(resolvedClassId);
+                const matched = options.find((subclass) => subclass.id === selectedSubclassId);
+                const unlockLevel = Number(matched?.unlockLevel ?? 3);
+                const canUseSubclass =
+                    !!matched && resolvedPrimaryClassLevel >= unlockLevel;
+                if (!canUseSubclass) {
+                    return {
+                        id: undefined as string | undefined,
+                        name: undefined as string | undefined,
+                    };
+                }
+                return {
+                    id: matched.id,
+                    name: matched.name,
+                };
+            })();
+
+            if (
+                typeof setClassSubclassId === "function" &&
+                selectedSubclassId &&
+                !normalizedMainSubclass.id
+            ) {
+                setClassSubclassId("");
+            }
+            if (typeof setMulticlassEntries === "function") {
+                setSafeMulticlassEntries(normalizedMulticlass);
+            }
+
             const statsPayload = {
                 str: Number(str ?? 8),
                 dex: Number(dex ?? 8),
@@ -974,8 +1316,8 @@ export function CharacterForm({
                 campaign_id: campaignId,
                 character_type: characterType ?? "character",
                 name: charName ?? null,
-                class: charClass ?? null,
-                level: Number(charLevel ?? 1),
+                class: resolvedClassId || null,
+                level: totalCharacterLevel,
                 race: race ?? null,
                 experience: Number(experience ?? 0),
                 armor_class: armorClass !== undefined && armorClass !== null ? Number(armorClass) : null,
@@ -1054,14 +1396,15 @@ export function CharacterForm({
                 const orderedItems = Array.isArray(items)
                     ? items.map((item, index) => ({ ...item, sortOrder: index }))
                     : [];
-                const resolvedSubclassId = classSubclassId?.trim() || null;
+                const resolvedSubclassId = normalizedMainSubclass.id ?? null;
                 const resolvedCustomSubclass = resolvedSubclassId
                     ? (customSubclassesSafe.find(
                           (subclass) => subclass.id === resolvedSubclassId
                       ) ?? null)
                     : null;
                 const resolvedSubclassName = resolvedSubclassId
-                    ? getSubclassName(charClass, resolvedSubclassId, locale) ??
+                    ? getSubclassName(resolvedClassId, resolvedSubclassId, locale) ??
+                      normalizedMainSubclass.name ??
                       resolvedCustomSubclass?.name ??
                       null
                     : null;
@@ -1070,9 +1413,6 @@ export function CharacterForm({
                     abilities: abilities ?? null,
                     notes: notes ?? null,
                     portraitNote: portraitNote ?? null,
-                    hitDie: {
-                        sides: hitDieSides ?? 8
-                    },
                     armors: Array.isArray(armors) ? armors : [],
                     weaponEquipped:
                         weaponName ||
@@ -1129,6 +1469,11 @@ export function CharacterForm({
                         : [],
                     classSubclassId: resolvedSubclassId,
                     classSubclassName: resolvedSubclassName,
+                    primaryClassLevel: resolvedPrimaryClassLevel,
+                    multiclass:
+                        normalizedMulticlass.length > 0
+                            ? normalizedMulticlass
+                            : null,
                     customSubclasses:
                         customSubclassesSafe.length > 0
                             ? customSubclassesSafe
@@ -1205,6 +1550,18 @@ export function CharacterForm({
             return;
         }
 
+        // Validate file size (4MB limit for Vercel)
+        const maxSize = 4 * 1024 * 1024; // 4MB
+        if (blob.size > maxSize) {
+            alert(
+                t(
+                    "El archivo es demasiado grande. Máximo 4MB.",
+                    "File is too large. Maximum 4MB."
+                )
+            );
+            return;
+        }
+
         const formData = new FormData();
         formData.append("file", blob, cropFileName);
         formData.append("characterId", resolvedCharacterId);
@@ -1216,7 +1573,9 @@ export function CharacterForm({
 
         if (!res.ok) {
             console.error("Error subiendo imagen");
-            alert(t("No se pudo subir la imagen.", "Could not upload the image."));
+            const errorData = await res.json().catch(() => null);
+            const errorMessage = errorData?.error || t("No se pudo subir la imagen.", "Could not upload the image.");
+            alert(errorMessage);
             return;
         }
 
@@ -1227,6 +1586,19 @@ export function CharacterForm({
     function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Validate file size (4MB limit for Vercel)
+        const maxSize = 4 * 1024 * 1024; // 4MB
+        if (file.size > maxSize) {
+            alert(
+                t(
+                    "El archivo es demasiado grande. Máximo 4MB.",
+                    "File is too large. Maximum 4MB."
+                )
+            );
+            e.target.value = "";
+            return;
+        }
 
         if (!resolvedCharacterId) {
             alert(
@@ -1345,7 +1717,7 @@ export function CharacterForm({
                                     rows={3}
                                     className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                                     placeholder={t(
-                                        "TÍtulo, lema o nota personal...",
+                                        "Titulo, lema o nota personal...",
                                         "Title, motto, or personal note..."
                                     )}
                                 />
@@ -1381,7 +1753,7 @@ export function CharacterForm({
                                         ))}
                                     </select>
                                     {showHints && (
-                                        <p className="hint-copy text-[11px] text-ink-muted">
+                                        <p className="text-[11px] text-ink-muted hint-copy">
                                             {t(
                                                 "Se usa para calcular espacios de conjuro y cargar habilidades.",
                                                 "Used to calculate spell slots and class features."
@@ -1397,10 +1769,10 @@ export function CharacterForm({
                                                 {t("Subclase / Circulo", "Subclass / Circle")}
                                             </label>
                                             {showHints && (
-                                                <p className="hint-copy text-[11px] text-ink-muted">
+                                                <p className="text-[11px] text-ink-muted hint-copy">
                                                     {canChooseSubclass
                                                         ? t(
-                                                              "Selecciona una subclase para aplicar rasgos automáticamente.",
+                                                              "Selecciona una subclase para aplicar rasgos automaticamente.",
                                                               "Select a subclass to apply features automatically."
                                                           )
                                                         : t(
@@ -1544,6 +1916,214 @@ export function CharacterForm({
                                     </div>
                                 )}
 
+                                {charClass && (
+                                    <div className="md:col-span-4 rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
+                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div>
+                                                <p className="text-sm font-semibold text-ink">
+                                                    {t("Multiclases", "Multiclasses")}
+                                                </p>
+                                                {showHints && (
+                                                    <p className="text-[11px] text-ink-muted hint-copy">
+                                                        {t(
+                                                            "Anade clases secundarias y su subclase para cargar sus rasgos.",
+                                                            "Add secondary classes and subclass to load their features."
+                                                        )}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={addMulticlassEntry}
+                                                disabled={
+                                                    !setMulticlassEntries ||
+                                                    DND_CLASS_OPTIONS.filter(
+                                                        (option: { id: string }) =>
+                                                            option.id &&
+                                                            option.id !== "custom" &&
+                                                            option.id !== charClass &&
+                                                            !multiclassEntriesSafe.some(
+                                                                (entry) => entry.classId === option.id
+                                                            )
+                                                    ).length === 0
+                                                }
+                                                className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 disabled:opacity-50"
+                                            >
+                                                {t("Anadir multiclase", "Add multiclass")}
+                                            </button>
+                                        </div>
+
+                                        {multiclassEntriesSafe.length === 0 ? (
+                                            <p className="text-[11px] text-ink-muted">
+                                                {t("Sin multiclases.", "No multiclasses.")}
+                                            </p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {multiclassEntriesSafe.map((entry, index) => {
+                                                    const classOptions = DND_CLASS_OPTIONS.filter(
+                                                        (option: { id: string }) =>
+                                                            option.id &&
+                                                            option.id !== "custom" &&
+                                                            option.id !== charClass &&
+                                                            (option.id === entry.classId ||
+                                                                !multiclassEntriesSafe.some(
+                                                                    (otherEntry, otherIndex) =>
+                                                                        otherIndex !== index &&
+                                                                        otherEntry.classId === option.id
+                                                                ))
+                                                    );
+                                                    const subclassOptions = getMulticlassSubclassOptions(
+                                                        entry.classId
+                                                    );
+                                                    const selectedSubclassId =
+                                                        typeof entry.subclassId === "string"
+                                                            ? entry.subclassId
+                                                            : "";
+                                                    const selectedSubclass =
+                                                        selectedSubclassId.length > 0
+                                                            ? subclassOptions.find(
+                                                                  (subclass) =>
+                                                                      subclass.id === selectedSubclassId
+                                                              )
+                                                            : undefined;
+                                                    return (
+                                                        <div
+                                                            key={entry.id || `multiclass-row-${index}`}
+                                                            className="rounded-md border border-ring bg-white/80 p-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_110px_minmax(0,1fr)_auto] gap-2 items-end"
+                                                        >
+                                                            <div className="space-y-1">
+                                                                <label className="text-[11px] text-ink-muted">
+                                                                    {t("Clase", "Class")}
+                                                                </label>
+                                                                <select
+                                                                    value={entry.classId}
+                                                                    onChange={(event) =>
+                                                                        updateMulticlassEntry(index, {
+                                                                            classId: event.target.value,
+                                                                            subclassId: undefined,
+                                                                            subclassName: undefined,
+                                                                        })
+                                                                    }
+                                                                    className="w-full rounded-md bg-white/90 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                                                >
+                                                                    {classOptions.map((option: any) => (
+                                                                        <option key={option.id} value={option.id}>
+                                                                            {classLabelById[option.id]
+                                                                                ? t(
+                                                                                      classLabelById[option.id].es,
+                                                                                      classLabelById[option.id].en
+                                                                                  )
+                                                                                : option.label}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="space-y-1">
+                                                                <label className="text-[11px] text-ink-muted">
+                                                                    {t("Nivel", "Level")}
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    max={20}
+                                                                    value={entry.level}
+                                                                    onChange={(event) => {
+                                                                        const nextLevel = Math.max(
+                                                                            1,
+                                                                            Math.min(
+                                                                                20,
+                                                                                Number(event.target.value) || 1
+                                                                            )
+                                                                        );
+                                                                        const shouldClearSubclass =
+                                                                            selectedSubclass &&
+                                                                            nextLevel <
+                                                                                Number(
+                                                                                    selectedSubclass.unlockLevel || 3
+                                                                                );
+                                                                        updateMulticlassEntry(index, {
+                                                                            level: nextLevel,
+                                                                            ...(shouldClearSubclass
+                                                                                ? {
+                                                                                      subclassId: undefined,
+                                                                                      subclassName: undefined,
+                                                                                  }
+                                                                                : {}),
+                                                                        });
+                                                                    }}
+                                                                    className="w-full rounded-md bg-white/90 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                                                />
+                                                            </div>
+
+                                                            <div className="space-y-1">
+                                                                <label className="text-[11px] text-ink-muted">
+                                                                    {t("Subclase", "Subclass")}
+                                                                </label>
+                                                                <select
+                                                                    value={
+                                                                        selectedSubclass &&
+                                                                        entry.level >=
+                                                                            Number(
+                                                                                selectedSubclass.unlockLevel || 3
+                                                                            )
+                                                                            ? selectedSubclassId
+                                                                            : ""
+                                                                    }
+                                                                    onChange={(event) => {
+                                                                        const nextId = event.target.value.trim();
+                                                                        const nextSubclass = subclassOptions.find(
+                                                                            (subclass) => subclass.id === nextId
+                                                                        );
+                                                                        updateMulticlassEntry(index, {
+                                                                            subclassId: nextId || undefined,
+                                                                            subclassName:
+                                                                                nextSubclass?.name || undefined,
+                                                                        });
+                                                                    }}
+                                                                    className="w-full rounded-md bg-white/90 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                                                >
+                                                                    <option value="">
+                                                                        {t("Sin subclase", "No subclass")}
+                                                                    </option>
+                                                                    {subclassOptions.map((subclass) => {
+                                                                        const unlockLevel = Number(
+                                                                            subclass.unlockLevel || 3
+                                                                        );
+                                                                        const locked = entry.level < unlockLevel;
+                                                                        return (
+                                                                            <option
+                                                                                key={subclass.id}
+                                                                                value={subclass.id}
+                                                                                disabled={locked}
+                                                                            >
+                                                                                {locked
+                                                                                    ? `${subclass.name}${t(
+                                                                                          ` (nivel ${unlockLevel})`,
+                                                                                          ` (level ${unlockLevel})`
+                                                                                      )}`
+                                                                                    : subclass.name}
+                                                                            </option>
+                                                                        );
+                                                                    })}
+                                                                </select>
+                                                            </div>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeMulticlassEntry(index)}
+                                                                className="text-[11px] px-3 py-2 rounded-md border border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100"
+                                                            >
+                                                                {t("Quitar", "Remove")}
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <TextField
                                     label={t("Raza / Origen", "Race / Origin")}
                                     value={race}
@@ -1553,7 +2133,7 @@ export function CharacterForm({
                                 {characterType === "companion" && (
                                     <div className="flex flex-col gap-1 text-sm">
                                         <label className="text-sm text-ink">
-                                            {t("Dueño", "Owner")}
+                                            {t("Dueno", "Owner")}
                                         </label>
                                         <select
                                             value={companionOwnerId ?? ""}
@@ -1562,7 +2142,7 @@ export function CharacterForm({
                                             required
                                         >
                                             <option value="">
-                                                {t("Selecciona dueño", "Select owner")}
+                                                {t("Selecciona dueno", "Select owner")}
                                             </option>
                                             {ownerOptionsSafe.map((owner) => (
                                                 <option key={owner.id} value={owner.id}>
@@ -1571,9 +2151,9 @@ export function CharacterForm({
                                             ))}
                                         </select>
                                         {showHints && (
-                                            <p className="hint-copy text-[11px] text-ink-muted">
+                                            <p className="text-[11px] text-ink-muted hint-copy">
                                                 {t(
-                                                    "El compañero debe estar asignado a un personaje de la Campaña.",
+                                                    "El companero debe estar asignado a un personaje de la campana.",
                                                     "The companion must be assigned to a campaign character."
                                                 )}
                                             </p>
@@ -1602,7 +2182,7 @@ export function CharacterForm({
                                     />
                                     <div className="space-y-1">
                                         <label className="text-sm text-ink">
-                                            {t("Característica de conjuro", "Spellcasting ability")}
+                                            {t("Caracteristica de conjuro", "Spellcasting ability")}
                                         </label>
                                         <select
                                             value={customCastingAbility}
@@ -1613,7 +2193,7 @@ export function CharacterForm({
                                                 {t("Inteligencia (INT)", "Intelligence (INT)")}
                                             </option>
                                             <option value="wis">
-                                                {t("Sabiduría (SAB)", "Wisdom (WIS)")}
+                                                {t("Sabiduria (SAB)", "Wisdom (WIS)")}
                                             </option>
                                             <option value="cha">
                                                 {t("Carisma (CAR)", "Charisma (CHA)")}
@@ -1625,7 +2205,7 @@ export function CharacterForm({
                                                 {t("Destreza (DES)", "Dexterity (DEX)")}
                                             </option>
                                             <option value="con">
-                                                {t("Constitución (CON)", "Constitution (CON)")}
+                                                {t("Constitucion (CON)", "Constitution (CON)")}
                                             </option>
                                         </select>
                                     </div>
@@ -1688,8 +2268,8 @@ export function CharacterForm({
                                     label={t("Vida maxima (calculada)", "Max hit points (calculated)")}
                                     value={previewMaxHp}
                                     sub={t(
-                                        `(${hitDieSides} ${conMod >= 0 ? '+' : ''}${conMod}) x nivel`,
-                                        `(${hitDieSides} ${conMod >= 0 ? '+' : ''}${conMod}) x level`
+                                        `(${hitDieSides} x nivel) + ${conMod >= 0 ? `+${conMod}` : conMod}`,
+                                        `(${hitDieSides} x level) + ${conMod >= 0 ? `+${conMod}` : conMod}`
                                     )}
                                 />
                             </div>
@@ -1785,8 +2365,8 @@ export function CharacterForm({
                     </summary>
                     <p className="mt-3 text-xs text-ink-muted">
                         {t(
-                            "Selecciona referencia, objetivo y modificador. Ejemplo: Estadisticas > Fuerza > -1 o Conjuros > Espacios de conjuro > Nivel 1 > +1.",
-                            "Select reference, target and modifier. Example: Statistics > Strength > -1 or Spells > Spell slots > Level 1 > +1."
+                            "Selecciona referencia, objetivo y modificador. Ejemplo: Estadisticas > Fuerza > -1 o Conjuros > Recursos de clase > Forma salvaje > +1.",
+                            "Select reference, target and modifier. Example: Statistics > Strength > -1 or Spells > Class resources > Wild Shape > +1."
                         )}
                     </p>
 
@@ -1836,7 +2416,8 @@ export function CharacterForm({
                                 <label className="text-[11px] text-ink-muted">
                                     {t("Subobjetivo", "Subtarget")}
                                 </label>
-                                {adjustmentCategory === "spells" ? (
+                                {adjustmentCategory === "spells" &&
+                                adjustmentTarget === "SPELL_SLOT" ? (
                                     <select
                                         value={adjustmentSpellLevel}
                                         onChange={(event) =>
@@ -1851,6 +2432,21 @@ export function CharacterForm({
                                                 </option>
                                             )
                                         )}
+                                    </select>
+                                ) : adjustmentCategory === "spells" &&
+                                  adjustmentTarget === "CLASS_RESOURCE" ? (
+                                    <select
+                                        value={adjustmentResourceKey}
+                                        onChange={(event) =>
+                                            setAdjustmentResourceKey(event.target.value)
+                                        }
+                                        className="w-full rounded-md bg-white/80 border border-ring px-3 py-2 text-sm outline-none focus:border-accent"
+                                    >
+                                        {classResourceAdjustmentOptions.map((option) => (
+                                            <option key={option.key} value={option.key}>
+                                                {option.label}
+                                            </option>
+                                        ))}
                                     </select>
                                 ) : (
                                     <input
@@ -1880,7 +2476,7 @@ export function CharacterForm({
                                         onClick={addManualAdjustment}
                                         className="text-[11px] px-3 py-2 rounded-md border border-accent/60 bg-accent/10 hover:bg-accent/20 shrink-0"
                                     >
-                                        {t("Añadir", "Add")}
+                                        {t("Anadir", "Add")}
                                     </button>
                                 </div>
                             </div>
@@ -1966,7 +2562,10 @@ export function CharacterForm({
                         <SpellSection
                             charClass={charClass}
                             charLevel={charLevel}
+                            spellSlotsOverride={null}
                             spellSlotModifiers={spellSlotModifiers}
+                            classResourceModifiers={classResourceModifiers}
+                            classResourceSources={classResourceSources}
                             spellsL0={spellsL0}
                             setSpellsL0={setSpellsL0}
                             spellsL1={spellsL1}
@@ -2059,7 +2658,7 @@ export function CharacterForm({
                                 value={appearance ?? ""}
                                 onChange={setAppearance ?? (() => {})}
                                 helper={t(
-                                    "Descripción fisica, rasgos visibles, marcas, etc.",
+                                    "Descripcion fisica, rasgos visibles, marcas, etc.",
                                     "Physical description, visible features, marks, etc."
                                 )}
                             />
@@ -2103,14 +2702,14 @@ export function CharacterForm({
                                 onClick={addCustomSection}
                                 className="text-[11px] px-3 py-1 rounded-md border border-emerald-400/70 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                             >
-                                {t("Añadir seccion", "Add section")}
+                                {t("Anadir seccion", "Add section")}
                             </button>
                         </div>
 
                         {customSectionsSafe.length === 0 ? (
                             <p className="text-xs text-ink-muted">
                                 {t(
-                                    "Aún no has creado secciones personalizadas.",
+                                    "Aun no has creado secciones personalizadas.",
                                     "You have not created custom sections yet."
                                 )}
                             </p>
@@ -2120,7 +2719,7 @@ export function CharacterForm({
                                     <div key={section.id} className="rounded-lg border border-ring bg-panel/80 p-3 space-y-3">
                                         <div className="flex items-center justify-between gap-2">
                                             <TextField
-                                                label={t("TÍtulo", "Title")}
+                                                label={t("Titulo", "Title")}
                                                 value={section.title}
                                                 onChange={(value) => updateCustomSection(index, { title: value })}
                                             />
@@ -2163,6 +2762,5 @@ export function CharacterForm({
 }
 
 export default CharacterForm;
-
 
 

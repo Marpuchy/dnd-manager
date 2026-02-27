@@ -10,6 +10,44 @@ type RouteContext = {
     }>;
 };
 
+function hasMissingCharacterTrashColumns(error: unknown) {
+    const message = String(
+        (error as { message?: unknown } | null | undefined)?.message ?? ""
+    ).toLowerCase();
+    return message.includes("deleted_at") || message.includes("deleted_by");
+}
+
+function isMissingOptionalTableError(error: unknown, tableName: string) {
+    const code = String(
+        (error as { code?: unknown } | null | undefined)?.code ?? ""
+    ).toUpperCase();
+    const message = String(
+        (error as { message?: unknown } | null | undefined)?.message ?? ""
+    ).toLowerCase();
+    const details = String(
+        (error as { details?: unknown } | null | undefined)?.details ?? ""
+    ).toLowerCase();
+    const hint = String(
+        (error as { hint?: unknown } | null | undefined)?.hint ?? ""
+    ).toLowerCase();
+    const table = tableName.toLowerCase();
+    const mentionsTable =
+        message.includes(table) ||
+        message.includes(`public.${table}`) ||
+        details.includes(table) ||
+        hint.includes(table);
+
+    if (code === "42P01" || code === "PGRST205") return true;
+    return (
+        mentionsTable &&
+        (message.includes("could not find the table") ||
+            message.includes("does not exist") ||
+            message.includes("schema cache") ||
+            details.includes("schema cache") ||
+            hint.includes("schema cache"))
+    );
+}
+
 function extractBearerToken(header: string | null) {
     if (!header) return null;
     const normalized = header.trim();
@@ -65,6 +103,12 @@ export async function POST(req: NextRequest, context: RouteContext) {
             return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
         }
 
+        const payload = await req.json().catch(() => null);
+        const permanentDelete =
+            payload?.permanent === true ||
+            payload?.hardDelete === true ||
+            payload?.mode === "hard";
+
         const [ownerRes, memberRes] = await Promise.all([
             adminClient
                 .from("campaigns")
@@ -102,6 +146,63 @@ export async function POST(req: NextRequest, context: RouteContext) {
             );
         }
 
+        if (!permanentDelete) {
+            const { data: softDeletedCharacter, error: softDeleteError } = await adminClient
+                .from("characters")
+                .update({
+                    deleted_at: new Date().toISOString(),
+                    deleted_by: user.id,
+                })
+                .eq("id", characterId)
+                .eq("campaign_id", campaignId)
+                .is("deleted_at", null)
+                .select("id")
+                .maybeSingle();
+
+            if (!softDeleteError) {
+                if (softDeletedCharacter?.id) {
+                    return NextResponse.json({ deleted: true, mode: "soft" });
+                }
+                const { data: alreadyDeletedCharacter, error: alreadyDeletedError } =
+                    await adminClient
+                        .from("characters")
+                        .select("id")
+                        .eq("id", characterId)
+                        .eq("campaign_id", campaignId)
+                        .not("deleted_at", "is", null)
+                        .maybeSingle();
+
+                if (alreadyDeletedError) {
+                    return NextResponse.json(
+                        { error: alreadyDeletedError.message },
+                        { status: 500 }
+                    );
+                }
+                return NextResponse.json(
+                    {
+                        deleted: Boolean(alreadyDeletedCharacter?.id),
+                        mode: "soft",
+                    }
+                );
+            }
+
+            if (!hasMissingCharacterTrashColumns(softDeleteError)) {
+                return NextResponse.json(
+                    { error: softDeleteError.message },
+                    { status: 500 }
+                );
+            }
+
+            return NextResponse.json(
+                {
+                    error:
+                        "La papelera de personajes no esta disponible en esta base de datos. Ejecuta la migracion 2026-02-27-character-trash.sql para activarla.",
+                    code: "CHARACTER_TRASH_MIGRATION_REQUIRED",
+                },
+                { status: 409 }
+            );
+        }
+
         const childTables = [
             "character_stats",
             "character_spells",
@@ -116,6 +217,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
                 .delete()
                 .eq("character_id", characterId);
             if (error) {
+                if (isMissingOptionalTableError(error, tableName)) {
+                    continue;
+                }
                 return NextResponse.json(
                     { error: `${tableName}: ${error.message}` },
                     { status: 500 }
@@ -138,7 +242,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
             );
         }
 
-        return NextResponse.json({ deleted: Boolean(deletedCharacter?.id) });
+        return NextResponse.json({ deleted: Boolean(deletedCharacter?.id), mode: "hard" });
     } catch (error: any) {
         return NextResponse.json(
             { error: error?.message ?? "Error eliminando personaje." },

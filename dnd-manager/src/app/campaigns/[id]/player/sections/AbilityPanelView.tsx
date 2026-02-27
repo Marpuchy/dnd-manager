@@ -6,6 +6,7 @@ import {
     Character,
     LearnedSpellRef,
     SpellMeta,
+    prettyClassLabel,
 } from "../playerShared";
 
 import { LearnedSpellLevelBlock } from "../LearnedSpellBlocks";
@@ -42,10 +43,33 @@ type Props = {
     setCustomTraits: (v: CustomFeatureEntry[]) => void;
     customClassAbilities: CustomFeatureEntry[];
     setCustomClassAbilities: (v: CustomFeatureEntry[]) => void;
+    customActions?: CustomFeatureEntry[];
     subclassOptions: { id: string; name: string }[];
+    spellSlotsOverride?: Record<string, number> | null;
     spellSlotModifiers?: Record<string, number> | null;
+    classResourceModifiers?: Record<string, number> | null;
+    classResourceSources?: Array<{
+        classId?: string | null;
+        level?: number | null;
+    }> | null;
     viewMode?: "full" | "classOnly" | "spellsOnly";
 };
+
+function getActionTypeLabel(
+    actionType: CustomFeatureEntry["actionType"],
+    locale: string
+): string {
+    if (actionType === "bonus") {
+        return tr(locale, "Acción bonus", "Bonus action");
+    }
+    if (actionType === "reaction") {
+        return tr(locale, "Reacción", "Reaction");
+    }
+    if (actionType === "passive") {
+        return tr(locale, "Pasiva", "Passive");
+    }
+    return tr(locale, "Acción", "Action");
+}
 
 function ClassAbilityCard({
     ability,
@@ -59,6 +83,10 @@ function ClassAbilityCard({
     const isCustomClassAbility = ability.id.startsWith("custom-classAbility:");
     const isCustom = isCustomTrait || isCustomClassAbility;
     const isSubclassFeature = Boolean(ability.subclassName && ability.subclassId);
+    const classBadge =
+        !isCustom && ability.class
+            ? prettyClassLabel(ability.class, locale)
+            : null;
 
     return (
         <details
@@ -85,6 +113,11 @@ function ClassAbilityCard({
                     {isSubclassFeature && !isCustom && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full border border-sky-400/70 text-sky-700 bg-sky-50">
                             {ability.subclassName}
+                        </span>
+                    )}
+                    {classBadge && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-emerald-400/70 text-emerald-700 bg-emerald-50">
+                            {classBadge}
                         </span>
                     )}
                 </span>
@@ -152,6 +185,12 @@ function renderCustomActionContent(action: CustomFeatureEntry, locale: string) {
         lines.push(`**${label}:**\n\n${text}`);
     };
 
+    if (action.actionType) {
+        pushMarkdownField(
+            tr(locale, "Tipo", "Type"),
+            getActionTypeLabel(action.actionType, locale)
+        );
+    }
     if (action.requirements) {
         pushMarkdownField(tr(locale, "Requisitos", "Requirements"), action.requirements);
     }
@@ -214,29 +253,40 @@ export default function AbilityPanelView({
                                              setCustomSpells,
                                              customCantrips,
                                              setCustomCantrips,
-                                             customTraits,
-                                             setCustomTraits,
-                                             customClassAbilities,
-                                             setCustomClassAbilities,
-                                             subclassOptions,
-                                             spellSlotModifiers,
-                                             viewMode = "full",
-                                     }: Props) {
+                                              customTraits,
+                                              setCustomTraits,
+                                              customClassAbilities,
+                                              setCustomClassAbilities,
+                                               customActions: customActionsProp,
+                                               subclassOptions,
+                                               spellSlotsOverride,
+                                               spellSlotModifiers,
+                                                classResourceModifiers,
+                                                classResourceSources,
+                                                viewMode = "full",
+                                        }: Props) {
     const [customCreateOpen, setCustomCreateOpen] = useState(false);
     const [classAbilitiesOpen, setClassAbilitiesOpen] = useState(true);
     const [upcomingClassAbilitiesOpen, setUpcomingClassAbilitiesOpen] =
         useState(false);
     const customActions = useMemo(
-        () =>
-            (Array.isArray(customClassAbilities) ? customClassAbilities : [])
-                .filter((action) => action.actionType === "action")
+        () => {
+            if (Array.isArray(customActionsProp)) {
+                return customActionsProp;
+            }
+            return (Array.isArray(customClassAbilities) ? customClassAbilities : [])
+                .filter(
+                    (action) =>
+                        Boolean(action.actionType) && action.actionType !== "passive"
+                )
                 .sort((a, b) => {
                     const levelA = Number(a.level ?? 0);
                     const levelB = Number(b.level ?? 0);
                     if (levelA !== levelB) return levelA - levelB;
                     return a.name.localeCompare(b.name);
-                }),
-        [customClassAbilities]
+                });
+        },
+        [customActionsProp, customClassAbilities]
     );
 
     if (viewMode === "classOnly") {
@@ -344,7 +394,10 @@ export default function AbilityPanelView({
             <SpellSlotsPanel
                 characterClass={character.class}
                 characterLevel={character.level}
+                spellSlotsOverride={spellSlotsOverride}
                 spellSlotModifiers={spellSlotModifiers}
+                classResourceModifiers={classResourceModifiers}
+                classResourceSources={classResourceSources}
             />
 
             {customActions.length > 0 && (
@@ -367,11 +420,18 @@ export default function AbilityPanelView({
                                     open
                                     className="rounded-xl border border-ring bg-white/80 p-3"
                                 >
-                                    <summary className="cursor-pointer text-sm font-semibold text-ink">
-                                        {action.name}
-                                        {action.level != null
-                                            ? ` · ${tr(locale, "Nivel", "Level")} ${action.level}`
-                                            : ""}
+                                    <summary className="cursor-pointer text-sm font-semibold text-ink flex flex-wrap items-center gap-2">
+                                        <span>
+                                            {action.name}
+                                            {action.level != null
+                                                ? ` · ${tr(locale, "Nivel", "Level")} ${action.level}`
+                                                : ""}
+                                        </span>
+                                        {action.actionType && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full border border-sky-400/70 text-sky-700 bg-sky-50 font-medium">
+                                                {getActionTypeLabel(action.actionType, locale)}
+                                            </span>
+                                        )}
                                     </summary>
                                     {content ? (
                                         <div className="mt-2">

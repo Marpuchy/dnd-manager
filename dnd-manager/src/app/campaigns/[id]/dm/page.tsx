@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -9,7 +9,7 @@ import {
     type DragEvent,
     type CSSProperties,
 } from "react";
-import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
@@ -21,13 +21,15 @@ import AIAssistantPanel, {
 } from "../player/ui/AIAssistantPanel";
 import { useCharacterForm } from "../player/hooks/useCharacterForm";
 import {
-    getClassSelectionPalette,
+    getCombinedClassSelectionPalette,
+    prettyClassLabel,
     type Character,
     type Details,
     type Tab,
 } from "../player/playerShared";
 import StoryManagerPanel from "./StoryManagerPanel";
 import BestiaryManagerPanel from "./BestiaryManagerPanel";
+import { getSubclassName } from "@/lib/dnd/classAbilities";
 
 type MembershipRow = {
     role: "PLAYER" | "DM";
@@ -52,6 +54,13 @@ type TrashConsumeAnimation = {
     dx: number;
     dy: number;
 };
+
+function hasMissingCharacterTrashColumns(error: unknown) {
+    const message = String(
+        (error as { message?: unknown } | null | undefined)?.message ?? ""
+    ).toLowerCase();
+    return message.includes("deleted_at") || message.includes("deleted_by");
+}
 
 export default function CampaignDMPage() {
     const params = useParams<{ id: string }>();
@@ -80,6 +89,7 @@ export default function CampaignDMPage() {
         useState<TrashConsumeAnimation | null>(null);
     const [selectionPulse, setSelectionPulse] = useState(0);
     const [showCompanions, setShowCompanions] = useState(false);
+    const [playerListOpen, setPlayerListOpen] = useState(true);
     const [bestiaryRefreshNonce, setBestiaryRefreshNonce] = useState(0);
     const [aiFocusedBestiaryEntryId, setAiFocusedBestiaryEntryId] =
         useState<string | null>(null);
@@ -121,7 +131,7 @@ export default function CampaignDMPage() {
     ];
 
     async function loadPanelData(campaignId: string): Promise<Character[]> {
-        const [campaignRes, charsRes] = await Promise.all([
+        const [campaignRes, charsResWithTrash] = await Promise.all([
             supabase
                 .from("campaigns")
                 .select("invite_code, name")
@@ -133,15 +143,30 @@ export default function CampaignDMPage() {
                     "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
                 )
                 .eq("campaign_id", campaignId)
+                .is("deleted_at", null)
                 .order("created_at", { ascending: true }),
         ]);
 
         if (campaignRes.error) throw campaignRes.error;
-        if (charsRes.error) throw charsRes.error;
+        let chars = charsResWithTrash.data;
+        if (charsResWithTrash.error) {
+            if (!hasMissingCharacterTrashColumns(charsResWithTrash.error)) {
+                throw charsResWithTrash.error;
+            }
+            const charsLegacyRes = await supabase
+                .from("characters")
+                .select(
+                    "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
+                )
+                .eq("campaign_id", campaignId)
+                .order("created_at", { ascending: true });
+            if (charsLegacyRes.error) throw charsLegacyRes.error;
+            chars = charsLegacyRes.data;
+        }
 
         setInviteCode(campaignRes.data?.invite_code ?? null);
         setCampaignTitle(campaignRes.data?.name?.trim() || null);
-        const list = (charsRes.data ?? []) as Character[];
+        const list = (chars ?? []) as Character[];
         const sorted = [...list].sort((a, b) => {
             const ao =
                 typeof a.details?.listOrder === "number"
@@ -541,8 +566,28 @@ export default function CampaignDMPage() {
         setIsOverTrash(false);
     }
 
-    function getSelectionBlobStyle(rawClass: string | null | undefined): CSSProperties {
-        const palette = getClassSelectionPalette(rawClass);
+    function getCharacterClassIds(character: Character): string[] {
+        const classIds: string[] = [];
+        if (typeof character.class === "string" && character.class.trim().length > 0) {
+            classIds.push(character.class.trim());
+        }
+        const multiclass = Array.isArray(character.details?.multiclass)
+            ? character.details.multiclass
+            : [];
+        for (const entry of multiclass) {
+            const classId =
+                typeof entry?.classId === "string" ? entry.classId.trim() : "";
+            if (!classId) continue;
+            classIds.push(classId);
+        }
+        return Array.from(new Set(classIds));
+    }
+
+    function getSelectionBlobStyle(character: Character): CSSProperties {
+        const palette = getCombinedClassSelectionPalette(
+            getCharacterClassIds(character),
+            character.class ?? null
+        );
         return {
             ["--selection-rgb" as string]: palette.rgb,
             backgroundColor: palette.background,
@@ -551,12 +596,80 @@ export default function CampaignDMPage() {
         };
     }
 
+    function classProgressionLabel(character: Character): string {
+        const baseClass = prettyClassLabel(character.class, locale);
+        const customSubclassById = new Map(
+            Array.isArray(character.details?.customSubclasses)
+                ? character.details.customSubclasses
+                      .filter(
+                          (subclass) =>
+                              subclass &&
+                              typeof subclass.id === "string" &&
+                              typeof subclass.name === "string" &&
+                              subclass.name.trim().length > 0
+                      )
+                      .map((subclass) => [subclass.id, subclass.name.trim()])
+                : []
+        );
+        const multiclassList = Array.isArray(character.details?.multiclass)
+            ? character.details.multiclass
+                  .filter(
+                      (entry) =>
+                          entry &&
+                          typeof entry.classId === "string" &&
+                          entry.classId.trim().length > 0 &&
+                          Number.isFinite(Number(entry.level)) &&
+                          Number(entry.level) > 0
+                  )
+                  .map((entry) => ({
+                      classId: String(entry.classId).trim(),
+                      level: Math.max(1, Math.floor(Number(entry.level) || 1)),
+                      subclassId:
+                          typeof entry.subclassId === "string"
+                              ? entry.subclassId.trim()
+                              : "",
+                      subclassName:
+                          typeof entry.subclassName === "string"
+                              ? entry.subclassName.trim()
+                              : "",
+                  }))
+            : [];
+        if (multiclassList.length === 0) {
+            return baseClass;
+        }
+        const totalLevel = Math.max(1, Math.floor(Number(character.level) || 1));
+        const secondaryTotal = multiclassList.reduce(
+            (sum, entry) => sum + entry.level,
+            0
+        );
+        const storedPrimary = Number(character.details?.primaryClassLevel);
+        const primaryLevel =
+            Number.isFinite(storedPrimary) && storedPrimary >= 0
+                ? Math.floor(storedPrimary)
+                : Math.max(0, totalLevel - secondaryTotal);
+        const parts = [`${baseClass} ${primaryLevel}`];
+        for (const entry of multiclassList) {
+            const resolvedSubclassName =
+                (entry.subclassId
+                    ? getSubclassName(entry.classId, entry.subclassId, locale) ??
+                      customSubclassById.get(entry.subclassId)
+                    : undefined) ??
+                (entry.subclassName || undefined);
+            const classLabel = prettyClassLabel(entry.classId, locale);
+            const classWithSubclass = resolvedSubclassName
+                ? `${classLabel} (${resolvedSubclassName})`
+                : classLabel;
+            parts.push(`${classWithSubclass} ${entry.level}`);
+        }
+        return parts.join(" / ");
+    }
+
     function renderCharacterListItem(
         character: Character,
         showCompanionBadge = false
     ) {
         const isSelected = playerEditorOpen && editingCharacterId === character.id;
-        const selectedStyle = isSelected ? getSelectionBlobStyle(character.class) : undefined;
+        const selectedStyle = isSelected ? getSelectionBlobStyle(character) : undefined;
 
         return (
             <li
@@ -620,7 +733,7 @@ export default function CampaignDMPage() {
                             )}
                         </div>
                         <p className="text-xs text-ink-muted truncate">
-                            {(character.class ?? t("Sin clase", "No class"))} -{" "}
+                            {classProgressionLabel(character)} -{" "}
                             {t("Nivel", "Level")} {character.level ?? 1}
                         </p>
                     </div>
@@ -759,39 +872,32 @@ export default function CampaignDMPage() {
     }
 
     async function deleteCharacterLegacy(characterId: string, campaignId: string) {
-        const tablesWithCharacterFk = [
-            "character_stats",
-            "character_spells",
-            "character_weapons",
-            "character_armors",
-            "character_equipments",
-        ];
-
-        for (const tableName of tablesWithCharacterFk) {
-            const { error: childDeleteError } = await supabase
-                .from(tableName)
-                .delete()
-                .eq("character_id", characterId);
-            if (childDeleteError) {
-                throw childDeleteError;
-            }
-        }
-
-        const { error: characterDeleteError } = await supabase
+        const softDeleteRes = await supabase
             .from("characters")
-            .delete()
+            .update({
+                deleted_at: new Date().toISOString(),
+                deleted_by: null,
+            })
             .eq("id", characterId)
-            .eq("campaign_id", campaignId);
-        if (characterDeleteError) {
-            throw characterDeleteError;
+            .eq("campaign_id", campaignId)
+            .is("deleted_at", null);
+        if (!softDeleteRes.error) return;
+        if (!hasMissingCharacterTrashColumns(softDeleteRes.error)) {
+            throw softDeleteRes.error;
         }
+        throw new Error(
+            t(
+                "La papelera de personajes no esta disponible en esta base de datos. Ejecuta la migracion 2026-02-27-character-trash.sql para activarla.",
+                "Character trash is not available on this database. Run migration 2026-02-27-character-trash.sql to enable it."
+            )
+        );
     }
 
     async function handleDeleteCharacter(character: Character) {
         const confirmed = window.confirm(
             t(
-                `Eliminar a ${character.name}? Esta acción no se puede deshacer.`,
-                `Delete ${character.name}? This action cannot be undone.`
+                `Enviar a ${character.name} a la papelera de personajes? Podrás restaurarlo desde Ajustes.`,
+                `Move ${character.name} to character trash? You can restore it from Settings.`
             )
         );
         if (!confirmed) return;
@@ -1113,10 +1219,34 @@ export default function CampaignDMPage() {
                             )}
                         </p>
 
-                        <div className="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-stretch min-h-0 flex-1">
-                            <div className="max-h-[calc(100vh-10.5rem)] min-h-[460px]">
-                                <div className="h-full overflow-y-auto styled-scrollbar pr-1">
+                        <div
+                            className={`grid grid-cols-1 gap-4 items-stretch min-h-0 flex-1 ${
+                                playerListOpen
+                                    ? "xl:grid-cols-[340px_minmax(0,1fr)]"
+                                    : "xl:grid-cols-[56px_minmax(0,1fr)]"
+                            }`}
+                        >
+                            {playerListOpen ? (
+                            <div className="max-h-[calc(100dvh-11rem)] sm:max-h-[calc(100vh-10.5rem)] min-h-[340px] sm:min-h-[460px] flex flex-col gap-3 motion-safe:animate-[dm-player-list-reveal_240ms_ease-out]">
+                                <div className="min-h-0 flex-1 overflow-y-auto styled-scrollbar pr-1">
                                     <div className="border border-ring rounded-xl bg-panel/80 p-3 space-y-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPlayerListOpen(false)}
+                                        className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-ink-muted hover:text-ink transition-colors"
+                                        aria-label={t(
+                                            "Ocultar lista de personajes",
+                                            "Hide character list"
+                                        )}
+                                        title={t(
+                                            "Ocultar lista de personajes",
+                                            "Hide character list"
+                                        )}
+                                    >
+                                        <span>{t("Personajes", "Characters")}</span>
+                                        <ChevronLeft className="hidden xl:block h-3.5 w-3.5" />
+                                        <ChevronDown className="block xl:hidden h-3.5 w-3.5 rotate-180 transition-transform duration-300" />
+                                    </button>
                                     {playerCharacters.length === 0 &&
                                     companionCharacters.length === 0 ? (
                                         <p className="text-sm text-ink-muted">
@@ -1128,9 +1258,6 @@ export default function CampaignDMPage() {
                                     ) : (
                                         <>
                                             <div className="space-y-2">
-                                                <p className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">
-                                                    {t("Personajes", "Characters")}
-                                                </p>
                                                 {playerCharacters.length === 0 ? (
                                                     <p className="text-sm text-ink-muted">
                                                         {t(
@@ -1189,10 +1316,120 @@ export default function CampaignDMPage() {
                                     )}
                                     </div>
                                 </div>
+                                <div className="border border-ring rounded-xl bg-panel/90 p-2 sm:p-3 shrink-0">
+                                    <div
+                                        ref={trashDropRef}
+                                        onDragOver={handleTrashDragOver}
+                                        onDragLeave={handleTrashDragLeave}
+                                        onDrop={handleTrashDrop}
+                                        title={t(
+                                            "Arrastra un personaje aquÃ­ para eliminarlo",
+                                            "Drag a character here to delete"
+                                        )}
+                                        aria-label={t(
+                                            "Arrastra un personaje aquÃ­ para eliminarlo",
+                                            "Drag a character here to delete"
+                                        )}
+                                        className={`rounded-md px-2 py-2 sm:p-3 border-2 min-h-[58px] sm:min-h-16 flex items-center justify-center transition-colors ${
+                                            isOverTrash
+                                                ? "border-red-500 bg-red-500/10"
+                                                : "border-red-300/60 bg-white/60"
+                                        } ${trashIsActive ? "shadow-[inset_0_0_0_1px_rgba(220,38,38,0.14)]" : ""}`}
+                                    >
+                                        <span
+                                            aria-hidden
+                                            className={`trash-drop-icon ${
+                                                trashIsOpen ? "is-open" : ""
+                                            } ${consumingCharacterId ? "is-consuming" : ""}`}
+                                        >
+                                            <svg
+                                                viewBox="0 0 64 64"
+                                                className="trash-drop-icon__svg"
+                                                role="presentation"
+                                            >
+                                                <g className="trash-drop-icon__lid-group">
+                                                    <rect
+                                                        className="trash-drop-icon__handle"
+                                                        x="26"
+                                                        y="13"
+                                                        width="14"
+                                                        height="3"
+                                                        rx="1"
+                                                    />
+                                                    <rect
+                                                        className="trash-drop-icon__lid"
+                                                        x="15"
+                                                        y="18"
+                                                        width="34"
+                                                        height="4"
+                                                        rx="1.5"
+                                                    />
+                                                </g>
+                                                <g className="trash-drop-icon__body-group">
+                                                    <path
+                                                        className="trash-drop-icon__body"
+                                                        d="M18 24 H46 V48 C46 52.4 42.4 56 38 56 H26 C21.6 56 18 52.4 18 48 Z"
+                                                    />
+                                                    <line
+                                                        className="trash-drop-icon__slat"
+                                                        x1="26"
+                                                        y1="30"
+                                                        x2="26"
+                                                        y2="49"
+                                                    />
+                                                    <line
+                                                        className="trash-drop-icon__slat"
+                                                        x1="32"
+                                                        y1="30"
+                                                        x2="32"
+                                                        y2="49"
+                                                    />
+                                                    <line
+                                                        className="trash-drop-icon__slat"
+                                                        x1="38"
+                                                        y1="30"
+                                                        x2="38"
+                                                        y2="49"
+                                                    />
+                                                </g>
+                                            </svg>
+                                        </span>
+                                        <span className="sr-only">
+                                            {t(
+                                                "Arrastra un personaje aquÃ­ para eliminarlo",
+                                                "Drag a character here to delete"
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    <div className="max-h-none min-h-0 xl:max-h-[calc(100dvh-11rem)] xl:min-h-[340px] flex flex-col">
+                                        <div className="border border-ring rounded-xl bg-panel/80 min-h-0 xl:flex-1 p-2 flex items-center justify-end xl:items-start xl:justify-center transition-all duration-300 ease-out">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPlayerListOpen(true)}
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-ring bg-white/70 text-ink transition hover:bg-white"
+                                                aria-label={t(
+                                                    "Mostrar lista de personajes",
+                                                    "Show character list"
+                                                )}
+                                                title={t(
+                                                    "Mostrar lista de personajes",
+                                                    "Show character list"
+                                                )}
+                                            >
+                                                <ChevronRight className="hidden xl:block h-4 w-4 transition-transform duration-300" />
+                                                <ChevronDown className="block xl:hidden h-4 w-4 transition-transform duration-300" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-3 min-h-0">
-                                <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 min-h-[460px] max-h-[calc(100vh-10.5rem)] flex flex-col overflow-hidden">
+                                <div className="dm-player-preview border border-ring rounded-xl bg-panel/80 min-h-[340px] sm:min-h-[460px] max-h-[calc(100dvh-11rem)] sm:max-h-[calc(100vh-10.5rem)] flex flex-col overflow-hidden">
                                     <div className="min-h-0 flex-1 overflow-y-auto styled-scrollbar">
                                         {playerEditorOpen &&
                                         editingCharacter &&
@@ -1264,94 +1501,6 @@ export default function CampaignDMPage() {
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mt-auto xl:w-[340px]">
-                            <div className="border border-ring rounded-xl bg-panel/80 p-3">
-                                <div
-                                    ref={trashDropRef}
-                                    onDragOver={handleTrashDragOver}
-                                    onDragLeave={handleTrashDragLeave}
-                                    onDrop={handleTrashDrop}
-                                    title={t(
-                                        "Arrastra un personaje aquí para eliminarlo",
-                                        "Drag a character here to delete"
-                                    )}
-                                    aria-label={t(
-                                        "Arrastra un personaje aquí para eliminarlo",
-                                        "Drag a character here to delete"
-                                    )}
-                                    className={`rounded-md p-3 border-2 min-h-16 flex items-center justify-center transition-colors ${
-                                        isOverTrash
-                                            ? "border-red-500 bg-red-500/10"
-                                            : "border-red-300/60 bg-white/60"
-                                    } ${trashIsActive ? "shadow-[inset_0_0_0_1px_rgba(220,38,38,0.14)]" : ""}`}
-                                >
-                                    <span
-                                        aria-hidden
-                                        className={`trash-drop-icon ${
-                                            trashIsOpen ? "is-open" : ""
-                                        } ${consumingCharacterId ? "is-consuming" : ""}`}
-                                    >
-                                        <svg
-                                            viewBox="0 0 64 64"
-                                            className="trash-drop-icon__svg"
-                                            role="presentation"
-                                        >
-                                            <g className="trash-drop-icon__lid-group">
-                                                <rect
-                                                    className="trash-drop-icon__handle"
-                                                    x="26"
-                                                    y="13"
-                                                    width="14"
-                                                    height="3"
-                                                    rx="1"
-                                                />
-                                                <rect
-                                                    className="trash-drop-icon__lid"
-                                                    x="15"
-                                                    y="18"
-                                                    width="34"
-                                                    height="4"
-                                                    rx="1.5"
-                                                />
-                                            </g>
-                                            <g className="trash-drop-icon__body-group">
-                                                <path
-                                                    className="trash-drop-icon__body"
-                                                    d="M18 24 H46 V48 C46 52.4 42.4 56 38 56 H26 C21.6 56 18 52.4 18 48 Z"
-                                                />
-                                                <line
-                                                    className="trash-drop-icon__slat"
-                                                    x1="26"
-                                                    y1="30"
-                                                    x2="26"
-                                                    y2="49"
-                                                />
-                                                <line
-                                                    className="trash-drop-icon__slat"
-                                                    x1="32"
-                                                    y1="30"
-                                                    x2="32"
-                                                    y2="49"
-                                                />
-                                                <line
-                                                    className="trash-drop-icon__slat"
-                                                    x1="38"
-                                                    y1="30"
-                                                    x2="38"
-                                                    y2="49"
-                                                />
-                                            </g>
-                                        </svg>
-                                    </span>
-                                    <span className="sr-only">
-                                        {t(
-                                            "Arrastra un personaje aquí para eliminarlo",
-                                            "Drag a character here to delete"
-                                        )}
-                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -1456,6 +1605,13 @@ export default function CampaignDMPage() {
                     transition: transform 220ms ease, filter 220ms ease;
                 }
 
+                @media (max-width: 767px) {
+                    .trash-drop-icon {
+                        width: 40px;
+                        height: 40px;
+                    }
+                }
+
                 .trash-drop-icon__svg {
                     width: 100%;
                     height: 100%;
@@ -1546,6 +1702,17 @@ export default function CampaignDMPage() {
                                 calc(-50% + var(--trash-dy))
                             )
                             scale(0.12);
+                    }
+                }
+
+                @keyframes dm-player-list-reveal {
+                    0% {
+                        opacity: 0;
+                        transform: translateY(-8px);
+                    }
+                    100% {
+                        opacity: 1;
+                        transform: translateY(0);
                     }
                 }
 

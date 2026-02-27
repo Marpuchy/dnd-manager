@@ -22,7 +22,7 @@ import {
     Mode,
     Tab,
     prettyClassLabel,
-    getClassSelectionPalette,
+    getCombinedClassSelectionPalette,
 } from "./playerShared";
 import ClickableRow from "../../../components/ClickableRow";
 import CharacterView from "./ui/CharacterView";
@@ -33,7 +33,7 @@ import { Trash2, Edit2, ChevronLeft, ChevronRight, Menu, Settings } from "lucide
 import AIAssistantPanel, { type AIAssistantClientContext } from "./ui/AIAssistantPanel";
 import StoryPlayerView from "./ui/StoryPlayerView";
 import CampaignBestiaryPlayerView from "./ui/CampaignBestiaryPlayerView";
-import { getSubclassName } from "@/lib/dnd/classAbilities";
+import { getClassSubclasses, getSubclassName } from "@/lib/dnd/classAbilities";
 import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { tr } from "@/lib/i18n/translate";
 
@@ -43,6 +43,13 @@ type PlayerSection = "characters" | "story" | "bestiary";
 type CampaignPlayerPageProps = {
     forceDmMode?: boolean;
 };
+
+function hasMissingCharacterTrashColumns(error: unknown) {
+    const message = String(
+        (error as { message?: unknown } | null | undefined)?.message ?? ""
+    ).toLowerCase();
+    return message.includes("deleted_at") || message.includes("deleted_by");
+}
 
 export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPageProps = {}) {
     const params = useParams<{ id: string }>();
@@ -76,7 +83,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
     const [selectionPulse, setSelectionPulse] = useState(0);
     const [assistantOpen, setAssistantOpen] = useState(false);
 
-    // Edición / creación
+    // EdiciÃ³n / creaciÃ³n
     const [editingId, setEditingId] = useState<string | null>(null);
     const [autoSaving, setAutoSaving] = useState(false);
     const autoSaveGuardRef = useRef(true);
@@ -87,6 +94,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         charName,
         charClass,
         classSubclassId,
+        multiclassEntries,
         charLevel,
         race,
         experience,
@@ -150,7 +158,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         spellsL9,
     } = fields;
 
-    // Form fields (resumidos — los mantienes igual que antes)
+    // Form fields (resumidos â€” los mantienes igual que antes)
     // details
     // Clase personalizada
     // Hechizos en formulario
@@ -168,23 +176,40 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 return [];
             }
 
-            const baseQuery = supabase
+            const baseQueryWithTrash = supabase
                 .from("characters")
                 .select(
                     "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
                 )
-                .eq("campaign_id", params.id);
-            const query = isDmMode
-                ? baseQuery
-                : baseQuery.eq("user_id", session.user.id);
-            const { data: chars, error: charsError } = await query;
+                .eq("campaign_id", params.id)
+                .is("deleted_at", null);
+            const queryWithTrash = isDmMode
+                ? baseQueryWithTrash
+                : baseQueryWithTrash.eq("user_id", session.user.id);
+            const { data: charsWithTrash, error: charsWithTrashError } = await queryWithTrash;
+            let chars = charsWithTrash;
+            let charsError = charsWithTrashError;
+            if (charsWithTrashError && hasMissingCharacterTrashColumns(charsWithTrashError)) {
+                const baseLegacyQuery = supabase
+                    .from("characters")
+                    .select(
+                        "id, name, class, level, race, experience, max_hp, current_hp, armor_class, speed, stats, details, profile_image, character_type, created_at"
+                    )
+                    .eq("campaign_id", params.id);
+                const queryLegacy = isDmMode
+                    ? baseLegacyQuery
+                    : baseLegacyQuery.eq("user_id", session.user.id);
+                const legacyRes = await queryLegacy;
+                chars = legacyRes.data;
+                charsError = legacyRes.error;
+            }
 
             if (charsError) {
                 console.error("Error cargando personajes:", charsError);
                 setError(
                     charsError.message ??
                         (isDmMode
-                            ? "No se han podido cargar los personajes de la Campaña."
+                            ? "No se han podido cargar los personajes de la CampaÃ±a."
                             : "No se han podido cargar tus personajes.")
                 );
                 setCharacters([]);
@@ -308,12 +333,28 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         closeAfterSave: boolean;
         fromAutoSave?: boolean;
     };
+    async function waitForPersistIdle(maxWaitMs = 5000) {
+        const startedAt = Date.now();
+        while (persistInFlightRef.current && Date.now() - startedAt < maxWaitMs) {
+            await new Promise<void>((resolve) => {
+                setTimeout(resolve, 40);
+            });
+        }
+    }
 
     async function persistCharacter({
         closeAfterSave,
         fromAutoSave = false,
     }: PersistOptions) {
         if (persistInFlightRef.current && fromAutoSave) return;
+        if (persistInFlightRef.current && !fromAutoSave) {
+            await waitForPersistIdle();
+            if (persistInFlightRef.current) {
+                throw new Error(
+                    "No se pudo guardar ahora mismo. Intenta de nuevo en un momento."
+                );
+            }
+        }
         persistInFlightRef.current = true;
         if (fromAutoSave) setAutoSaving(true);
         if (!fromAutoSave) setError(null);
@@ -324,7 +365,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
             } = await supabase.auth.getSession();
 
             if (!session?.user) {
-                throw new Error("No hay sesión activa.");
+                throw new Error("No hay sesiÃ³n activa.");
             }
 
             if (!charName.trim()) {
@@ -366,6 +407,138 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                   resolvedCustomSubclass?.name ??
                   undefined
                 : undefined;
+            const getMulticlassSubclassOptions = (classId: string) => {
+                if (!classId) return [];
+                const builtIn = getClassSubclasses(classId, undefined, locale);
+                const custom = customSubclassList
+                    .filter(
+                        (subclass) =>
+                            subclass?.classId === classId &&
+                            typeof subclass?.id === "string" &&
+                            typeof subclass?.name === "string" &&
+                            subclass.name.trim().length > 0
+                    )
+                    .map((subclass) => ({
+                        id: subclass.id,
+                        name: subclass.name.trim(),
+                        classId,
+                        unlockLevel:
+                            Number.isFinite(Number(subclass.unlockLevel)) &&
+                            Number(subclass.unlockLevel) > 0
+                                ? Number(subclass.unlockLevel)
+                                : 3,
+                        source: subclass.source ?? "Personalizada",
+                        features: [],
+                    }));
+                const merged = [...builtIn];
+                const seen = new Set(merged.map((subclass) => subclass.id));
+                for (const subclass of custom) {
+                    if (!seen.has(subclass.id)) {
+                        merged.push(subclass);
+                        seen.add(subclass.id);
+                    }
+                }
+                return merged;
+            };
+            const normalizedMulticlass = (Array.isArray(multiclassEntries)
+                ? multiclassEntries
+                : []
+            )
+                .filter(
+                    (entry) =>
+                        entry &&
+                        typeof entry.classId === "string" &&
+                        entry.classId.trim().length > 0 &&
+                        Number.isFinite(Number(entry.level))
+                )
+                .map((entry, index) => {
+                    const classId = entry.classId.trim();
+                    const level = Math.max(
+                        1,
+                        Math.min(20, Math.floor(Number(entry.level) || 1))
+                    );
+                    const subclassOptions = getMulticlassSubclassOptions(classId);
+                    const rawSubclassId =
+                        typeof entry.subclassId === "string"
+                            ? entry.subclassId.trim()
+                            : "";
+                    const matchedSubclass = rawSubclassId
+                        ? subclassOptions.find(
+                              (subclass) => subclass.id === rawSubclassId
+                          )
+                        : undefined;
+                    const canUseSubclass =
+                        !!matchedSubclass &&
+                        level >= Number(matchedSubclass.unlockLevel ?? 3);
+
+                    return {
+                        id:
+                            typeof entry.id === "string" && entry.id.trim().length > 0
+                                ? entry.id
+                                : `multiclass-${index + 1}`,
+                        classId,
+                        level,
+                        subclassId: canUseSubclass ? matchedSubclass?.id : undefined,
+                        subclassName: canUseSubclass ? matchedSubclass?.name : undefined,
+                    };
+                });
+            if (normalizedMulticlass.length > 0 && !charClass.trim()) {
+                if (fromAutoSave) return;
+                throw new Error(
+                    "Debes seleccionar una clase principal antes de añadir multiclase."
+                );
+            }
+            const totalCharacterLevel = Math.max(1, Math.floor(Number(charLevel) || 1));
+            const multiclassLevelTotal = normalizedMulticlass.reduce(
+                (sum, entry) => sum + entry.level,
+                0
+            );
+            if (multiclassLevelTotal > totalCharacterLevel) {
+                if (fromAutoSave) return;
+                throw new Error(
+                    "La suma de niveles de multiclase no puede superar el nivel total del personaje."
+                );
+            }
+            const resolvedPrimaryClassLevel = Math.max(
+                0,
+                totalCharacterLevel - multiclassLevelTotal
+            );
+            if (charClass.trim() && resolvedPrimaryClassLevel < 1) {
+                if (fromAutoSave) return;
+                throw new Error("La clase principal debe conservar al menos 1 nivel.");
+            }
+            const normalizedMainSubclass = (() => {
+                if (!resolvedSubclassId) {
+                    return {
+                        id: undefined as string | undefined,
+                        name: undefined as string | undefined,
+                    };
+                }
+                const classId = charClass.trim();
+                if (!classId) {
+                    return {
+                        id: undefined as string | undefined,
+                        name: undefined as string | undefined,
+                    };
+                }
+                const options = getMulticlassSubclassOptions(classId);
+                const matched = options.find(
+                    (subclass) => subclass.id === resolvedSubclassId
+                );
+                const unlockLevel = Number(matched?.unlockLevel ?? 3);
+                const canUseSubclass =
+                    !!matched && resolvedPrimaryClassLevel >= unlockLevel;
+                if (!canUseSubclass) {
+                    return {
+                        id: undefined as string | undefined,
+                        name: undefined as string | undefined,
+                    };
+                }
+                return {
+                    id: matched.id,
+                    name: matched.name,
+                };
+            })();
             const weaponPassiveMods = Array.isArray(weaponPassiveModifiers)
                 ? weaponPassiveModifiers
                 : [];
@@ -438,8 +611,15 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 companion: legacyCompanion,
                 hitDie: { sides: hitDieSides },
                 spells,
-                classSubclassId: resolvedSubclassId,
-                classSubclassName: resolvedSubclassName,
+                classSubclassId: normalizedMainSubclass.id,
+                classSubclassName: normalizedMainSubclass.id
+                    ? normalizedMainSubclass.name ?? resolvedSubclassName
+                    : undefined,
+                primaryClassLevel: resolvedPrimaryClassLevel,
+                multiclass:
+                    normalizedMulticlass.length > 0
+                        ? normalizedMulticlass
+                        : undefined,
                 customClassName: customClassName.trim() || undefined,
                 customCastingAbility,
                 items: orderedItems,
@@ -460,7 +640,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 
             if (resolvedCharacterType === "companion" && !companionOwnerId) {
                 if (fromAutoSave) return;
-                throw new Error("Selecciona un dueño para el compañero.");
+                throw new Error("Selecciona un dueÃ±o para el compaÃ±ero.");
             }
 
             detailsObj.companionOwnerId =
@@ -472,7 +652,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 name: charName.trim(),
                 character_type: resolvedCharacterType,
                 class: charClass.trim() || null,
-                level: charLevel,
+                level: totalCharacterLevel,
                 race: race.trim() || null,
                 experience,
                 max_hp: computedMaxHp,
@@ -544,7 +724,11 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         } catch (e: any) {
             console.error(e);
             if (!fromAutoSave) {
-                setError(e?.message ?? "Error guardando el personaje.");
+                const message = e?.message ?? "Error guardando el personaje.";
+                setError(message);
+                if (typeof window !== "undefined") {
+                    window.alert(message);
+                }
             }
         } finally {
             persistInFlightRef.current = false;
@@ -557,9 +741,11 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         await persistCharacter({ closeAfterSave: true, fromAutoSave: false });
     }
 
-    // BORRAR personaje: BORRADO REAL en la BD + recarga de la lista
+    // BORRAR personaje: se mueve a papelera si la migración está activa.
     async function handleDeleteCharacter(id: string) {
-        const confirmDelete = window.confirm("¿Seguro que quieres eliminar este personaje? Esta acción no se puede deshacer.");
+        const confirmDelete = window.confirm(
+            "¿Seguro que quieres enviar este personaje a la papelera? Podrás restaurarlo desde Ajustes."
+        );
         if (!confirmDelete) return;
 
         setError(null);
@@ -572,19 +758,28 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 throw new Error("No hay sesión activa.");
             }
 
-            const baseDelete = supabase
+            const baseSoftDelete = supabase
                 .from("characters")
-                .delete()
+                .update({
+                    deleted_at: new Date().toISOString(),
+                    deleted_by: session.user.id ?? null,
+                })
                 .eq("id", id)
-                .eq("campaign_id", params.id);
-            const deleteQuery = isDmMode
-                ? baseDelete
-                : baseDelete.eq("user_id", session.user.id);
-            const { error: deleteError } = await deleteQuery;
+                .eq("campaign_id", params.id)
+                .is("deleted_at", null);
+            const softDeleteQuery = isDmMode
+                ? baseSoftDelete
+                : baseSoftDelete.eq("user_id", session.user.id);
+            const { error: softDeleteError } = await softDeleteQuery;
 
-            if (deleteError) {
-                console.error("Error eliminando personaje:", deleteError);
-                throw new Error(deleteError.message);
+            if (softDeleteError) {
+                if (hasMissingCharacterTrashColumns(softDeleteError)) {
+                    throw new Error(
+                        "La papelera de personajes no está disponible en esta base de datos. Ejecuta la migración 2026-02-27-character-trash.sql para activarla."
+                    );
+                }
+                console.error("Error eliminando personaje:", softDeleteError);
+                throw new Error(softDeleteError.message);
             }
 
             // recargamos la lista desde DB para garantizar persistencia y evitar inconsistencias por RLS
@@ -599,7 +794,6 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
             setError(e?.message ?? "No se ha podido eliminar el personaje.");
         }
     }
-
     const selectedChar = characters.find((c) => c.id === selectedId) ?? null;
     const ownedCompanions = selectedChar
         ? characters.filter(
@@ -623,7 +817,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         .map((c) => ({ id: c.id, name: c.name }));
     const createTitle =
         characterType === "companion"
-            ? tr(locale, "Nuevo compañero", "New companion")
+            ? tr(locale, "Nuevo compaÃ±ero", "New companion")
             : tr(locale, "Nuevo personaje", "New character");
     const assistantContext: AIAssistantClientContext = useMemo(
         () => ({
@@ -702,12 +896,100 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
         return subclassName ? `${baseLabel} (${subclassName})` : baseLabel;
     }
 
-    function characterSummary(char: Character): string {
-        return `${char.race || tr(locale, "Sin raza", "No race")} · ${classLabelWithSubclass(char)} · ${tr(locale, "Nivel", "Level")} ${char.level ?? "?"}`;
+    function classProgressionLabel(char: Character): string {
+        const baseLabel = classLabelWithSubclass(char);
+        const customSubclassById = new Map(
+            Array.isArray(char.details?.customSubclasses)
+                ? char.details.customSubclasses
+                      .filter(
+                          (subclass) =>
+                              subclass &&
+                              typeof subclass.id === "string" &&
+                              typeof subclass.name === "string" &&
+                              subclass.name.trim().length > 0
+                      )
+                      .map((subclass) => [subclass.id, subclass.name.trim()])
+                : []
+        );
+        const multiclassList = Array.isArray(char.details?.multiclass)
+            ? char.details.multiclass
+                  .filter(
+                      (entry) =>
+                          entry &&
+                          typeof entry.classId === "string" &&
+                          entry.classId.trim().length > 0 &&
+                          Number.isFinite(Number(entry.level)) &&
+                          Number(entry.level) > 0
+                  )
+                  .map((entry) => ({
+                      classId: String(entry.classId).trim(),
+                      level: Math.max(1, Math.floor(Number(entry.level) || 1)),
+                      subclassId:
+                          typeof entry.subclassId === "string"
+                              ? entry.subclassId.trim()
+                              : "",
+                      subclassName:
+                          typeof entry.subclassName === "string"
+                              ? entry.subclassName.trim()
+                              : "",
+                  }))
+            : [];
+        if (multiclassList.length === 0) {
+            return baseLabel;
+        }
+        const totalLevel = Math.max(1, Math.floor(Number(char.level) || 1));
+        const secondaryTotal = multiclassList.reduce(
+            (sum, entry) => sum + entry.level,
+            0
+        );
+        const storedPrimary = Number(char.details?.primaryClassLevel);
+        const primaryLevel =
+            Number.isFinite(storedPrimary) && storedPrimary >= 0
+                ? Math.floor(storedPrimary)
+                : Math.max(0, totalLevel - secondaryTotal);
+        const segments = [`${baseLabel} ${primaryLevel}`];
+        for (const entry of multiclassList) {
+            const resolvedSubclassName =
+                (entry.subclassId
+                    ? getSubclassName(entry.classId, entry.subclassId, locale) ??
+                      customSubclassById.get(entry.subclassId)
+                    : undefined) ??
+                (entry.subclassName || undefined);
+            const classLabel = localizedClassLabel(entry.classId);
+            const classWithSubclass = resolvedSubclassName
+                ? `${classLabel} (${resolvedSubclassName})`
+                : classLabel;
+            segments.push(`${classWithSubclass} ${entry.level}`);
+        }
+        return segments.join(" / ");
     }
 
-    function getSelectionBlobStyle(rawClass: string | null | undefined): CSSProperties {
-        const palette = getClassSelectionPalette(rawClass);
+    function characterSummary(char: Character): string {
+        return `${char.race || tr(locale, "Sin raza", "No race")} Â· ${classProgressionLabel(char)} Â· ${tr(locale, "Nivel", "Level")} ${char.level ?? "?"}`;
+    }
+
+    function getCharacterClassIds(char: Character): string[] {
+        const classIds: string[] = [];
+        if (typeof char.class === "string" && char.class.trim().length > 0) {
+            classIds.push(char.class.trim());
+        }
+        const multiclass = Array.isArray(char.details?.multiclass)
+            ? char.details.multiclass
+            : [];
+        for (const entry of multiclass) {
+            const classId =
+                typeof entry?.classId === "string" ? entry.classId.trim() : "";
+            if (!classId) continue;
+            classIds.push(classId);
+        }
+        return Array.from(new Set(classIds));
+    }
+
+    function getSelectionBlobStyle(char: Character): CSSProperties {
+        const palette = getCombinedClassSelectionPalette(
+            getCharacterClassIds(char),
+            char.class ?? null
+        );
         return {
             ["--selection-rgb" as string]: palette.rgb,
             backgroundColor: palette.background,
@@ -726,6 +1008,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 companionOwnerId,
                 charClass,
                 classSubclassId,
+                multiclassEntries,
                 charLevel,
                 race,
                 experience,
@@ -793,6 +1076,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
             companionOwnerId,
             charClass,
             classSubclassId,
+            multiclassEntries,
             charLevel,
             race,
             experience,
@@ -875,7 +1159,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
             <main className="p-6 text-sm text-ink-muted">
                 {tr(
                     locale,
-                    "No tienes acceso a esta campaña o no se han podido cargar los datos.",
+                    "No tienes acceso a esta campaÃ±a o no se han podido cargar los datos.",
                     "You do not have access to this campaign or data could not be loaded."
                 )}
             </main>
@@ -1007,9 +1291,11 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
             if (parsed?.type === "character" && parsed.id) {
                 const char = characters.find((c) => c.id === parsed.id);
                 if (!char) return;
-                const confirmDelete = window.confirm(`¿Eliminar personaje "${char.name}" arrastrándolo a la papelera? Esta acción no se puede deshacer.`);
+                const confirmDelete = window.confirm(
+                    `Â¿Enviar "${char.name}" a la papelera? PodrÃ¡s restaurarlo desde Ajustes.`
+                );
                 if (!confirmDelete) return;
-                // usa la función centralizada para borrar + recargar
+                // usa la funciÃ³n centralizada para borrar + recargar
                 handleDeleteCharacter(parsed.id);
             }
         } catch {
@@ -1102,7 +1388,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             <div>
                                 <h2 className="text-lg font-semibold text-ink leading-tight">
                                     {isDmMode
-                                        ? tr(locale, "Personajes de Campaña", "Campaign characters")
+                                        ? tr(locale, "Personajes de CampaÃ±a", "Campaign characters")
                                         : tr(locale, "Tus personajes", "Your characters")}
                                 </h2>
                                 <p className="text-[11px] text-ink-muted mt-0.5">
@@ -1114,7 +1400,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                           )
                                         : tr(
                                               locale,
-                                              "Gestiona tus personajes de campaña",
+                                              "Gestiona tus personajes de campaÃ±a",
                                               "Manage your campaign characters"
                                           )}
                                 </p>
@@ -1180,7 +1466,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             onClick={() => startCreate("companion")}
                             className="w-full text-[11px] px-3 py-2 rounded-md border border-ring text-ink hover:bg-ink/5 flex items-center justify-center"
                         >
-                            {tr(locale, "Nuevo compañero", "New companion")}
+                            {tr(locale, "Nuevo compaÃ±ero", "New companion")}
                         </button>
                     </div>
 
@@ -1191,7 +1477,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                             <p className="text-xs text-ink-muted">
                                 {tr(
                                     locale,
-                                    "Todavía no tienes personajes en esta campaña.",
+                                    "TodavÃ­a no tienes personajes en esta campaÃ±a.",
                                     "You do not have characters in this campaign yet."
                                 )}
                             </p>
@@ -1200,7 +1486,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                 {characters.map((ch) => {
                                     const isSelected = selectedId === ch.id;
                                     const selectedStyle = isSelected
-                                        ? getSelectionBlobStyle(ch.class)
+                                        ? getSelectionBlobStyle(ch)
                                         : undefined;
 
                                     return (
@@ -1253,7 +1539,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                                                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border border-emerald-400/60 text-emerald-700 bg-emerald-50">
                                                                         {tr(
                                                                             locale,
-                                                                            "Compañero",
+                                                                            "CompaÃ±ero",
                                                                             "Companion"
                                                                         )}
                                                                     </span>
@@ -1298,21 +1584,21 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                         )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-ring">
+                    <div className="mt-3 pt-3 border-t border-ring sticky bottom-0 bg-panel/95">
                         <div
                             onDragOver={handleTrashDragOver}
                             onDragLeave={handleTrashDragLeave}
                             onDrop={handleTrashDrop}
-                            className={`rounded-md p-3 border-2 flex items-center gap-3 justify-center transition-colors ${
+                            className={`rounded-md px-2.5 py-2 sm:p-3 border-2 flex items-center gap-2 sm:gap-3 justify-center transition-colors ${
                                 isOverTrash ? "border-red-500 bg-red-500/10" : "border-red-300/60 bg-white/60"
                             }`}
                         >
-                            <Trash2 className="h-5 w-5 text-red-500" />
-                            <div>
-                                <p className="text-sm font-medium text-red-600">
+                            <Trash2 className="h-5 w-5 text-red-500 shrink-0" />
+                            <div className="min-w-0 text-center">
+                                <p className="text-xs sm:text-sm leading-tight font-medium text-red-600">
                                     {tr(locale, "Arrastra aqu? para eliminar", "Drag here to delete")}
                                 </p>
-                                <p className="text-[11px] text-ink-muted">
+                                <p className="text-[10px] sm:text-[11px] leading-tight text-ink-muted">
                                     {tr(locale, "Suelta para eliminar el personaje arrastrado", "Release to remove the dragged character")}
                                 </p>
                             </div>
@@ -1356,7 +1642,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
             </aside>
 
             {/* Panel derecho (contenido principal) */}
-            {/* -> Aquí: dejamos header estático (no sticky) y todo el contenido se desplaza */}
+            {/* -> AquÃ­: dejamos header estÃ¡tico (no sticky) y todo el contenido se desplaza */}
             <section className="flex-1 min-w-0 p-3 pt-14 sm:p-4 sm:pt-14 md:p-6 md:pt-6 h-[100dvh] overflow-hidden flex flex-col">
                 {error && (
                     <p className="text-sm text-red-700 bg-red-100 border border-red-200 rounded-md px-3 py-2 inline-block">
@@ -1365,15 +1651,15 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                 )}
 
                 <div className="min-w-0 rounded-2xl bg-panel/80 border border-ring divide-y divide-ring overflow-hidden shadow-[0_18px_50px_rgba(45,29,12,0.12)] flex flex-col h-full">
-                    {/* HEADER: ahora estático (no sticky) */}
+                    {/* HEADER: ahora estÃ¡tico (no sticky) */}
                     <div className="px-4 pt-4 pb-0 flex-shrink-0">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 min-w-0">
                             <div className="min-w-0">
                                 <h1 className="text-lg font-semibold text-ink">
                                     {activeSection === "story"
-                                        ? tr(locale, "Historia de campaña", "Campaign story")
+                                        ? tr(locale, "Historia de campaÃ±a", "Campaign story")
                                         : activeSection === "bestiary"
-                                        ? tr(locale, "Bestiario de campaña", "Campaign bestiary")
+                                        ? tr(locale, "Bestiario de campaÃ±a", "Campaign bestiary")
                                         : mode === "create"
                                         ? createTitle
                                         : selectedChar?.name ?? tr(locale, "Personaje", "Character")}
@@ -1388,14 +1674,14 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                         : activeSection === "bestiary"
                                         ? tr(
                                               locale,
-                                              "Consulta las criaturas del bestiario de campaña que el DM ha marcado para jugadores.",
+                                              "Consulta las criaturas del bestiario de campaÃ±a que el DM ha marcado para jugadores.",
                                               "Browse campaign bestiary creatures marked for players by the DM."
                                           )
                                         : selectedChar
                                         ? characterSummary(selectedChar)
                                         : tr(
                                             locale,
-                                            `Crea o selecciona un ${characterType === "companion" ? "compañero" : "personaje"}`,
+                                            `Crea o selecciona un ${characterType === "companion" ? "compaÃ±ero" : "personaje"}`,
                                             `Create or select a ${characterType === "companion" ? "companion" : "character"}`
                                         )}
                                 </p>
@@ -1417,8 +1703,8 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                 {activeSection === "characters" && (mode === "create" || mode === "edit") && (
                                     <span className="text-[11px] text-ink-muted">
                                         {autoSaving
-                                            ? tr(locale, "Guardado automático...", "Auto-saving...")
-                                            : tr(locale, "Guardado automático activo", "Auto-save active")}
+                                            ? tr(locale, "Guardado automÃ¡tico...", "Auto-saving...")
+                                            : tr(locale, "Guardado automÃ¡tico activo", "Auto-save active")}
                                     </span>
                                 )}
                             </div>
@@ -1450,8 +1736,8 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                     >
                                         {tr(
                                             locale,
-                                            "Reverso · Acciones y hechizos",
-                                            "Back · Actions and spells"
+                                            "Reverso Â· Acciones y hechizos",
+                                            "Back Â· Actions and spells"
                                         )}
                                     </button>
                                     <button
@@ -1472,7 +1758,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                                 : "border-transparent text-ink-muted hover:text-ink"
                                         }`}
                                     >
-                                        {tr(locale, "Reverso · Inventario", "Back · Inventory")}
+                                        {tr(locale, "Reverso Â· Inventario", "Back Â· Inventory")}
                                     </button>
                                     {showCompanionsTab && (
                                         <button
@@ -1483,7 +1769,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
                                                     : "border-transparent text-ink-muted hover:text-ink"
                                             }`}
                                         >
-                                            {tr(locale, "Compañeros", "Companions")}
+                                            {tr(locale, "CompaÃ±eros", "Companions")}
                                         </button>
                                     )}
                                 </div>
@@ -1634,6 +1920,7 @@ export function CampaignPlayerPage({ forceDmMode = false }: CampaignPlayerPagePr
 }
 
 export default CampaignPlayerPage;
+
 
 
 

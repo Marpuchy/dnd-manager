@@ -5,12 +5,18 @@ import { useClientLocale } from "@/lib/i18n/useClientLocale";
 import { getLocalizedText } from "@/lib/character/items";
 import { tr } from "@/lib/i18n/translate";
 import { getClientSpellsForClassLevel } from "@/lib/dnd/clientLocalData";
+import SpellSlotsPanel from "@/app/components/SpellSlotsPanel";
 
 type SpellSectionProps = {
   charClass: string;
   charLevel: number;
   spellSlotsOverride?: Record<string, number> | null;
   spellSlotModifiers?: Record<string, number> | null;
+  classResourceModifiers?: Record<string, number> | null;
+  classResourceSources?: Array<{
+    classId?: string | null;
+    level?: number | null;
+  }> | null;
   spellsL0: string;
   setSpellsL0: (v: string) => void;
   spellsL1: string;
@@ -39,6 +45,8 @@ export function SpellSection({
   charLevel,
   spellSlotsOverride,
   spellSlotModifiers,
+  classResourceModifiers,
+  classResourceSources,
   spellsL0,
   setSpellsL0,
   spellsL1,
@@ -230,6 +238,15 @@ export function SpellSection({
 
   return (
     <section className="space-y-3">
+      <SpellSlotsPanel
+        characterClass={charClass}
+        characterLevel={charLevel}
+        spellSlotsOverride={spellSlotsOverride}
+        spellSlotModifiers={spellSlotModifiers}
+        classResourceModifiers={classResourceModifiers}
+        classResourceSources={classResourceSources}
+      />
+
       <h3 className="text-sm font-semibold text-ink">
         {t("Conjuros añadidos al personaje", "Spells added to the character")}
       </h3>

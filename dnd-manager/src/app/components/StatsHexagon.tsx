@@ -17,7 +17,7 @@ type BonusDetail = {
     value: number;
 };
 
-type HexColor = {
+type ClassColor = {
     stroke: string;
     fill: string;
 };
@@ -39,14 +39,6 @@ export const CLASS_COLORS: Record<
     string,
     { stroke: string; fill: string }
 > = {
-    aberration: {
-        stroke: "#7c3aed",
-        fill: "rgba(124,58,237,0.35)",
-    },
-    beast: {
-        stroke: "#65a30d",
-        fill: "rgba(101,163,13,0.35)",
-    },
     barbarian: {
         stroke: "#dc2626",
         fill: "rgba(220,38,38,0.35)",
@@ -55,77 +47,25 @@ export const CLASS_COLORS: Record<
         stroke: "#c026d3",
         fill: "rgba(192,38,211,0.35)",
     },
-    celestial: {
-        stroke: "#0891b2",
-        fill: "rgba(8,145,178,0.35)",
-    },
     cleric: {
         stroke: "#eab308",
         fill: "rgba(234,179,8,0.35)",
-    },
-    construct: {
-        stroke: "#64748b",
-        fill: "rgba(100,116,139,0.35)",
-    },
-    demon: {
-        stroke: "#b91c1c",
-        fill: "rgba(185,28,28,0.35)",
-    },
-    devil: {
-        stroke: "#991b1b",
-        fill: "rgba(153,27,27,0.35)",
-    },
-    dragon: {
-        stroke: "#dc2626",
-        fill: "rgba(220,38,38,0.35)",
     },
     druid: {
         stroke: "#16a34a",
         fill: "rgba(22,163,74,0.35)",
     },
-    elemental: {
-        stroke: "#0284c7",
-        fill: "rgba(2,132,199,0.35)",
-    },
-    fey: {
-        stroke: "#0f766e",
-        fill: "rgba(15,118,110,0.35)",
-    },
-    fiend: {
-        stroke: "#b91c1c",
-        fill: "rgba(185,28,28,0.35)",
-    },
     fighter: {
         stroke: "#f97316",
         fill: "rgba(249,115,22,0.35)",
-    },
-    giant: {
-        stroke: "#c2410c",
-        fill: "rgba(194,65,12,0.35)",
-    },
-    humanoid: {
-        stroke: "#2563eb",
-        fill: "rgba(37,99,235,0.35)",
     },
     monk: {
         stroke: "#0ea5e9",
         fill: "rgba(14,165,233,0.35)",
     },
-    monstrosity: {
-        stroke: "#9333ea",
-        fill: "rgba(147,51,234,0.35)",
-    },
-    ooze: {
-        stroke: "#84cc16",
-        fill: "rgba(132,204,22,0.35)",
-    },
     paladin: {
         stroke: "#fde047",
         fill: "rgba(253,224,71,0.35)",
-    },
-    plant: {
-        stroke: "#15803d",
-        fill: "rgba(21,128,61,0.35)",
     },
     ranger: {
         stroke: "#22c55e",
@@ -138,14 +78,6 @@ export const CLASS_COLORS: Record<
     sorcerer: {
         stroke: "#a855f7",
         fill: "rgba(168,85,247,0.35)",
-    },
-    swarm: {
-        stroke: "#4b5563",
-        fill: "rgba(75,85,99,0.35)",
-    },
-    undead: {
-        stroke: "#6d28d9",
-        fill: "rgba(109,40,217,0.35)",
     },
     warlock: {
         stroke: "#7c3aed",
@@ -169,6 +101,25 @@ export const CLASS_COLORS: Record<
     },
 };
 
+const CLASS_COLOR_ALIASES: Record<string, string> = {
+    barbaro: "barbarian",
+    bardo: "bard",
+    clerigo: "cleric",
+    druida: "druid",
+    guerrero: "fighter",
+    monje: "monk",
+    paladino: "paladin",
+    explorador: "ranger",
+    picaro: "rogue",
+    hechicero: "sorcerer",
+    brujo: "warlock",
+    mago: "wizard",
+    artificiero: "artificer",
+    custom: "customclass",
+    "clase personalizada": "customclass",
+    clasepersonalizada: "customclass",
+};
+
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Helpers
 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -181,12 +132,96 @@ function polar(angle: number, radius: number, center: number) {
 }
 
 function normalizeClass(cls?: string) {
-    return cls?.toLowerCase().replace(/\s+/g, "") ?? "";
+    const normalized =
+        cls
+            ?.toLowerCase()
+            .trim()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[\s_-]+/g, "") ?? "";
+    return CLASS_COLOR_ALIASES[normalized] ?? normalized;
 }
 
 export function getClassColor(characterClass?: string) {
     const clsKey = normalizeClass(characterClass);
     return CLASS_COLORS[clsKey] ?? CLASS_COLORS.default;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const clean = hex.replace("#", "").trim();
+    const normalized =
+        clean.length === 3
+            ? clean
+                  .split("")
+                  .map((ch) => `${ch}${ch}`)
+                  .join("")
+            : clean;
+    if (normalized.length !== 6) return null;
+    const num = parseInt(normalized, 16);
+    if (!Number.isFinite(num)) return null;
+    return {
+        r: (num >> 16) & 255,
+        g: (num >> 8) & 255,
+        b: num & 255,
+    };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+    const toHex = (value: number) =>
+        Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+export function getCombinedClassColor(
+    classIds?: Array<string | null | undefined>,
+    fallbackClass?: string
+): ClassColor {
+    const normalizedIds = Array.from(
+        new Set(
+            (Array.isArray(classIds) ? classIds : [])
+                .map((classId) => normalizeClass(classId ?? undefined))
+                .filter((id) => id.length > 0)
+        )
+    );
+
+    if (normalizedIds.length === 0) {
+        return getClassColor(fallbackClass);
+    }
+
+    const palette = normalizedIds
+        .map((classId) => CLASS_COLORS[classId] ?? null)
+        .filter((entry): entry is ClassColor => Boolean(entry));
+    if (palette.length === 0) {
+        return getClassColor(fallbackClass);
+    }
+    if (palette.length === 1) {
+        return palette[0];
+    }
+
+    const rgbValues = palette
+        .map((entry) => hexToRgb(entry.stroke))
+        .filter((entry): entry is { r: number; g: number; b: number } => Boolean(entry));
+    if (rgbValues.length === 0) {
+        return getClassColor(fallbackClass);
+    }
+
+    const mixed = rgbValues.reduce(
+        (acc, entry) => ({
+            r: acc.r + entry.r,
+            g: acc.g + entry.g,
+            b: acc.b + entry.b,
+        }),
+        { r: 0, g: 0, b: 0 }
+    );
+    const stroke = rgbToHex(
+        mixed.r / rgbValues.length,
+        mixed.g / rgbValues.length,
+        mixed.b / rgbValues.length
+    );
+    const fill = `rgba(${Math.round(mixed.r / rgbValues.length)},${Math.round(
+        mixed.g / rgbValues.length
+    )},${Math.round(mixed.b / rgbValues.length)},0.35)`;
+    return { stroke, fill };
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -198,7 +233,7 @@ export default function StatsHexagon({
                                          bonuses,
                                          bonusDetails,
                                          characterClass,
-                                         colorOverride,
+                                         classMixClasses,
                                          labels,
                                          size,
                                      }: {
@@ -206,7 +241,7 @@ export default function StatsHexagon({
     bonuses?: Record<StatKey, boolean>;
     bonusDetails?: Record<StatKey, BonusDetail[]>;
     characterClass?: string;
-    colorOverride?: HexColor;
+    classMixClasses?: Array<string | null | undefined>;
     labels?: Partial<Record<StatKey, string>>;
     size?: number;
 }) {
@@ -243,7 +278,12 @@ export default function StatsHexagon({
         (_, i) => (Math.PI * 2 * i) / ORDER.length - Math.PI / 2
     );
 
-    const hexColor = colorOverride ?? getClassColor(characterClass);
+    const hexColor = getCombinedClassColor(
+        classMixClasses && classMixClasses.length > 0
+            ? classMixClasses
+            : [characterClass],
+        characterClass
+    );
 
     const statPoints = angles
         .map((angle, i) => {

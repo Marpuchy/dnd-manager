@@ -140,6 +140,74 @@ export default function CharacterView({
         return subclassName ? `${className} (${subclassName})` : className;
     }
 
+    function classProgressionLabel(target: Character): string {
+        const baseLabel = classLabelWithSubclass(target);
+        const customSubclassById = new Map(
+            Array.isArray(target.details?.customSubclasses)
+                ? target.details.customSubclasses
+                      .filter(
+                          (subclass) =>
+                              subclass &&
+                              typeof subclass.id === "string" &&
+                              typeof subclass.name === "string" &&
+                              subclass.name.trim().length > 0
+                      )
+                      .map((subclass) => [subclass.id, subclass.name.trim()])
+                : []
+        );
+        const multiclassList = Array.isArray(target.details?.multiclass)
+            ? target.details.multiclass
+                  .filter(
+                      (entry) =>
+                          entry &&
+                          typeof entry.classId === "string" &&
+                          entry.classId.trim().length > 0 &&
+                          Number.isFinite(Number(entry.level)) &&
+                          Number(entry.level) > 0
+                  )
+                  .map((entry) => ({
+                      classId: String(entry.classId).trim(),
+                      level: Math.max(1, Math.floor(Number(entry.level) || 1)),
+                      subclassId:
+                          typeof entry.subclassId === "string"
+                              ? entry.subclassId.trim()
+                              : "",
+                      subclassName:
+                          typeof entry.subclassName === "string"
+                              ? entry.subclassName.trim()
+                              : "",
+                  }))
+            : [];
+        if (multiclassList.length === 0) {
+            return baseLabel;
+        }
+        const totalLevel = Math.max(1, Math.floor(Number(target.level) || 1));
+        const secondaryTotal = multiclassList.reduce(
+            (sum, entry) => sum + entry.level,
+            0
+        );
+        const storedPrimary = Number(target.details?.primaryClassLevel);
+        const primaryLevel =
+            Number.isFinite(storedPrimary) && storedPrimary >= 0
+                ? Math.floor(storedPrimary)
+                : Math.max(0, totalLevel - secondaryTotal);
+        const parts = [`${baseLabel} ${primaryLevel}`];
+        for (const entry of multiclassList) {
+            const resolvedSubclassName =
+                (entry.subclassId
+                    ? getSubclassName(entry.classId, entry.subclassId, locale) ??
+                      customSubclassById.get(entry.subclassId)
+                    : undefined) ??
+                (entry.subclassName || undefined);
+            const classLabel = prettyClassLabel(entry.classId, locale);
+            const classWithSubclass = resolvedSubclassName
+                ? `${classLabel} (${resolvedSubclassName})`
+                : classLabel;
+            parts.push(`${classWithSubclass} ${entry.level}`);
+        }
+        return parts.join(" / ");
+    }
+
     function CompanionMenu() {
         if (!companionsToShow.length) return null;
 
@@ -165,7 +233,7 @@ export default function CharacterView({
                                             {companion.name}
                                         </div>
                                         <div className="text-[11px] text-ink-muted truncate">
-                                            {companion.race || t("Sin raza", "No race")} · {classLabelWithSubclass(companion)} · {t("Nivel", "Level")} {companion.level ?? "?"}
+                                            {companion.race || t("Sin raza", "No race")} · {classProgressionLabel(companion)} · {t("Nivel", "Level")} {companion.level ?? "?"}
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11px] text-ink-muted">

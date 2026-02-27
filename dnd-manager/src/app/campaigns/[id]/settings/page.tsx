@@ -1,8 +1,20 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Bot, Check, Globe2, LayoutGrid, LogOut, Palette, RefreshCw, Sparkles, Type } from "lucide-react";
+import {
+    AlertTriangle,
+    ArrowLeft,
+    Bot,
+    Check,
+    Globe2,
+    LayoutGrid,
+    LogOut,
+    Palette,
+    RefreshCw,
+    Sparkles,
+    Type,
+} from "lucide-react";
 import { useUserSettings } from "@/app/components/SettingsProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
@@ -20,6 +32,18 @@ type ZoneTrashRow = {
     deleted_at: string | null;
 };
 
+type CharacterTrashRow = {
+    id: string;
+    campaign_id: string;
+    user_id: string | null;
+    name: string;
+    class: string | null;
+    race: string | null;
+    level: number | null;
+    character_type: string | null;
+    deleted_at: string | null;
+};
+
 type CampaignMapLookupRow = {
     id: string;
     name: string;
@@ -31,6 +55,8 @@ type ZoneTrashEntry = ZoneTrashRow & {
 
 const ZONE_TRASH_RETENTION_DAYS = 30;
 const ZONE_TRASH_EVENT_NAME = "dnd-manager-zone-trash-updated";
+const CHARACTER_TRASH_RETENTION_DAYS = 30;
+const CHARACTER_TRASH_EVENT_NAME = "dnd-manager-character-trash-updated";
 const AI_GLOBAL_TRAINING_OPT_IN_STORAGE_KEY_PREFIX =
     "dnd-ai-global-training-opt-in-v1";
 
@@ -56,6 +82,13 @@ function optionClass(selected: boolean) {
     }`;
 }
 
+function hasMissingCharacterTrashColumns(error: unknown) {
+    const message = String(
+        (error as { message?: unknown } | null | undefined)?.message ?? ""
+    ).toLowerCase();
+    return message.includes("deleted_at") || message.includes("deleted_by");
+}
+
 export default function CampaignSettingsPage() {
     const params = useParams<{ id: string }>();
     const router = useRouter();
@@ -73,9 +106,16 @@ export default function CampaignSettingsPage() {
     const [zoneTrashError, setZoneTrashError] = React.useState<string | null>(null);
     const [zoneTrashSupported, setZoneTrashSupported] = React.useState(true);
     const [zoneTrash, setZoneTrash] = React.useState<ZoneTrashEntry[]>([]);
+    const [characterTrashLoading, setCharacterTrashLoading] = React.useState(false);
+    const [characterTrashError, setCharacterTrashError] = React.useState<string | null>(
+        null
+    );
+    const [characterTrashSupported, setCharacterTrashSupported] = React.useState(true);
+    const [characterTrash, setCharacterTrash] = React.useState<CharacterTrashRow[]>([]);
     const [aiPromptConsent, setAiPromptConsent] = React.useState(false);
 
     const canManageZoneTrash = role === "DM";
+    const canManageCharacterTrash = role === "DM";
     const from = searchParams.get("from");
     const aiPromptConsentStorageKey =
         `${AI_GLOBAL_TRAINING_OPT_IN_STORAGE_KEY_PREFIX}:${campaignId}`;
@@ -97,6 +137,15 @@ export default function CampaignSettingsPage() {
         );
     }
 
+    function notifyCharacterTrashChanged() {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(
+            new CustomEvent(CHARACTER_TRASH_EVENT_NAME, {
+                detail: { campaignId },
+            })
+        );
+    }
+
     function formatDeletedAt(value: string | null) {
         if (!value) return t("Fecha desconocida", "Unknown date");
         const time = new Date(value);
@@ -107,14 +156,24 @@ export default function CampaignSettingsPage() {
         }).format(time);
     }
 
-    function getDaysUntilAutoDelete(value: string | null) {
+    function getDaysUntilAutoDelete(
+        value: string | null,
+        retentionDays = ZONE_TRASH_RETENTION_DAYS
+    ) {
         if (!value) return null;
         const deletedAt = new Date(value).getTime();
         if (!Number.isFinite(deletedAt)) return null;
-        const expiresAt = deletedAt + ZONE_TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+        const expiresAt = deletedAt + retentionDays * 24 * 60 * 60 * 1000;
         const remainingMs = expiresAt - Date.now();
         if (remainingMs <= 0) return 0;
         return Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+    }
+
+    function getCharacterTypeLabel(type: string | null) {
+        if (type === "companion") {
+            return t("Compañero", "Companion");
+        }
+        return t("Personaje", "Character");
     }
 
     async function loadZoneTrash() {
@@ -261,7 +320,7 @@ export default function CampaignSettingsPage() {
         }
         const confirmed = window.confirm(
             t(
-                "Vaciar toda la papelera de zonas ahora? Esta acción no se puede deshacer.",
+                "Vaciar toda la papelera de zonas ahora? Esta accion no se puede deshacer.",
                 "Empty all zone trash now? This action cannot be undone."
             )
         );
@@ -288,13 +347,223 @@ export default function CampaignSettingsPage() {
         notifyZoneTrashChanged();
     }
 
+    async function callCharacterPermanentDelete(characterId: string) {
+        const {
+            data: { session },
+            error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError || !session?.access_token) {
+            throw new Error(
+                t(
+                    "No hay una sesión válida para eliminar el personaje.",
+                    "No valid session to delete character."
+                )
+            );
+        }
+
+        const response = await fetch(
+            `/api/dnd/campaigns/${campaignId}/characters/${characterId}/delete`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ permanent: true }),
+            }
+        );
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(
+                String(
+                    payload?.error ??
+                        payload?.message ??
+                        t(
+                            "No se pudo eliminar el personaje de forma permanente.",
+                            "Could not permanently delete character."
+                        )
+                )
+            );
+        }
+        return payload?.deleted === true;
+    }
+
+    async function loadCharacterTrash() {
+        if (!campaignId || !canManageCharacterTrash) return;
+        setCharacterTrashLoading(true);
+        setCharacterTrashError(null);
+        setCharacterTrashSupported(true);
+        try {
+            const selectColumns =
+                "id, campaign_id, user_id, name, class, race, level, character_type, deleted_at";
+            const trashedCharactersRes = await supabase
+                .from("characters")
+                .select(selectColumns)
+                .eq("campaign_id", campaignId)
+                .not("deleted_at", "is", null)
+                .order("deleted_at", { ascending: false });
+
+            if (trashedCharactersRes.error) {
+                if (hasMissingCharacterTrashColumns(trashedCharactersRes.error)) {
+                    setCharacterTrash([]);
+                    setCharacterTrashSupported(false);
+                    setCharacterTrashError(null);
+                    return;
+                }
+                throw trashedCharactersRes.error;
+            }
+
+            let rows = (trashedCharactersRes.data ?? []) as CharacterTrashRow[];
+            const purgeBeforeMs =
+                Date.now() - CHARACTER_TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+            const expiredRows = rows.filter((entry) => {
+                if (!entry.deleted_at) return false;
+                const deletedAtMs = new Date(entry.deleted_at).getTime();
+                return Number.isFinite(deletedAtMs) && deletedAtMs <= purgeBeforeMs;
+            });
+
+            if (expiredRows.length > 0) {
+                for (const expiredRow of expiredRows) {
+                    await callCharacterPermanentDelete(expiredRow.id);
+                }
+                const refreshedRes = await supabase
+                    .from("characters")
+                    .select(selectColumns)
+                    .eq("campaign_id", campaignId)
+                    .not("deleted_at", "is", null)
+                    .order("deleted_at", { ascending: false });
+                if (refreshedRes.error) {
+                    if (hasMissingCharacterTrashColumns(refreshedRes.error)) {
+                        setCharacterTrash([]);
+                        setCharacterTrashSupported(false);
+                        setCharacterTrashError(null);
+                        return;
+                    }
+                    throw refreshedRes.error;
+                }
+                rows = (refreshedRes.data ?? []) as CharacterTrashRow[];
+            }
+
+            setCharacterTrash(rows);
+        } catch (err) {
+            setCharacterTrashError(
+                asErrorMessage(
+                    err,
+                    t(
+                        "No se pudo cargar la papelera de personajes.",
+                        "Could not load character trash."
+                    )
+                )
+            );
+        } finally {
+            setCharacterTrashLoading(false);
+        }
+    }
+
+    async function handleRestoreCharacter(characterId: string) {
+        if (!campaignId || !canManageCharacterTrash || !characterTrashSupported) return;
+        setCharacterTrashError(null);
+        const { error } = await supabase
+            .from("characters")
+            .update({ deleted_at: null, deleted_by: null })
+            .eq("campaign_id", campaignId)
+            .eq("id", characterId);
+
+        if (error) {
+            if (hasMissingCharacterTrashColumns(error)) {
+                setCharacterTrash([]);
+                setCharacterTrashSupported(false);
+                return;
+            }
+            setCharacterTrashError(
+                asErrorMessage(
+                    error,
+                    t(
+                        "No se pudo restaurar el personaje.",
+                        "Could not restore character."
+                    )
+                )
+            );
+            return;
+        }
+
+        setCharacterTrash((prev) => prev.filter((entry) => entry.id !== characterId));
+        notifyCharacterTrashChanged();
+    }
+
+    async function handleDeleteCharacterPermanently(characterId: string) {
+        if (!campaignId || !canManageCharacterTrash || !characterTrashSupported) return;
+        const confirmed = window.confirm(
+            t(
+                "Eliminar permanentemente este personaje de la papelera?",
+                "Permanently delete this character from trash?"
+            )
+        );
+        if (!confirmed) return;
+
+        setCharacterTrashError(null);
+        try {
+            await callCharacterPermanentDelete(characterId);
+            setCharacterTrash((prev) => prev.filter((entry) => entry.id !== characterId));
+            notifyCharacterTrashChanged();
+        } catch (err) {
+            setCharacterTrashError(
+                asErrorMessage(
+                    err,
+                    t(
+                        "No se pudo eliminar el personaje de forma permanente.",
+                        "Could not permanently delete character."
+                    )
+                )
+            );
+        }
+    }
+
+    async function handleEmptyCharacterTrashNow() {
+        if (
+            !campaignId ||
+            !canManageCharacterTrash ||
+            !characterTrashSupported ||
+            characterTrash.length === 0
+        ) {
+            return;
+        }
+        const confirmed = window.confirm(
+            t(
+                "Vaciar toda la papelera de personajes ahora? Esta accion no se puede deshacer.",
+                "Empty all character trash now? This action cannot be undone."
+            )
+        );
+        if (!confirmed) return;
+
+        setCharacterTrashError(null);
+        try {
+            for (const entry of characterTrash) {
+                await callCharacterPermanentDelete(entry.id);
+            }
+            setCharacterTrash([]);
+            notifyCharacterTrashChanged();
+        } catch (err) {
+            setCharacterTrashError(
+                asErrorMessage(
+                    err,
+                    t(
+                        "No se pudo vaciar la papelera de personajes.",
+                        "Could not empty character trash."
+                    )
+                )
+            );
+            await loadCharacterTrash();
+        }
+    }
+
     async function handleSignOut() {
         if (loggingOut) return;
         setLoggingOut(true);
         try {
             const { error } = await supabase.auth.signOut();
             if (error) {
-                console.error("Error cerrando sesión:", error);
+                console.error("Error cerrando sesion:", error);
             }
             router.replace("/login");
             router.refresh();
@@ -368,6 +637,30 @@ export default function CampaignSettingsPage() {
     }, [allowed, canManageZoneTrash, campaignId]);
 
     React.useEffect(() => {
+        if (!allowed || !canManageCharacterTrash) return;
+        void loadCharacterTrash();
+    }, [allowed, canManageCharacterTrash, campaignId]);
+
+    React.useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!allowed || !canManageCharacterTrash) return;
+
+        const onCharacterTrashUpdated = (event: Event) => {
+            const detail = (event as CustomEvent<{ campaignId?: string }>).detail;
+            if (detail?.campaignId && detail.campaignId !== campaignId) return;
+            void loadCharacterTrash();
+        };
+
+        window.addEventListener(CHARACTER_TRASH_EVENT_NAME, onCharacterTrashUpdated);
+        return () => {
+            window.removeEventListener(
+                CHARACTER_TRASH_EVENT_NAME,
+                onCharacterTrashUpdated
+            );
+        };
+    }, [allowed, canManageCharacterTrash, campaignId]);
+
+    React.useEffect(() => {
         if (typeof window === "undefined") return;
         try {
             const saved = window.localStorage.getItem(aiPromptConsentStorageKey);
@@ -400,10 +693,6 @@ export default function CampaignSettingsPage() {
                                     "Configure language, visual mode, AI and accessibility in a full-page view."
                                 )}
                             </p>
-                            <p className="mt-2 text-xs text-ink-muted">
-                                {t("ID de campaña", "Campaign ID")}:{" "}
-                                <span className="font-mono text-ink">{campaignId}</span>
-                            </p>
                         </div>
                         <button
                             type="button"
@@ -417,165 +706,7 @@ export default function CampaignSettingsPage() {
                 </header>
 
                 <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <article className="hidden">
-                        <div>
-                            <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
-                                <Bot className="h-4 w-4 text-ember" />
-                                {t("Ajustes IA", "AI settings")}
-                            </h2>
-                            <p className="text-xs text-ink-muted mt-1">
-                                {t("Permisos de prompts IA.", "AI prompts permissions.")}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                            <button
-                                type="button"
-                                disabled={settingsLoading}
-                                onClick={() => handleAiPromptConsentToggle(!aiPromptConsent)}
-                                className={`${optionClass(aiPromptConsent)} md:col-span-2`}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="font-medium">
-                                        {t("Permiso de prompts IA", "AI prompts permission")}
-                                    </span>
-                                    <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                                            aiPromptConsent
-                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
-                                                : "border-amber-400/70 bg-amber-100 text-amber-900"
-                                        }`}
-                                    >
-                                        {aiPromptConsent
-                                            ? t("Concedido", "Granted")
-                                            : t("No concedido", "Not granted")}
-                                    </span>
-                                </div>
-                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                    {t(
-                                        "Controla si tus prompts se pueden usar para mejorar el entrenamiento global de la IA.",
-                                        "Controls whether your prompts can be used to improve global AI training."
-                                    )}
-                                </p>
-                            </button>
-
-                            <details open className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
-                                <summary className="cursor-pointer select-none font-semibold text-ink">
-                                    {t(
-                                        "Documentación del permiso de prompts",
-                                        "Prompts permission documentation"
-                                    )}
-                                </summary>
-                                <div className="mt-2 space-y-1.5">
-                                    <p>
-                                        {t(
-                                            "Por qué existe: permite mejorar la calidad del asistente con ejemplos reales de uso.",
-                                            "Why it exists: it helps improve assistant quality using real usage examples."
-                                        )}
-                                    </p>
-                                    <p>
-                                        {t(
-                                            "Para qué sirve: el sistema aprende patrones de peticiones y respuestas para proponer cambios más precisos.",
-                                            "What it is for: the system learns request/response patterns to propose more accurate changes."
-                                        )}
-                                    </p>
-                                    <p>
-                                        {t(
-                                            "Qué información compromete: el texto de tus prompts y contexto funcional del cambio dentro de la campaña (por ejemplo, tipo de entidad o sección de trabajo). No incluye tu contraseña ni tokens.",
-                                            "What information it exposes: your prompt text and functional context of the change inside the campaign (for example, entity type or working section). It does not include your password or tokens."
-                                        )}
-                                    </p>
-                                    <p className="text-ink-muted">
-                                        {t(
-                                            "Recomendación: no escribas datos personales sensibles en los prompts si activas este permiso.",
-                                            "Recommendation: do not include sensitive personal data in prompts if you enable this permission."
-                                        )}
-                                    </p>
-                                </div>
-                            </details>
-                        </div>
-                    </article>
-
-                    <article className="order-2 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
-                        <div>
-                            <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
-                                <Bot className="h-4 w-4 text-ember" />
-                                {t("Ajustes IA", "AI settings")}
-                            </h2>
-                            <p className="text-xs text-ink-muted mt-1">
-                                {t("Permisos de prompts IA.", "AI prompts permissions.")}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                            <button
-                                type="button"
-                                disabled={settingsLoading}
-                                onClick={() => handleAiPromptConsentToggle(!aiPromptConsent)}
-                                className={`${optionClass(aiPromptConsent)} md:col-span-2`}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="font-medium">
-                                        {t("Permiso de prompts IA", "AI prompts permission")}
-                                    </span>
-                                    <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                                            aiPromptConsent
-                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
-                                                : "border-amber-400/70 bg-amber-100 text-amber-900"
-                                        }`}
-                                    >
-                                        {aiPromptConsent
-                                            ? t("Concedido", "Granted")
-                                            : t("No concedido", "Not granted")}
-                                    </span>
-                                </div>
-                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                    {t(
-                                        "Controla si tus prompts se pueden usar para mejorar el entrenamiento global de la IA.",
-                                        "Controls whether your prompts can be used to improve global AI training."
-                                    )}
-                                </p>
-                            </button>
-
-                            <details open className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
-                                <summary className="cursor-pointer select-none font-semibold text-ink">
-                                    {t(
-                                        "Documentación del permiso de prompts",
-                                        "Prompts permission documentation"
-                                    )}
-                                </summary>
-                                <div className="mt-2 space-y-1.5">
-                                    <p>
-                                        {t(
-                                            "Por qué existe: permite mejorar la calidad del asistente con ejemplos reales de uso.",
-                                            "Why it exists: it helps improve assistant quality using real usage examples."
-                                        )}
-                                    </p>
-                                    <p>
-                                        {t(
-                                            "Para qué sirve: el sistema aprende patrones de peticiones y respuestas para proponer cambios más precisos.",
-                                            "What it is for: the system learns request/response patterns to propose more accurate changes."
-                                        )}
-                                    </p>
-                                    <p>
-                                        {t(
-                                            "Qué información compromete: el texto de tus prompts y contexto funcional del cambio dentro de la campaña (por ejemplo, tipo de entidad o sección de trabajo). No incluye tu contraseña ni tokens.",
-                                            "What information it exposes: your prompt text and functional context of the change inside the campaign (for example, entity type or working section). It does not include your password or tokens."
-                                        )}
-                                    </p>
-                                    <p className="text-ink-muted">
-                                        {t(
-                                            "Recomendación: no escribas datos personales sensibles en los prompts si activas este permiso.",
-                                            "Recommendation: do not include sensitive personal data in prompts if you enable this permission."
-                                        )}
-                                    </p>
-                                </div>
-                            </details>
-                        </div>
-                    </article>
-
-                    <article className="order-1 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <Globe2 className="h-4 w-4 text-ember" />
@@ -621,7 +752,93 @@ export default function CampaignSettingsPage() {
                         </div>
                     </article>
 
-                    <article className="order-3 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                        <div>
+                            <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
+                                <Bot className="h-4 w-4 text-ember" />
+                                {t("Ajustes IA", "AI settings")}
+                            </h2>
+                            <p className="text-xs text-ink-muted mt-1">
+                                {t(
+                                    "Permisos de prompts IA.",
+                                    "AI prompts permissions."
+                                )}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <button
+                                type="button"
+                                disabled={settingsLoading}
+                                onClick={() => handleAiPromptConsentToggle(!aiPromptConsent)}
+                                className={`${optionClass(aiPromptConsent)} md:col-span-2`}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium">
+                                        {t(
+                                            "Permiso de prompts IA",
+                                            "AI prompts permission"
+                                        )}
+                                    </span>
+                                    <span
+                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                            aiPromptConsent
+                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
+                                                : "border-amber-400/70 bg-amber-100 text-amber-900"
+                                        }`}
+                                    >
+                                        {aiPromptConsent
+                                            ? t("Concedido", "Granted")
+                                            : t("No concedido", "Not granted")}
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
+                                    {t(
+                                        "Controla si tus prompts se pueden usar para mejorar el entrenamiento global de la IA.",
+                                        "Controls whether your prompts can be used to improve global AI training."
+                                    )}
+                                </p>
+                            </button>
+
+                            <details className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
+                                <summary className="cursor-pointer select-none font-semibold text-ink">
+                                    {t(
+                                        "Documentación del permiso de prompts",
+                                        "Prompts permission documentation"
+                                    )}
+                                </summary>
+                                <div className="mt-2 space-y-1.5">
+                                    <p>
+                                        {t(
+                                            "Por qué existe: permite mejorar la calidad del asistente con ejemplos reales de uso.",
+                                            "Why it exists: it helps improve assistant quality using real usage examples."
+                                        )}
+                                    </p>
+                                    <p>
+                                        {t(
+                                            "Para qué sirve: el sistema aprende patrones de peticiones y respuestas para proponer cambios más precisos.",
+                                            "What it is for: the system learns request/response patterns to propose more accurate changes."
+                                        )}
+                                    </p>
+                                    <p>
+                                        {t(
+                                            "Qué información compromete: el texto de tus prompts y contexto funcional del cambio dentro de la campaña (por ejemplo, tipo de entidad o sección de trabajo). No incluye tu contraseña ni tokens.",
+                                            "What information it exposes: your prompt text and functional context of the change inside the campaign (for example, entity type or working section). It does not include your password or tokens."
+                                        )}
+                                    </p>
+                                    <p className="text-ink-muted">
+                                        {t(
+                                            "Recomendación: no escribas datos personales sensibles en los prompts si activas este permiso.",
+                                            "Recommendation: do not include sensitive personal data in prompts if you enable this permission."
+                                        )}
+                                    </p>
+                                </div>
+                            </details>
+
+                        </div>
+                    </article>
+
+                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <Palette className="h-4 w-4 text-ember" />
@@ -671,7 +888,7 @@ export default function CampaignSettingsPage() {
                             </button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             <p className="text-xs uppercase tracking-[0.16em] text-ink-muted inline-flex items-center gap-2">
                                 <Sparkles className="h-3.5 w-3.5" />
                                 {t("Animaciones", "Animations")}
@@ -682,7 +899,7 @@ export default function CampaignSettingsPage() {
                                 onClick={() =>
                                     void updateSettings({ animations: !settings.animations })
                                 }
-                                className={`${optionClass(settings.animations)} w-full`}
+                                className={`${optionClass(settings.animations)} w-full block`}
                             >
                                 <div className="flex items-center justify-between gap-3">
                                     <span className="inline-flex items-center gap-2">
@@ -708,7 +925,7 @@ export default function CampaignSettingsPage() {
                             </button>
                         </div>
                     </article>
-                    <article className="order-4 rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
+                    <article className="rounded-2xl border border-ring bg-panel/90 p-4 space-y-3">
                         <div>
                             <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
                                 <LayoutGrid className="h-4 w-4 text-ember" />
@@ -784,217 +1001,61 @@ export default function CampaignSettingsPage() {
                                 <LayoutGrid className="h-3.5 w-3.5" />
                                 {t("Modo de ayudas", "Hints mode")}
                             </p>
-                            <div className={optionClass(settings.showHints)}>
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="font-medium">
-                                        {t("Modo de ayudas", "Hints mode")}
-                                    </span>
-                                    <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                                            settings.showHints
-                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
-                                                : "border-ring bg-white/80 text-ink-muted"
-                                        }`}
-                                    >
-                                        {settings.showHints
-                                            ? t("Con ayudas", "With hints")
-                                            : t("Normal", "Normal")}
-                                    </span>
+                            <div className="grid grid-cols-1 gap-2.5">
+                                <div className={optionClass(settings.showHints)}>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="font-medium">
+                                            {t("Modo de ayudas", "Hints mode")}
+                                        </span>
+                                        <span
+                                            className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                                settings.showHints
+                                                    ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
+                                                    : "border-ring bg-white/80 text-ink-muted"
+                                            }`}
+                                        >
+                                            {settings.showHints
+                                                ? t("Con ayudas", "With hints")
+                                                : t("Normal", "Normal")}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={settingsLoading}
+                                            onClick={() => void updateSettings({ showHints: false })}
+                                            className={`rounded-md border px-2 py-1.5 text-xs ${
+                                                settings.showHints
+                                                    ? "border-ring bg-white/80 text-ink-muted hover:bg-white"
+                                                    : "border-accent/70 bg-accent/10 text-ink"
+                                            }`}
+                                        >
+                                            {t("Normal", "Normal")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={settingsLoading}
+                                            onClick={() => void updateSettings({ showHints: true })}
+                                            className={`rounded-md border px-2 py-1.5 text-xs ${
+                                                settings.showHints
+                                                    ? "border-accent/70 bg-accent/10 text-ink"
+                                                    : "border-ring bg-white/80 text-ink-muted hover:bg-white"
+                                            }`}
+                                        >
+                                            {t("Con ayudas", "With hints")}
+                                        </button>
+                                    </div>
+                                    <p className="mt-2 text-[10px] text-ink-muted leading-snug hint-copy">
+                                        {t(
+                                            "En modo con ayudas se muestran explicaciones cortas en formularios y paneles.",
+                                            "With hints mode shows short explanatory copy in forms and panels."
+                                        )}
+                                    </p>
                                 </div>
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <button
-                                        type="button"
-                                        disabled={settingsLoading}
-                                        onClick={() => void updateSettings({ showHints: false })}
-                                        className={`rounded-md border px-2 py-1.5 text-xs ${
-                                            settings.showHints
-                                                ? "border-ring bg-white/80 text-ink-muted hover:bg-white"
-                                                : "border-accent/70 bg-accent/10 text-ink"
-                                        }`}
-                                    >
-                                        {t("Normal", "Normal")}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={settingsLoading}
-                                        onClick={() => void updateSettings({ showHints: true })}
-                                        className={`rounded-md border px-2 py-1.5 text-xs ${
-                                            settings.showHints
-                                                ? "border-accent/70 bg-accent/10 text-ink"
-                                                : "border-ring bg-white/80 text-ink-muted hover:bg-white"
-                                        }`}
-                                    >
-                                        {t("Con ayudas", "With hints")}
-                                    </button>
-                                </div>
-                                <p className="mt-2 text-[10px] text-ink-muted leading-snug hint-copy">
-                                    {t(
-                                        "En modo con ayudas se muestran explicaciones cortas en formularios y paneles.",
-                                        "With hints mode shows short explanatory copy in forms and panels."
-                                    )}
-                                </p>
                             </div>
                         </div>
                     </article>
 
-                    <article className="hidden">
-                        <div>
-                            <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
-                                <Bot className="h-4 w-4 text-ember" />
-                                {t("Ajustes IA", "AI settings")}
-                            </h2>
-                            <p className="text-xs text-ink-muted mt-1">
-                                {t(
-                                    "Define ayudas y comportamiento visual del asistente.",
-                                    "Set hint and assistant visual behavior."
-                                )}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                            <button
-                                type="button"
-                                disabled={settingsLoading}
-                                onClick={() =>
-                                    void updateSettings({ animations: !settings.animations })
-                                }
-                                className={optionClass(settings.animations)}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="inline-flex items-center gap-2">
-                                        <Sparkles className="h-4 w-4 text-ember" />
-                                        <span className="font-medium">{t("Animaciones", "Animations")}</span>
-                                    </span>
-                                    <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                                            settings.animations
-                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
-                                                : "border-ring bg-white/80 text-ink-muted"
-                                        }`}
-                                    >
-                                        {settings.animations ? t("Activadas", "Enabled") : t("Desactivadas", "Disabled")}
-                                    </span>
-                                </div>
-                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                    {t(
-                                        "Suaviza transiciones, iconos y paneles.",
-                                        "Smooth transitions, icons, and panels."
-                                    )}
-                                </p>
-                            </button>
-
-                            <div className="md:col-span-2 rounded-xl border border-ring bg-white/75 p-2.5 space-y-2">
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium text-sm text-ink">
-                                        {t("Modo de ayudas", "Hints mode")}
-                                    </span>
-                                    <span className="text-[11px] text-ink-muted">
-                                        {settings.showHints
-                                            ? t("Con ayudas", "With hints")
-                                            : t("Normal", "Normal")}
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <button
-                                        type="button"
-                                        disabled={settingsLoading}
-                                        onClick={() => void updateSettings({ showHints: false })}
-                                        className={optionClass(!settings.showHints)}
-                                    >
-                                        <p className="text-sm font-medium">{t("Normal", "Normal")}</p>
-                                        <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                            {t(
-                                                "Oculta textos explicativos y deja la interfaz limpia.",
-                                                "Hide explanatory text and keep the interface clean."
-                                            )}
-                                        </p>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={settingsLoading}
-                                        onClick={() => void updateSettings({ showHints: true })}
-                                        className={optionClass(settings.showHints)}
-                                    >
-                                        <p className="text-sm font-medium">{t("Con ayudas", "With hints")}</p>
-                                        <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                            {t(
-                                                "Muestra descripciones y sugerencias en formularios y secciones.",
-                                                "Show descriptions and hints in forms and sections."
-                                            )}
-                                        </p>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button
-                                type="button"
-                                disabled={settingsLoading}
-                                onClick={() => handleAiPromptConsentToggle(!aiPromptConsent)}
-                                className={`${optionClass(aiPromptConsent)} md:col-span-2`}
-                            >
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="font-medium">
-                                        {t(
-                                            "Permiso de prompts IA",
-                                            "AI prompts permission"
-                                        )}
-                                    </span>
-                                    <span
-                                        className={`text-[11px] px-2 py-0.5 rounded-full border ${
-                                            aiPromptConsent
-                                                ? "border-emerald-400/70 bg-emerald-100 text-emerald-700"
-                                                : "border-amber-400/70 bg-amber-100 text-amber-900"
-                                        }`}
-                                    >
-                                        {aiPromptConsent
-                                            ? t("Concedido", "Granted")
-                                            : t("No concedido", "Not granted")}
-                                    </span>
-                                </div>
-                                <p className="mt-0.5 text-[10px] text-ink-muted leading-snug">
-                                    {t(
-                                        "Controla si tus prompts se pueden usar para mejorar el entrenamiento global de la IA.",
-                                        "Controls whether your prompts can be used to improve global AI training."
-                                    )}
-                                </p>
-                            </button>
-
-                            <details open className="md:col-span-2 rounded-xl border border-ring/80 bg-white/70 px-3 py-2 text-[10px] text-ink leading-relaxed">
-                                <summary className="cursor-pointer select-none font-semibold text-ink">
-                                    {t(
-                                        "Documentación del permiso de prompts",
-                                        "Prompts permission documentation"
-                                    )}
-                                </summary>
-                                <div className="mt-2 space-y-1.5">
-                                    <p>
-                                        {t(
-                                            "Por qué existe: permite mejorar la calidad del asistente con ejemplos reales de uso.",
-                                            "Why it exists: it helps improve assistant quality using real usage examples."
-                                        )}
-                                    </p>
-                                    <p>
-                                        {t(
-                                            "Para qué sirve: el sistema aprende patrones de peticiones y respuestas para proponer cambios más precisos.",
-                                            "What it is for: the system learns request/response patterns to propose more accurate changes."
-                                        )}
-                                    </p>
-                                    <p>
-                                        {t(
-                                            "Qué información compromete: el texto de tus prompts y contexto funcional del cambio dentro de la campaña (por ejemplo, tipo de entidad o sección de trabajo). No incluye tu contraseña ni tokens.",
-                                            "What information it exposes: your prompt text and functional context of the change inside the campaign (for example, entity type or working section). It does not include your password or tokens."
-                                        )}
-                                    </p>
-                                    <p className="text-ink-muted">
-                                        {t(
-                                            "Recomendación: no escribas datos personales sensibles en los prompts si activas este permiso.",
-                                            "Recommendation: do not include sensitive personal data in prompts if you enable this permission."
-                                        )}
-                                    </p>
-                                </div>
-                            </details>
-                        </div>
-                    </article>
                 </section>
 
                 {canManageZoneTrash && (
@@ -1103,6 +1164,158 @@ export default function CampaignSettingsPage() {
                         )}
                     </section>
                 )}
+
+                {canManageCharacterTrash && (
+                    <section className="rounded-2xl border border-ring bg-panel/90 p-5 space-y-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <h2 className="text-base font-semibold text-ink">
+                                    {t("Papelera de personajes", "Character trash")}
+                                </h2>
+                                <p className="text-xs text-ink-muted mt-1">
+                                    {t(
+                                        "Los personajes eliminados se guardan 30 días antes de borrarse automáticamente.",
+                                        "Deleted characters are kept for 30 days before automatic purge."
+                                    )}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => void loadCharacterTrash()}
+                                    disabled={characterTrashLoading}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-ring bg-white/75 px-3 py-1.5 text-xs hover:bg-white disabled:opacity-60"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    {t("Actualizar", "Refresh")}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleEmptyCharacterTrashNow()}
+                                    disabled={
+                                        !characterTrashSupported ||
+                                        characterTrashLoading ||
+                                        characterTrash.length === 0
+                                    }
+                                    className="rounded-lg border border-red-300/70 bg-red-50/80 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-60"
+                                >
+                                    {t("Vaciar ahora", "Empty now")}
+                                </button>
+                            </div>
+                        </div>
+                        {characterTrashError && (
+                            <p className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-lg px-3 py-2">
+                                {characterTrashError}
+                            </p>
+                        )}
+
+                        {!characterTrashSupported ? (
+                            <p className="text-xs text-ink-muted">
+                                {t(
+                                    "La papelera de personajes no está disponible en esta base de datos. Ejecuta la migración 2026-02-27-character-trash.sql para activarla.",
+                                    "Character trash is not available on this database. Run migration 2026-02-27-character-trash.sql to enable it."
+                                )}
+                            </p>
+                        ) : characterTrashLoading ? (
+                            <p className="text-xs text-ink-muted">
+                                {t("Cargando papelera...", "Loading trash...")}
+                            </p>
+                        ) : characterTrash.length === 0 ? (
+                            <p className="text-xs text-ink-muted">
+                                {t(
+                                    "No hay personajes eliminados.",
+                                    "There are no deleted characters."
+                                )}
+                            </p>
+                        ) : (
+                            <div className="max-h-[28rem] overflow-y-auto styled-scrollbar pr-1 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                {characterTrash.map((entry) => {
+                                    const daysLeft = getDaysUntilAutoDelete(
+                                        entry.deleted_at,
+                                        CHARACTER_TRASH_RETENTION_DAYS
+                                    );
+                                    const classAndLevel = entry.class
+                                        ? `${entry.class}${entry.level ? ` · NVL ${entry.level}` : ""}`
+                                        : entry.level
+                                          ? t(`NVL ${entry.level}`, `LVL ${entry.level}`)
+                                          : t("Sin clase", "No class");
+                                    return (
+                                        <div
+                                            key={entry.id}
+                                            className="rounded-xl border border-ring bg-white/80 px-3 py-2.5"
+                                        >
+                                            <p className="text-sm font-semibold text-ink truncate">
+                                                {entry.name}
+                                            </p>
+                                            <p className="text-xs text-ink-muted truncate mt-0.5">
+                                                {getCharacterTypeLabel(entry.character_type)}
+                                                {" · "}
+                                                {classAndLevel}
+                                            </p>
+                                            <p className="text-xs text-ink-muted mt-1">
+                                                {t("Eliminado:", "Deleted:")}{" "}
+                                                {formatDeletedAt(entry.deleted_at)}
+                                            </p>
+                                            <p className="text-xs text-ink-muted">
+                                                {daysLeft === null
+                                                    ? t("Caducidad desconocida", "Unknown expiry")
+                                                    : daysLeft <= 0
+                                                      ? t("Caduca hoy", "Expires today")
+                                                      : t(
+                                                            `Caduca en ${daysLeft} días`,
+                                                            `Expires in ${daysLeft} days`
+                                                        )}
+                                            </p>
+                                            <div className="mt-2 flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleRestoreCharacter(entry.id)}
+                                                    className="rounded-md border border-emerald-300 bg-emerald-100 px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-200"
+                                                >
+                                                    {t("Restaurar", "Restore")}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void handleDeleteCharacterPermanently(entry.id)
+                                                    }
+                                                    className="rounded-md border border-red-300 bg-red-100 px-2 py-1 text-[11px] text-red-700 hover:bg-red-200"
+                                                >
+                                                    {t("Borrar ya", "Delete now")}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                <section className="rounded-2xl border border-ring bg-panel/90 p-5 space-y-3">
+                    <div>
+                        <h2 className="text-base font-semibold text-ink inline-flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            {t("Soporte", "Support")}
+                        </h2>
+                        <p className="text-xs text-ink-muted mt-1">
+                            {t(
+                                "Si detectas un bug o algo no funciona bien, envía un reporte desde aquí.",
+                                "If you find a bug or something is not working well, send a report from here."
+                            )}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            router.push(`/campaigns/${campaignId}/settings/report-problem`)
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300/70 bg-amber-50/70 px-4 py-2.5 text-sm text-amber-900 hover:bg-amber-50"
+                    >
+                        <AlertTriangle className="h-4 w-4" />
+                        {t("Reportar algún problema", "Report a problem")}
+                    </button>
+                </section>
 
                 <section className="rounded-2xl border border-ring bg-panel/90 p-5">
                     <h2 className="text-base font-semibold text-ink">{t("Sesión y acceso", "Session and access")}</h2>

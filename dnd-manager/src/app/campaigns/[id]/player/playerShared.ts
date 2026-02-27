@@ -59,6 +59,8 @@ export const CLASS_API_ALIASES: Record<string, string> = {
   mago: "wizard",
   artificiero: "artificer",
   artificer: "artificer",
+  customclass: "custom",
+  clasepersonalizada: "custom",
 };
 
 const CLASS_SELECTION_RGB: Record<string, [number, number, number]> = {
@@ -103,6 +105,52 @@ export function getClassSelectionPalette(
 ): ClassSelectionPalette {
   const normalized = normalizeClassForApi(raw ?? "");
   const [r, g, b] = CLASS_SELECTION_RGB[normalized] ?? CLASS_SELECTION_RGB.default;
+  return {
+    rgb: `${r}, ${g}, ${b}`,
+    background: `rgba(${r}, ${g}, ${b}, 0.05)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.4)`,
+    ring: `rgba(${r}, ${g}, ${b}, 0.2)`,
+    shadow: `0 8px 18px rgba(${r}, ${g}, ${b}, 0.07)`,
+  };
+}
+
+export function getCombinedClassSelectionPalette(
+  rawClasses: Array<string | null | undefined>,
+  fallbackClass?: string | null
+): ClassSelectionPalette {
+  const classIds = Array.from(
+    new Set(
+      (Array.isArray(rawClasses) ? rawClasses : [])
+        .map((entry) => normalizeClassForApi(entry ?? ""))
+        .filter((entry) => entry.length > 0)
+    )
+  );
+
+  if (classIds.length === 0) {
+    return getClassSelectionPalette(fallbackClass ?? null);
+  }
+
+  const rgbValues = classIds
+    .map((classId) => CLASS_SELECTION_RGB[classId] ?? null)
+    .filter((entry): entry is [number, number, number] => Boolean(entry));
+
+  if (rgbValues.length === 0) {
+    return getClassSelectionPalette(fallbackClass ?? null);
+  }
+
+  const mixed = rgbValues.reduce(
+    (acc, [r, g, b]) => ({
+      r: acc.r + r,
+      g: acc.g + g,
+      b: acc.b + b,
+    }),
+    { r: 0, g: 0, b: 0 }
+  );
+
+  const r = Math.round(mixed.r / rgbValues.length);
+  const g = Math.round(mixed.g / rgbValues.length);
+  const b = Math.round(mixed.b / rgbValues.length);
+
   return {
     rgb: `${r}, ${g}, ${b}`,
     background: `rgba(${r}, ${g}, ${b}, 0.05)`,
@@ -170,7 +218,7 @@ export function getPreparedSpellsInfo(
 
   const abilityName =
     abilityKey === "wis"
-      ? tr(locale, "Sabiduría (SAB)", "Wisdom (WIS)")
+      ? tr(locale, "Sabiduria (SAB)", "Wisdom (WIS)")
       : abilityKey === "int"
       ? tr(locale, "Inteligencia (INT)", "Intelligence (INT)")
       : abilityKey === "cha"
@@ -179,7 +227,7 @@ export function getPreparedSpellsInfo(
       ? tr(locale, "Fuerza (FUE)", "Strength (STR)")
       : abilityKey === "dex"
       ? tr(locale, "Destreza (DES)", "Dexterity (DEX)")
-      : tr(locale, "Constitución (CON)", "Constitution (CON)");
+      : tr(locale, "Constitucion (CON)", "Constitution (CON)");
 
   return { total, abilityName, apiClass };
 }
@@ -233,7 +281,7 @@ export function getClassMagicExtras(
       lines.push(
         tr(
           locale,
-          "Aún no tienes acceso a Forma Salvaje (druida < nivel 2).",
+          "Aun no tienes acceso a Forma Salvaje (druida < nivel 2).",
           "You do not have access to Wild Shape yet (druid < level 2)."
         )
       );
@@ -252,13 +300,13 @@ export function formatCastingTime(ct?: string, locale = "es"): string {
   if (!ct) return "-";
   const lower = ct.toLowerCase();
   if (lower.includes("bonus action")) {
-    return locale === "en" ? `Bonus action (${ct})` : `Acción adicional (${ct})`;
+    return locale === "en" ? `Bonus action (${ct})` : `Accion adicional (${ct})`;
   }
   if (lower.includes("reaction")) {
-    return locale === "en" ? `Reaction (${ct})` : `Reacción (${ct})`;
+    return locale === "en" ? `Reaction (${ct})` : `Reaccion (${ct})`;
   }
   if (lower.includes("action")) {
-    return locale === "en" ? `Action (${ct})` : `Acción (${ct})`;
+    return locale === "en" ? `Action (${ct})` : `Accion (${ct})`;
   }
   return ct;
 }
