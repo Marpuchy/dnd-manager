@@ -19,6 +19,11 @@ import { SpellManagerPanel } from "../player/srd/SpellManagerPanel";
 import AIAssistantPanel, {
     type AIAssistantClientContext,
 } from "../player/ui/AIAssistantPanel";
+import type {
+    BestiaryPendingProposalPreview,
+    BestiaryProposalCommand,
+    BestiaryProposalCommandResult,
+} from "../shared/bestiaryProposalShared";
 import { useCharacterForm } from "../player/hooks/useCharacterForm";
 import {
     getCombinedClassSelectionPalette,
@@ -93,6 +98,15 @@ export default function CampaignDMPage() {
     const [bestiaryRefreshNonce, setBestiaryRefreshNonce] = useState(0);
     const [aiFocusedBestiaryEntryId, setAiFocusedBestiaryEntryId] =
         useState<string | null>(null);
+    const [aiSelectedBestiaryEntry, setAiSelectedBestiaryEntry] = useState<{
+        id: string;
+        name: string;
+    } | null>(null);
+    const [bestiaryPendingProposal, setBestiaryPendingProposal] =
+        useState<BestiaryPendingProposalPreview | null>(null);
+    const [bestiaryProposalCommand, setBestiaryProposalCommand] =
+        useState<BestiaryProposalCommand | null>(null);
+    const [bestiaryProposalBusy, setBestiaryProposalBusy] = useState(false);
 
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [campaignTitle, setCampaignTitle] = useState<string | null>(null);
@@ -348,6 +362,12 @@ export default function CampaignDMPage() {
                       character_type: editingCharacter.character_type ?? "character",
                   }
                 : undefined,
+            selectedBestiaryEntry: aiSelectedBestiaryEntry
+                ? {
+                      id: aiSelectedBestiaryEntry.id,
+                      name: aiSelectedBestiaryEntry.name,
+                  }
+                : undefined,
             availableActions: [
                 "update-any-campaign-character",
                 "create-companion-for-player",
@@ -368,8 +388,30 @@ export default function CampaignDMPage() {
             locale,
             playerPanelMode,
             playerViewTab,
+            aiSelectedBestiaryEntry,
         ]
     );
+
+    function enqueueBestiaryProposalCommand(action: BestiaryProposalCommand["action"]) {
+        if (bestiaryProposalBusy) return;
+        if (!bestiaryPendingProposal) return;
+        setBestiaryProposalBusy(true);
+        setBestiaryProposalCommand({
+            nonce: Date.now(),
+            action,
+        });
+    }
+
+    function handleBestiaryProposalCommandHandled(result: BestiaryProposalCommandResult) {
+        if (bestiaryProposalCommand && result.nonce !== bestiaryProposalCommand.nonce) {
+            return;
+        }
+        setBestiaryProposalBusy(false);
+        setBestiaryProposalCommand(null);
+        if (!result.success && result.error) {
+            setError(result.error);
+        }
+    }
 
     function flushEditorSaveIfNeeded() {
         if (activeSection !== "players") return;
@@ -1520,6 +1562,25 @@ export default function CampaignDMPage() {
                             locale={locale}
                             refreshNonce={bestiaryRefreshNonce}
                             focusEntryId={aiFocusedBestiaryEntryId}
+                            pendingProposal={bestiaryPendingProposal}
+                            proposalBusy={bestiaryProposalBusy}
+                            onConfirmPendingProposal={() =>
+                                enqueueBestiaryProposalCommand("apply")
+                            }
+                            onRejectPendingProposal={() =>
+                                enqueueBestiaryProposalCommand("reject")
+                            }
+                            onSelectedEntryChange={(entry) => {
+                                setAiSelectedBestiaryEntry((prev) => {
+                                    if (
+                                        prev?.id === entry?.id &&
+                                        prev?.name === entry?.name
+                                    ) {
+                                        return prev;
+                                    }
+                                    return entry;
+                                });
+                            }}
                         />
                     </div>
                 )}
@@ -1760,6 +1821,14 @@ export default function CampaignDMPage() {
                 selectedCharacterId={editingCharacter?.id ?? null}
                 selectedCharacterName={editingCharacter?.name ?? null}
                 assistantContext={assistantContext}
+                bestiaryProposalCommand={bestiaryProposalCommand}
+                onBestiaryProposalCommandHandled={handleBestiaryProposalCommandHandled}
+                onBestiaryProposalPreviewChange={(preview) => {
+                    setBestiaryPendingProposal(preview);
+                    if (!preview) {
+                        setBestiaryProposalBusy(false);
+                    }
+                }}
                 onApplied={async (context) => {
                     const appliedBestiaryResult = context?.results?.find(
                         (entry) =>

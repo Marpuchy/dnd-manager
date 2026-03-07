@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEven
 import { Sparkles, X, SendHorizontal, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
+import type {
+    BestiaryPendingProposalPreview,
+    BestiaryProposalCommand,
+    BestiaryProposalCommandResult,
+} from "../../shared/bestiaryProposalShared";
 
 type MutationResult = {
     operation: "create" | "update";
@@ -44,6 +49,7 @@ type PendingActionEditorDraft = {
 };
 
 type PendingPlan = {
+    id: string;
     prompt: string;
     targetCharacterId?: string;
     originalProposedActions: ProposedAction[];
@@ -240,6 +246,12 @@ export type AIAssistantClientContext = {
         level?: number | null;
         character_type?: "character" | "companion" | null;
     };
+    selectedBestiaryEntry?: {
+        id?: string | null;
+        name?: string | null;
+        challenge_rating?: number | null;
+        source_type?: "CUSTOM" | "SRD" | "IMPORTED" | null;
+    };
     availableActions?: string[];
     hints?: string[];
 };
@@ -253,6 +265,13 @@ type AIAssistantPanelProps = {
     selectedCharacterName?: string | null;
     assistantContext?: AIAssistantClientContext;
     onApplied?: (context?: { results: MutationResult[] }) => Promise<void> | void;
+    bestiaryProposalCommand?: BestiaryProposalCommand | null;
+    onBestiaryProposalCommandHandled?: (
+        result: BestiaryProposalCommandResult
+    ) => void;
+    onBestiaryProposalPreviewChange?: (
+        preview: BestiaryPendingProposalPreview | null
+    ) => void;
 };
 
 type TranslateFn = (es: string, en: string) => string;
@@ -812,6 +831,136 @@ function sanitizeProposedActions(value: unknown): ProposedAction[] {
     return actions;
 }
 
+type BestiaryConversationReference = {
+    id?: string;
+    name?: string;
+    challenge_rating?: number;
+    source_type?: "CUSTOM" | "SRD" | "IMPORTED";
+};
+
+function normalizeBestiaryConversationReference(
+    value: BestiaryConversationReference | null | undefined
+): BestiaryConversationReference | null {
+    if (!value) return null;
+    const id = asString(value.id, 64);
+    const name = asString(value.name, 140);
+    const challengeRating = asNumber(value.challenge_rating);
+    const sourceTypeRaw = asString(value.source_type, 16)?.toUpperCase();
+    const sourceType =
+        sourceTypeRaw === "CUSTOM" ||
+        sourceTypeRaw === "SRD" ||
+        sourceTypeRaw === "IMPORTED"
+            ? sourceTypeRaw
+            : undefined;
+    if (!id && !name && challengeRating === undefined && !sourceType) return null;
+    return {
+        ...(id ? { id } : {}),
+        ...(name ? { name } : {}),
+        ...(challengeRating !== undefined
+            ? { challenge_rating: challengeRating }
+            : {}),
+        ...(sourceType ? { source_type: sourceType } : {}),
+    };
+}
+
+function mergeBestiaryConversationReference(
+    previous: BestiaryConversationReference | null,
+    next: BestiaryConversationReference | null
+) {
+    if (!next) return previous;
+    if (!previous) return next;
+    return {
+        ...(next.id ? { id: next.id } : previous.id ? { id: previous.id } : {}),
+        ...(next.name
+            ? { name: next.name }
+            : previous.name
+              ? { name: previous.name }
+              : {}),
+        ...(next.challenge_rating !== undefined
+            ? { challenge_rating: next.challenge_rating }
+            : previous.challenge_rating !== undefined
+              ? { challenge_rating: previous.challenge_rating }
+              : {}),
+        ...(next.source_type
+            ? { source_type: next.source_type }
+            : previous.source_type
+              ? { source_type: previous.source_type }
+              : {}),
+    };
+}
+
+function extractBestiaryReferenceFromProposedActions(
+    actions: ProposedAction[]
+): BestiaryConversationReference | null {
+    for (let index = actions.length - 1; index >= 0; index -= 1) {
+        const action = actions[index];
+        if (!isRecord(action.data)) continue;
+        const patch = isRecord(action.data.bestiary_patch)
+            ? action.data.bestiary_patch
+            : null;
+        if (!patch) continue;
+        const sourceTypeRaw = asString(patch.source_type, 16)?.toUpperCase();
+        const sourceType =
+            sourceTypeRaw === "CUSTOM" ||
+            sourceTypeRaw === "SRD" ||
+            sourceTypeRaw === "IMPORTED"
+                ? sourceTypeRaw
+                : undefined;
+        const normalized = normalizeBestiaryConversationReference({
+            id: asString(patch.target_entry_id, 64),
+            name: asString(patch.name, 140),
+            challenge_rating: asNumber(patch.challenge_rating),
+            source_type: sourceType,
+        });
+        if (normalized) return normalized;
+    }
+    return null;
+}
+
+function extractBestiaryReferenceFromResults(
+    results: MutationResult[]
+): BestiaryConversationReference | null {
+    for (let index = results.length - 1; index >= 0; index -= 1) {
+        const result = results[index];
+        const id = asString(result.bestiaryEntryId, 64);
+        if (id) return { id };
+    }
+    return null;
+}
+
+function extractBestiaryPendingProposalFromActions(
+    actions: ProposedAction[]
+): {
+    operation: "create" | "update";
+    patch: Record<string, unknown>;
+    targetEntryId?: string;
+    targetName?: string;
+} | null {
+    if (!Array.isArray(actions) || actions.length === 0) return null;
+    const bestiaryActions = actions.filter((action) => {
+        return isRecord(action.data) && isRecord(action.data.bestiary_patch);
+    });
+    if (bestiaryActions.length === 0 || bestiaryActions.length !== actions.length) {
+        return null;
+    }
+    const latest = bestiaryActions[bestiaryActions.length - 1];
+    const patch = isRecord(latest.data?.bestiary_patch)
+        ? latest.data.bestiary_patch
+        : null;
+    if (!patch) return null;
+    return {
+        operation: latest.operation,
+        patch,
+        targetEntryId: asString(patch.target_entry_id, 64),
+        targetName: asString(patch.name, 140),
+    };
+}
+
+function isBestiaryOnlyProposedActions(actions: ProposedAction[] | undefined): boolean {
+    if (!Array.isArray(actions) || actions.length === 0) return false;
+    return extractBestiaryPendingProposalFromActions(actions) !== null;
+}
+
 function makeDraftId(prefix = "draft") {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -1311,6 +1460,9 @@ export default function AIAssistantPanel({
     selectedCharacterName,
     assistantContext,
     onApplied,
+    bestiaryProposalCommand,
+    onBestiaryProposalCommandHandled,
+    onBestiaryProposalPreviewChange,
 }: AIAssistantPanelProps) {
     const FLOATING_DOCK_THRESHOLD = 24;
     const DESKTOP_PANEL_MARGIN = 10;
@@ -1353,6 +1505,8 @@ export default function AIAssistantPanel({
     const [aiNoticeAcknowledged, setAiNoticeAcknowledged] = useState(false);
     const [globalTrainingConsent, setGlobalTrainingConsent] = useState(false);
     const [localEditMemories, setLocalEditMemories] = useState<LocalEditMemory[]>([]);
+    const [chatBestiaryReference, setChatBestiaryReference] =
+        useState<BestiaryConversationReference | null>(null);
     const [viewportWidth, setViewportWidth] = useState(0);
     const [viewportHeight, setViewportHeight] = useState(0);
     const [panelHeaderHeight, setPanelHeaderHeight] = useState(0);
@@ -1386,6 +1540,7 @@ export default function AIAssistantPanel({
     const floatingButtonDockSideRef = useRef<FloatingButtonDockSide>("right");
     const floatingButtonDragRef = useRef<FloatingButtonDragState | null>(null);
     const skipNextFloatingButtonClickRef = useRef(false);
+    const handledBestiaryProposalCommandNonceRef = useRef<number | null>(null);
 
     const t = (es: string, en: string) => tr(locale, es, en);
     const getWelcomeMessage = (mode: AssistantMode) =>
@@ -1426,13 +1581,40 @@ export default function AIAssistantPanel({
         if (selectedCharacterName?.trim()) return selectedCharacterName.trim();
         return selectedCharacterId;
     }, [selectedCharacterId, selectedCharacterName]);
+    const effectiveAssistantContext = useMemo(() => {
+        const normalizedFromContext = normalizeBestiaryConversationReference(
+            assistantContext?.selectedBestiaryEntry
+                ? {
+                      id: assistantContext.selectedBestiaryEntry.id ?? undefined,
+                      name: assistantContext.selectedBestiaryEntry.name ?? undefined,
+                      challenge_rating:
+                          assistantContext.selectedBestiaryEntry.challenge_rating ?? undefined,
+                      source_type:
+                          assistantContext.selectedBestiaryEntry.source_type ?? undefined,
+                  }
+                : null
+        );
+        const mergedBestiaryReference = mergeBestiaryConversationReference(
+            normalizedFromContext,
+            chatBestiaryReference
+        );
+        if (!assistantContext && !mergedBestiaryReference) {
+            return undefined;
+        }
+        return {
+            ...(assistantContext ?? {}),
+            ...(mergedBestiaryReference
+                ? { selectedBestiaryEntry: mergedBestiaryReference }
+                : {}),
+        } satisfies AIAssistantClientContext;
+    }, [assistantContext, chatBestiaryReference]);
     const noticeAckStorageKey = `${AI_NOTICE_ACK_STORAGE_KEY_PREFIX}:${campaignId}`;
     const globalTrainingOptInStorageKey =
         `${AI_GLOBAL_TRAINING_OPT_IN_STORAGE_KEY_PREFIX}:${campaignId}`;
     const localEditMemoryStorageKey =
         `${AI_LOCAL_EDIT_MEMORY_STORAGE_KEY_PREFIX}:${campaignId}`;
     const floatingButtonStorageKey = `${AI_CHAT_BUTTON_POSITION_STORAGE_KEY_PREFIX}:${campaignId}:${
-        assistantContext?.surface ?? "default"
+        effectiveAssistantContext?.surface ?? "default"
     }`;
 
     const isTraining = assistantMode === "training";
@@ -1476,7 +1658,31 @@ export default function AIAssistantPanel({
         pendingPlanUsesTrainingEditor,
         selectedCharacterId,
         trainingDraft,
-        trainingDraftTargetCharacterId,
+            trainingDraftTargetCharacterId,
+    ]);
+    const pendingBestiaryProposal = useMemo<BestiaryPendingProposalPreview | null>(() => {
+        if (isTraining || !pendingPlan) return null;
+        const actions = pendingPlanUsesTrainingEditor
+            ? pendingPlanTrainingPreviewActions
+            : pendingPlan.originalProposedActions;
+        const parsed = extractBestiaryPendingProposalFromActions(actions);
+        if (!parsed) return null;
+        return {
+            id: pendingPlan.id,
+            operation: parsed.operation,
+            patch: parsed.patch,
+            targetEntryId: parsed.targetEntryId,
+            targetName: parsed.targetName,
+            pendingCount: actions.length,
+            edited: pendingPlanHasUserEdits,
+            reply: pendingPlan.previewReply,
+        };
+    }, [
+        isTraining,
+        pendingPlan,
+        pendingPlanHasUserEdits,
+        pendingPlanTrainingPreviewActions,
+        pendingPlanUsesTrainingEditor,
     ]);
     const showTrainingLikeStructureEditor =
         isTraining || (!!pendingPlan && pendingPlanUsesTrainingEditor);
@@ -1860,6 +2066,86 @@ export default function AIAssistantPanel({
     }
 
     useEffect(() => {
+        onBestiaryProposalPreviewChange?.(pendingBestiaryProposal);
+    }, [onBestiaryProposalPreviewChange, pendingBestiaryProposal]);
+
+    useEffect(() => {
+        return () => {
+            onBestiaryProposalPreviewChange?.(null);
+        };
+    }, [onBestiaryProposalPreviewChange]);
+
+    useEffect(() => {
+        if (!bestiaryProposalCommand) return;
+        if (
+            handledBestiaryProposalCommandNonceRef.current === bestiaryProposalCommand.nonce
+        ) {
+            return;
+        }
+        handledBestiaryProposalCommandNonceRef.current = bestiaryProposalCommand.nonce;
+
+        if (!pendingBestiaryProposal) {
+            onBestiaryProposalCommandHandled?.({
+                nonce: bestiaryProposalCommand.nonce,
+                action: bestiaryProposalCommand.action,
+                success: false,
+                error: t(
+                    "No hay propuesta de bestiario pendiente para aplicar/rechazar.",
+                    "There is no pending bestiary proposal to apply/reject."
+                ),
+            });
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const success =
+                    bestiaryProposalCommand.action === "apply"
+                        ? await handleApplyPendingPlan()
+                        : handleCancelPendingPlan();
+                if (cancelled) return;
+                onBestiaryProposalCommandHandled?.({
+                    nonce: bestiaryProposalCommand.nonce,
+                    action: bestiaryProposalCommand.action,
+                    success,
+                    error: success
+                        ? undefined
+                        : t(
+                              "No se pudo procesar la propuesta pendiente.",
+                              "Could not process the pending proposal."
+                          ),
+                });
+            } catch (commandError: unknown) {
+                if (cancelled) return;
+                onBestiaryProposalCommandHandled?.({
+                    nonce: bestiaryProposalCommand.nonce,
+                    action: bestiaryProposalCommand.action,
+                    success: false,
+                    error:
+                        commandError instanceof Error
+                            ? commandError.message
+                            : t(
+                                  "Error procesando la propuesta de bestiario.",
+                                  "Error processing the bestiary proposal."
+                              ),
+                });
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        bestiaryProposalCommand,
+        handleApplyPendingPlan,
+        handleCancelPendingPlan,
+        onBestiaryProposalCommandHandled,
+        pendingBestiaryProposal,
+        t,
+    ]);
+
+    useEffect(() => {
         floatingButtonPositionRef.current = floatingButtonPosition;
     }, [floatingButtonPosition]);
 
@@ -2174,6 +2460,30 @@ export default function AIAssistantPanel({
         if (!selectedCharacterId) return;
         setTrainingDraftTargetCharacterId(selectedCharacterId);
     }, [selectedCharacterId, trainingDraftTargetCharacterId]);
+
+    useEffect(() => {
+        const fromContext = normalizeBestiaryConversationReference(
+            assistantContext?.selectedBestiaryEntry
+                ? {
+                      id: assistantContext.selectedBestiaryEntry.id ?? undefined,
+                      name: assistantContext.selectedBestiaryEntry.name ?? undefined,
+                      challenge_rating:
+                          assistantContext.selectedBestiaryEntry.challenge_rating ?? undefined,
+                      source_type:
+                          assistantContext.selectedBestiaryEntry.source_type ?? undefined,
+                  }
+                : null
+        );
+        if (!fromContext) return;
+        setChatBestiaryReference((prev) =>
+            mergeBestiaryConversationReference(prev, fromContext)
+        );
+    }, [
+        assistantContext?.selectedBestiaryEntry?.id,
+        assistantContext?.selectedBestiaryEntry?.name,
+        assistantContext?.selectedBestiaryEntry?.challenge_rating,
+        assistantContext?.selectedBestiaryEntry?.source_type,
+    ]);
 
     useEffect(() => {
         if (!resizing || !isDesktopViewport) return;
@@ -2550,6 +2860,21 @@ export default function AIAssistantPanel({
         if (loading) return;
         setPrompt("");
         setError(null);
+        setChatBestiaryReference(
+            normalizeBestiaryConversationReference(
+                assistantContext?.selectedBestiaryEntry
+                    ? {
+                          id: assistantContext.selectedBestiaryEntry.id ?? undefined,
+                          name: assistantContext.selectedBestiaryEntry.name ?? undefined,
+                          challenge_rating:
+                              assistantContext.selectedBestiaryEntry.challenge_rating ??
+                              undefined,
+                          source_type:
+                              assistantContext.selectedBestiaryEntry.source_type ?? undefined,
+                      }
+                    : null
+            )
+        );
         setPendingPlan(null);
         setPendingPlanUsesTrainingEditor(false);
         setTrainingDraft(createEmptyTrainingItemDraft());
@@ -2567,6 +2892,21 @@ export default function AIAssistantPanel({
         resetPanelWidthForMode(mode);
         setPrompt("");
         setError(null);
+        setChatBestiaryReference(
+            normalizeBestiaryConversationReference(
+                assistantContext?.selectedBestiaryEntry
+                    ? {
+                          id: assistantContext.selectedBestiaryEntry.id ?? undefined,
+                          name: assistantContext.selectedBestiaryEntry.name ?? undefined,
+                          challenge_rating:
+                              assistantContext.selectedBestiaryEntry.challenge_rating ??
+                              undefined,
+                          source_type:
+                              assistantContext.selectedBestiaryEntry.source_type ?? undefined,
+                      }
+                    : null
+            )
+        );
         setPendingPlan(null);
         setPendingPlanUsesTrainingEditor(false);
         setTrainingDraft(createEmptyTrainingItemDraft());
@@ -2631,8 +2971,33 @@ export default function AIAssistantPanel({
             localLearningHintsRaw.length > 1200
                 ? `${localLearningHintsRaw.slice(0, 1197)}...`
                 : localLearningHintsRaw;
+        const activeBestiaryHint =
+            chatBestiaryReference && (chatBestiaryReference.id || chatBestiaryReference.name)
+                ? [
+                      "Referencia contextual activa para bestiario (úsala solo si el usuario dice 'esta criatura' o similar):",
+                      [
+                          chatBestiaryReference.id
+                              ? `id=${chatBestiaryReference.id}`
+                              : null,
+                          chatBestiaryReference.name
+                              ? `name=${chatBestiaryReference.name}`
+                              : null,
+                          chatBestiaryReference.challenge_rating !== undefined
+                              ? `cr=${chatBestiaryReference.challenge_rating}`
+                              : null,
+                          chatBestiaryReference.source_type
+                              ? `source_type=${chatBestiaryReference.source_type}`
+                              : null,
+                      ]
+                          .filter((entry): entry is string => !!entry)
+                          .join(" | "),
+                  ]
+                      .filter((entry): entry is string => !!entry)
+                      .join("\n")
+                : null;
         return [
             `Instruccion actual del usuario: ${baseInstruction}`,
+            activeBestiaryHint,
             compactRecentContext ? `Contexto reciente:\n${compactRecentContext}` : null,
             localLearningHints
                 ? `Preferencias aprendidas de correcciones anteriores del usuario (aplícalas si encajan):\n${localLearningHints}`
@@ -2654,7 +3019,7 @@ export default function AIAssistantPanel({
         const payload = await postAssistant(accessToken, {
             prompt: composedPrompt,
             targetCharacterId: selectedCharacterId ?? undefined,
-            clientContext: assistantContext ?? undefined,
+            clientContext: effectiveAssistantContext ?? undefined,
             assistantMode,
             trainingSubmode: isTraining ? trainingSubmode : undefined,
             apply: false,
@@ -2663,6 +3028,13 @@ export default function AIAssistantPanel({
         const reply =
             payload?.reply?.trim() || t("He preparado una propuesta.", "I prepared a proposal.");
         const proposedActions = sanitizeProposedActions(payload?.proposedActions);
+        const proposedBestiaryReference =
+            extractBestiaryReferenceFromProposedActions(proposedActions);
+        if (proposedBestiaryReference) {
+            setChatBestiaryReference((prev) =>
+                mergeBestiaryConversationReference(prev, proposedBestiaryReference)
+            );
+        }
         setMessages((prev) => [
             ...prev,
             makeMessage("assistant", reply, {
@@ -2699,6 +3071,7 @@ export default function AIAssistantPanel({
                 setPendingPlanUsesTrainingEditor(false);
             }
             setPendingPlan({
+                id: makeDraftId("plan"),
                 prompt: composedPrompt,
                 targetCharacterId: selectedCharacterId ?? undefined,
                 originalProposedActions: proposedActions,
@@ -2798,7 +3171,7 @@ export default function AIAssistantPanel({
         }
     }
 
-    async function handleApplyPendingPlan() {
+    async function handleApplyPendingPlan(): Promise<boolean> {
         if (isTraining) {
             setError(
                 t(
@@ -2806,9 +3179,9 @@ export default function AIAssistantPanel({
                     "Training mode never applies real changes."
                 )
             );
-            return;
+            return false;
         }
-        if (loading || !pendingPlan) return;
+        if (loading || !pendingPlan) return false;
         let actionsToApply: ProposedAction[] = [];
         if (pendingPlanUsesTrainingEditor) {
             actionsToApply = buildTrainingActionsFromDraft({
@@ -2826,7 +3199,7 @@ export default function AIAssistantPanel({
                         "There are no valid actions to apply from the editor."
                     )
                 );
-                return;
+                return false;
             }
         } else {
             actionsToApply = pendingPlan.originalProposedActions;
@@ -2849,7 +3222,7 @@ export default function AIAssistantPanel({
             const payload = await postAssistant(accessToken, {
                 prompt: pendingPlan.prompt,
                 targetCharacterId: pendingPlan.targetCharacterId,
-                clientContext: assistantContext ?? undefined,
+                clientContext: effectiveAssistantContext ?? undefined,
                 assistantMode,
                 trainingSubmode: isTraining ? trainingSubmode : undefined,
                 apply: true,
@@ -2864,6 +3237,12 @@ export default function AIAssistantPanel({
                 payload?.reply?.trim() ||
                 t("Cambios aplicados.", "Changes applied.");
             const results = Array.isArray(payload?.results) ? payload.results : [];
+            const appliedBestiaryReference = extractBestiaryReferenceFromResults(results);
+            if (appliedBestiaryReference) {
+                setChatBestiaryReference((prev) =>
+                    mergeBestiaryConversationReference(prev, appliedBestiaryReference)
+                );
+            }
 
             setMessages((prev) => [
                 ...prev,
@@ -2905,6 +3284,7 @@ export default function AIAssistantPanel({
             if (hasApplied) {
                 await onApplied?.({ results });
             }
+            return true;
         } catch (err: unknown) {
             const message =
                 err instanceof Error
@@ -2912,13 +3292,14 @@ export default function AIAssistantPanel({
                     : t("Error ejecutando el asistente.", "Error running assistant.");
             setError(message);
             setMessages((prev) => [...prev, makeMessage("assistant", message)]);
+            return false;
         } finally {
             setLoading(false);
         }
     }
 
-    function handleCancelPendingPlan() {
-        if (loading || !pendingPlan) return;
+    function handleCancelPendingPlan(): boolean {
+        if (loading || !pendingPlan) return false;
         setPendingPlan(null);
         setPendingPlanUsesTrainingEditor(false);
         setError(null);
@@ -2932,6 +3313,7 @@ export default function AIAssistantPanel({
                 )
             ),
         ]);
+        return true;
     }
 
     function handlePreviewTrainingDraft() {
@@ -3640,7 +4022,9 @@ export default function AIAssistantPanel({
                                         </ul>
                                     )}
 
-                                    {message.proposedActions && message.proposedActions.length > 0 && (
+                                    {message.proposedActions &&
+                                        message.proposedActions.length > 0 &&
+                                        !isBestiaryOnlyProposedActions(message.proposedActions) && (
                                         <div className="mt-2 space-y-1.5">
                                             {message.proposedActions.map((entry, index) => (
                                                 <ProposedActionPreview
@@ -3650,7 +4034,7 @@ export default function AIAssistantPanel({
                                                 />
                                             ))}
                                         </div>
-                                    )}
+                                        )}
                                 </div>
                             </div>
                         ))}
@@ -3678,7 +4062,7 @@ export default function AIAssistantPanel({
                             </div>
                         )}
 
-                        {!isTraining && pendingPlan && (
+                        {!isTraining && pendingPlan && !pendingBestiaryProposal && (
                             <div className="rounded-xl border border-ring/80 bg-panel/95 px-3 py-2 text-[11px] text-ink shadow-[0_6px_16px_rgba(45,29,12,0.08)]">
                                 <div className="flex items-center justify-between gap-2">
                                     <p>
@@ -3713,7 +4097,9 @@ export default function AIAssistantPanel({
                                 <div className="mt-2 flex justify-end gap-2">
                                     <button
                                         type="button"
-                                        onClick={handleCancelPendingPlan}
+                                        onClick={() => {
+                                            handleCancelPendingPlan();
+                                        }}
                                         disabled={loading}
                                         className="rounded-md border border-ring bg-white px-3 py-1.5 text-[11px] text-ink hover:bg-panel disabled:opacity-60"
                                     >
@@ -3721,7 +4107,9 @@ export default function AIAssistantPanel({
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={handleApplyPendingPlan}
+                                        onClick={() => {
+                                            void handleApplyPendingPlan();
+                                        }}
                                         disabled={loading}
                                         className="rounded-md border border-accent/55 bg-accent/15 px-3 py-1.5 text-[11px] text-accent-strong hover:bg-accent/22 disabled:opacity-60"
                                     >

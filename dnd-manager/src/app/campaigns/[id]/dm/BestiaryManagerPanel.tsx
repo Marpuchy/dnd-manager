@@ -5,9 +5,21 @@ import {
     useMemo,
     useState,
     type ChangeEvent,
+    type DragEvent,
     type WheelEvent,
 } from "react";
-import { Plus, RefreshCw, Save, Search, Trash2, Upload, X } from "lucide-react";
+import {
+    ChevronDown,
+    ChevronRight,
+    Folder,
+    Plus,
+    RefreshCw,
+    Save,
+    Search,
+    Trash2,
+    Upload,
+    X,
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { tr } from "@/lib/i18n/translate";
 import {
@@ -22,6 +34,7 @@ import {
     type BestiaryBlock,
     type CreatureSheetData,
 } from "../shared/bestiaryShared";
+import type { BestiaryPendingProposalPreview } from "../shared/bestiaryProposalShared";
 import { getBestiarySelectionStyle, SelectionBlobOverlay } from "../shared/selectionBlobShared";
 
 type BestiaryManagerPanelProps = {
@@ -29,6 +42,11 @@ type BestiaryManagerPanelProps = {
     locale: string;
     refreshNonce?: number;
     focusEntryId?: string | null;
+    pendingProposal?: BestiaryPendingProposalPreview | null;
+    proposalBusy?: boolean;
+    onConfirmPendingProposal?: () => void;
+    onRejectPendingProposal?: () => void;
+    onSelectedEntryChange?: (entry: { id: string; name: string } | null) => void;
 };
 
 type SourceType = "CUSTOM" | "SRD" | "IMPORTED";
@@ -37,6 +55,8 @@ type ViewMode = "campaign" | "common";
 type CampaignEntry = {
     id: string;
     name: string;
+    folderPath: string;
+    catalogIndex: string;
     sourceType: SourceType;
     sourceIndex: string;
     creatureType: string;
@@ -56,6 +76,7 @@ type CampaignEntry = {
     languages: string;
     flavor: string;
     notes: string;
+    metadata: Record<string, unknown>;
     tags: string[];
     traits: BestiaryBlock[];
     actions: BestiaryBlock[];
@@ -72,6 +93,8 @@ type CampaignEntry = {
 type Draft = {
     id: string | null;
     name: string;
+    folderPath: string;
+    catalogIndex: string;
     sourceType: SourceType;
     sourceIndex: string;
     creatureType: string;
@@ -91,6 +114,7 @@ type Draft = {
     languages: string;
     flavor: string;
     notes: string;
+    metadata: Record<string, unknown>;
     tags: string[];
     traits: BestiaryBlock[];
     actions: BestiaryBlock[];
@@ -115,9 +139,32 @@ type CommonSummary = {
 type CommonDetail = Record<string, unknown>;
 type CommonSort = "name_asc" | "name_desc" | "cr_asc" | "cr_desc" | "type_asc";
 type CommonCrBand = "all" | "0-1" | "2-4" | "5-10" | "11+";
+type CampaignTreeItem = { key: string; entry: CampaignEntry; isPreview: boolean };
+type CampaignTreeFolder = {
+    key: string;
+    name: string;
+    path: string;
+    folders: CampaignTreeFolder[];
+    items: CampaignTreeItem[];
+    totalCount: number;
+};
 
 const DEFAULT_ENTRY_KIND = "ENCOUNTER";
 const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
+const BESTIARY_DRAG_ENTRY_TYPE = "application/x-bestiary-entry-id";
+const BESTIARY_DRAG_FOLDER_TYPE = "application/x-bestiary-folder-path";
+const UNCATEGORIZED_FOLDER_NODE_KEY = "folder:__uncategorized__";
+
+const MANUAL_BESTIARY_FOLDERS_STORAGE_KEY_PREFIX = "dnd-manager:bestiary-folders:";
+const BESTIARY_FOLDER_ORDER_STORAGE_KEY_PREFIX = "dnd-manager:bestiary-folder-order:";
+
+function manualBestiaryFoldersStorageKey(campaignId: string): string {
+    return `${MANUAL_BESTIARY_FOLDERS_STORAGE_KEY_PREFIX}${campaignId}`;
+}
+
+function manualBestiaryFolderOrderStorageKey(campaignId: string): string {
+    return `${BESTIARY_FOLDER_ORDER_STORAGE_KEY_PREFIX}${campaignId}`;
+}
 
 function asRecord(raw: unknown): Record<string, unknown> {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -223,6 +270,33 @@ function extractTags(value: unknown): string[] {
         .split(/[,;/|]/)
         .map((token) => token.trim())
         .filter(Boolean);
+}
+
+function normalizeTags(value: string[]): string[] {
+    const output: string[] = [];
+    const seen = new Set<string>();
+    for (const rawTag of value) {
+        const tag = String(rawTag ?? "").trim();
+        if (!tag) continue;
+        const key = tag.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        output.push(tag);
+    }
+    return output;
+}
+
+function tagsToEditorText(tags: string[]): string {
+    return normalizeTags(tags).join(", ");
+}
+
+function parseTagsFromEditorText(value: string): string[] {
+    return normalizeTags(
+        value
+            .split(/[,;/|]/)
+            .map((token) => token.trim())
+            .filter(Boolean)
+    );
 }
 
 function normalizeLookupKey(value: string): string {
@@ -362,6 +436,216 @@ function compareEntries(a: CampaignEntry, b: CampaignEntry): number {
     return a.createdAt.localeCompare(b.createdAt);
 }
 
+function normalizeFolderPath(value: string): string {
+    return String(value ?? "")
+        .replace(/[\\]+/g, "/")
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+        .join("/");
+}
+
+function folderParentPath(value: string): string {
+    const normalized = normalizeFolderPath(value);
+    if (!normalized) return "";
+    const index = normalized.lastIndexOf("/");
+    return index < 0 ? "" : normalized.slice(0, index);
+}
+
+function folderBaseName(value: string): string {
+    const normalized = normalizeFolderPath(value);
+    if (!normalized) return "";
+    const index = normalized.lastIndexOf("/");
+    return index < 0 ? normalized : normalized.slice(index + 1);
+}
+
+function isSameOrDescendantFolderPath(candidatePath: string, folderPath: string): boolean {
+    const candidate = normalizeFolderPath(candidatePath);
+    const target = normalizeFolderPath(folderPath);
+    if (!candidate || !target) return false;
+    return candidate === target || candidate.startsWith(`${target}/`);
+}
+
+function isDirectChildFolderPath(candidatePath: string, parentPath: string): boolean {
+    const candidate = normalizeFolderPath(candidatePath);
+    const parent = normalizeFolderPath(parentPath);
+    if (!candidate) return false;
+    if (!parent) return !candidate.includes("/");
+    if (!candidate.startsWith(`${parent}/`)) return false;
+    const remaining = candidate.slice(parent.length + 1);
+    return !remaining.includes("/");
+}
+
+function replaceFolderPrefix(path: string, oldPrefix: string, newPrefix: string): string {
+    const normalizedPath = normalizeFolderPath(path);
+    const oldPath = normalizeFolderPath(oldPrefix);
+    const nextPrefix = normalizeFolderPath(newPrefix);
+    if (!normalizedPath || !oldPath) return normalizedPath;
+    if (normalizedPath === oldPath) return nextPrefix;
+    if (!normalizedPath.startsWith(`${oldPath}/`)) return normalizedPath;
+    const suffix = normalizedPath.slice(oldPath.length + 1);
+    return normalizeFolderPath(nextPrefix ? `${nextPrefix}/${suffix}` : suffix);
+}
+
+function readFolderPathFromMetadata(metadata: Record<string, unknown>): string {
+    return normalizeFolderPath(
+        asText(
+            metadata.folder_path ??
+                metadata.folderPath ??
+                metadata.folder ??
+                metadata.bestiary_folder ??
+                metadata.bestiaryFolder
+        )
+    );
+}
+
+function readCatalogIndexFromMetadata(metadata: Record<string, unknown>): string {
+    return asText(
+        metadata.catalog_index ??
+            metadata.catalogIndex ??
+            metadata.bestiary_index ??
+            metadata.bestiaryIndex
+    );
+}
+
+function compareCatalogIndex(left: string, right: string, locale: string): number {
+    const a = String(left ?? "").trim();
+    const b = String(right ?? "").trim();
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+    return a.localeCompare(b, locale, {
+        numeric: true,
+        sensitivity: "base",
+    });
+}
+
+function compareCampaignListEntries(a: CampaignEntry, b: CampaignEntry, locale: string): number {
+    const explicitSortCompare = compareEntries(a, b);
+    if (explicitSortCompare !== 0) return explicitSortCompare;
+
+    const catalogCompare = compareCatalogIndex(a.catalogIndex, b.catalogIndex, locale);
+    if (catalogCompare !== 0) return catalogCompare;
+
+    const byName = a.name.localeCompare(b.name, locale, { sensitivity: "base" });
+    if (byName !== 0) return byName;
+
+    return 0;
+}
+
+type CampaignTreeBuilderNode = {
+    key: string;
+    name: string;
+    path: string;
+    folders: Map<string, CampaignTreeBuilderNode>;
+    items: CampaignTreeItem[];
+};
+
+function buildCampaignFolderTree(
+    items: CampaignTreeItem[],
+    folderPaths: string[],
+    folderOrderByParent: Record<string, string[]>,
+    locale: string
+): CampaignTreeFolder {
+    const root: CampaignTreeBuilderNode = {
+        key: "root",
+        name: "",
+        path: "",
+        folders: new Map(),
+        items: [],
+    };
+
+    function ensureFolderPath(path: string): CampaignTreeBuilderNode {
+        const normalizedPath = normalizeFolderPath(path);
+        if (!normalizedPath) return root;
+        const segments = normalizedPath.split("/").filter(Boolean);
+        let current = root;
+        let currentPath = "";
+        for (const segment of segments) {
+            currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+            const mapKey = segment.toLowerCase();
+            const existing = current.folders.get(mapKey);
+            if (existing) {
+                current = existing;
+                continue;
+            }
+            const created: CampaignTreeBuilderNode = {
+                key: `folder:${currentPath}`,
+                name: segment,
+                path: currentPath,
+                folders: new Map(),
+                items: [],
+            };
+            current.folders.set(mapKey, created);
+            current = created;
+        }
+        return current;
+    }
+
+    for (const folderPath of folderPaths) {
+        ensureFolderPath(folderPath);
+    }
+
+    for (const item of items) {
+        const targetNode = ensureFolderPath(item.entry.folderPath);
+        if (targetNode === root) {
+            root.items.push(item);
+            continue;
+        }
+
+        targetNode.items.push(item);
+    }
+
+    function finalize(node: CampaignTreeBuilderNode): CampaignTreeFolder {
+        const parentPath = normalizeFolderPath(node.path);
+        const desiredOrder = Array.from(
+            new Set(
+                (Array.isArray(folderOrderByParent[parentPath])
+                    ? folderOrderByParent[parentPath]
+                    : []
+                )
+                    .map((value) => normalizeFolderPath(value))
+                    .filter((value) => isDirectChildFolderPath(value, parentPath))
+            )
+        );
+        const orderLookup = new Map<string, number>();
+        for (let index = 0; index < desiredOrder.length; index += 1) {
+            orderLookup.set(desiredOrder[index], index);
+        }
+        const folders = Array.from(node.folders.values())
+            .map((child) => finalize(child))
+            .sort((left, right) => {
+                const leftOrder = orderLookup.get(normalizeFolderPath(left.path));
+                const rightOrder = orderLookup.get(normalizeFolderPath(right.path));
+                const leftHasOrder = leftOrder != null;
+                const rightHasOrder = rightOrder != null;
+                if (leftHasOrder && rightHasOrder && leftOrder !== rightOrder) {
+                    return leftOrder - rightOrder;
+                }
+                if (leftHasOrder !== rightHasOrder) return leftHasOrder ? -1 : 1;
+                return left.name.localeCompare(right.name, locale, {
+                    sensitivity: "base",
+                });
+            });
+        const sortedItems = [...node.items].sort((left, right) => {
+            if (left.isPreview !== right.isPreview) return left.isPreview ? -1 : 1;
+            return compareCampaignListEntries(left.entry, right.entry, locale);
+        });
+        const totalCount =
+            sortedItems.length + folders.reduce((sum, folder) => sum + folder.totalCount, 0);
+        return {
+            key: node.key,
+            name: node.name,
+            path: node.path,
+            folders,
+            items: sortedItems,
+            totalCount,
+        };
+    }
+
+    return finalize(root);
+}
+
 function visibilityError(error: unknown): boolean {
     return asText((error as { message?: unknown } | null)?.message).toLowerCase().includes("is_player_visible");
 }
@@ -372,10 +656,14 @@ function toEntry(raw: Record<string, unknown>): CampaignEntry {
     const typeTags = extractTags(raw.creature_type);
     const entryKindTags = extractTags(raw.entry_kind);
     const tags = Array.from(new Set([...metadataTags, ...typeTags, ...entryKindTags]));
+    const folderPath = readFolderPathFromMetadata(metadata);
+    const catalogIndex = readCatalogIndexFromMetadata(metadata);
 
     return {
         id: asText(raw.id),
         name: asText(raw.name),
+        folderPath,
+        catalogIndex,
         sourceType: asSourceType(raw.source_type),
         sourceIndex: asText(raw.source_index),
         creatureType: asText(raw.creature_type),
@@ -395,6 +683,7 @@ function toEntry(raw: Record<string, unknown>): CampaignEntry {
         languages: asText(raw.languages),
         flavor: asText(raw.flavor),
         notes: asText(raw.notes),
+        metadata,
         tags,
         traits: toBestiaryBlocks(raw.traits),
         actions: toBestiaryBlocks(raw.actions),
@@ -413,6 +702,8 @@ function entryToDraft(entry: CampaignEntry): Draft {
     return {
         id: entry.id,
         name: entry.name,
+        folderPath: entry.folderPath,
+        catalogIndex: entry.catalogIndex,
         sourceType: entry.sourceType,
         sourceIndex: entry.sourceIndex,
         creatureType: entry.creatureType,
@@ -432,6 +723,7 @@ function entryToDraft(entry: CampaignEntry): Draft {
         languages: entry.languages,
         flavor: entry.flavor,
         notes: entry.notes,
+        metadata: entry.metadata,
         tags: entry.tags,
         traits: entry.traits,
         actions: entry.actions,
@@ -445,10 +737,12 @@ function entryToDraft(entry: CampaignEntry): Draft {
     };
 }
 
-function emptyDraft(sortOrder: number): Draft {
+function emptyDraft(sortOrder: number, folderPath = ""): Draft {
     return {
         id: null,
         name: "",
+        folderPath: normalizeFolderPath(folderPath),
+        catalogIndex: "",
         sourceType: "CUSTOM",
         sourceIndex: "",
         creatureType: "",
@@ -468,6 +762,7 @@ function emptyDraft(sortOrder: number): Draft {
         languages: "",
         flavor: "",
         notes: "",
+        metadata: {},
         tags: [],
         traits: [],
         actions: [],
@@ -482,6 +777,39 @@ function emptyDraft(sortOrder: number): Draft {
 }
 
 function toPayload(draft: Draft, campaignId: string, includeVisibility: boolean): Record<string, unknown> {
+    const normalizedTags = normalizeTags(draft.tags);
+    const derivedTags = normalizeTags([
+        ...extractTags(draft.creatureType),
+        ...extractTags(DEFAULT_ENTRY_KIND),
+    ]);
+    const derivedLookup = new Set(derivedTags.map((tag) => tag.toLowerCase()));
+    const metadataTags = normalizedTags.filter((tag) => !derivedLookup.has(tag.toLowerCase()));
+    const metadata = { ...asRecord(draft.metadata) };
+    delete metadata.folderPath;
+    delete metadata.folder;
+    delete metadata.bestiary_folder;
+    delete metadata.bestiaryFolder;
+    delete metadata.catalogIndex;
+    delete metadata.bestiary_index;
+    delete metadata.bestiaryIndex;
+    const normalizedFolderPath = normalizeFolderPath(draft.folderPath);
+    const normalizedCatalogIndex = draft.catalogIndex.trim();
+    if (metadataTags.length > 0) {
+        metadata.tags = metadataTags;
+    } else {
+        delete metadata.tags;
+    }
+    if (normalizedFolderPath) {
+        metadata.folder_path = normalizedFolderPath;
+    } else {
+        delete metadata.folder_path;
+    }
+    if (normalizedCatalogIndex) {
+        metadata.catalog_index = normalizedCatalogIndex;
+    } else {
+        delete metadata.catalog_index;
+    }
+
     const payload: Record<string, unknown> = {
         campaign_id: campaignId,
         name: draft.name.trim(),
@@ -506,6 +834,7 @@ function toPayload(draft: Draft, campaignId: string, includeVisibility: boolean)
         languages: draft.languages.trim() || null,
         flavor: draft.flavor.trim() || null,
         notes: draft.notes.trim() || null,
+        metadata: Object.keys(metadata).length > 0 ? metadata : {},
         traits: draft.traits,
         actions: draft.actions,
         bonus_actions: draft.bonusActions,
@@ -560,11 +889,198 @@ function sourceLabel(sourceType: SourceType, locale: string): string {
     return locale === "en" ? "Custom" : "Personalizada";
 }
 
+function hasOwn(record: Record<string, unknown>, key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function sourceTypeFromPatch(value: unknown): SourceType | null {
+    const normalized = asText(value).toUpperCase();
+    if (normalized === "CUSTOM" || normalized === "SRD" || normalized === "IMPORTED") {
+        return normalized;
+    }
+    return null;
+}
+
+function formatInlineRecord(value: Record<string, unknown>): string {
+    const pieces = Object.entries(value)
+        .map(([key, rawValue]) => {
+            const text = asText(rawValue);
+            if (!text) return null;
+            return `${key}: ${text}`;
+        })
+        .filter((entry): entry is string => Boolean(entry));
+    return pieces.join(", ");
+}
+
+function createProposalPreviewSeedEntry(entries: CampaignEntry[]): CampaignEntry {
+    const nextSortOrder = entries.reduce((max, entry) => Math.max(max, entry.sortOrder), 0) + 1;
+    return {
+        id: "preview",
+        name: "",
+        folderPath: "",
+        catalogIndex: "",
+        sourceType: "CUSTOM",
+        sourceIndex: "",
+        creatureType: "",
+        creatureSize: "",
+        alignment: "",
+        challengeRating: null,
+        xp: null,
+        armorClass: null,
+        hitPoints: null,
+        hitDice: "",
+        proficiencyBonus: null,
+        abilityScores: { ...DEFAULT_ABILITY_SCORES },
+        speed: {},
+        savingThrows: {},
+        skills: {},
+        senses: {},
+        languages: "",
+        flavor: "",
+        notes: "",
+        metadata: {},
+        tags: [],
+        traits: [],
+        actions: [],
+        bonusActions: [],
+        reactions: [],
+        legendaryActions: [],
+        lairActions: [],
+        imageUrl: "",
+        isPlayerVisible: false,
+        sortOrder: nextSortOrder,
+        createdAt: new Date().toISOString(),
+    };
+}
+
+function applyBestiaryPatchToEntryPreview(
+    baseEntry: CampaignEntry,
+    patch: Record<string, unknown>
+): CampaignEntry {
+    const next: CampaignEntry = {
+        ...baseEntry,
+        abilityScores: { ...baseEntry.abilityScores },
+        speed: { ...baseEntry.speed },
+        savingThrows: { ...baseEntry.savingThrows },
+        skills: { ...baseEntry.skills },
+        senses: { ...baseEntry.senses },
+        metadata: { ...baseEntry.metadata },
+        tags: [...baseEntry.tags],
+        traits: [...baseEntry.traits],
+        actions: [...baseEntry.actions],
+        bonusActions: [...baseEntry.bonusActions],
+        reactions: [...baseEntry.reactions],
+        legendaryActions: [...baseEntry.legendaryActions],
+        lairActions: [...baseEntry.lairActions],
+    };
+
+    if (hasOwn(patch, "name")) next.name = asText(patch.name);
+    if (hasOwn(patch, "source_type")) {
+        const nextSourceType = sourceTypeFromPatch(patch.source_type);
+        if (nextSourceType) next.sourceType = nextSourceType;
+    }
+    if (hasOwn(patch, "source_index")) next.sourceIndex = asText(patch.source_index);
+    if (hasOwn(patch, "creature_type")) next.creatureType = asText(patch.creature_type);
+    if (hasOwn(patch, "creature_size")) next.creatureSize = asText(patch.creature_size);
+    if (hasOwn(patch, "alignment")) next.alignment = asText(patch.alignment);
+    if (hasOwn(patch, "challenge_rating")) next.challengeRating = asNum(patch.challenge_rating);
+    if (hasOwn(patch, "xp")) next.xp = asInt(patch.xp);
+    if (hasOwn(patch, "armor_class")) next.armorClass = asInt(patch.armor_class);
+    if (hasOwn(patch, "hit_points")) next.hitPoints = asInt(patch.hit_points);
+    if (hasOwn(patch, "hit_dice")) next.hitDice = asText(patch.hit_dice);
+    if (hasOwn(patch, "proficiency_bonus")) next.proficiencyBonus = asInt(patch.proficiency_bonus);
+    if (hasOwn(patch, "languages")) next.languages = asText(patch.languages);
+    if (hasOwn(patch, "flavor")) next.flavor = asText(patch.flavor);
+    if (hasOwn(patch, "notes")) next.notes = asText(patch.notes);
+    if (hasOwn(patch, "image_url")) next.imageUrl = asText(patch.image_url);
+    if (hasOwn(patch, "sort_order")) {
+        next.sortOrder = asInt(patch.sort_order) ?? next.sortOrder;
+    }
+    if (hasOwn(patch, "is_player_visible")) {
+        next.isPlayerVisible = patch.is_player_visible === true;
+    }
+    if (hasOwn(patch, "ability_scores")) {
+        const merged = normalizeAbilityScores({
+            ...next.abilityScores,
+            ...asRecord(patch.ability_scores),
+        });
+        next.abilityScores = merged;
+    }
+    if (hasOwn(patch, "speed")) next.speed = toLooseRecord(patch.speed);
+    if (hasOwn(patch, "saving_throws")) next.savingThrows = toLooseRecord(patch.saving_throws);
+    if (hasOwn(patch, "skills")) next.skills = toLooseRecord(patch.skills);
+    if (hasOwn(patch, "senses")) next.senses = toLooseRecord(patch.senses);
+    if (hasOwn(patch, "metadata")) {
+        next.metadata = { ...next.metadata, ...asRecord(patch.metadata) };
+    }
+    if (hasOwn(patch, "folder_path") || hasOwn(patch, "folderPath")) {
+        next.folderPath = normalizeFolderPath(asText(patch.folder_path ?? patch.folderPath));
+    } else if (hasOwn(patch, "metadata")) {
+        next.folderPath = readFolderPathFromMetadata(next.metadata);
+    }
+    if (hasOwn(patch, "catalog_index") || hasOwn(patch, "catalogIndex")) {
+        next.catalogIndex = asText(patch.catalog_index ?? patch.catalogIndex);
+    } else if (hasOwn(patch, "metadata")) {
+        next.catalogIndex = readCatalogIndexFromMetadata(next.metadata);
+    }
+    if (hasOwn(patch, "tags")) next.tags = normalizeTags(extractTags(patch.tags));
+    if (hasOwn(patch, "traits")) next.traits = toBestiaryBlocks(patch.traits);
+    if (hasOwn(patch, "actions")) next.actions = toBestiaryBlocks(patch.actions);
+    if (hasOwn(patch, "bonus_actions")) next.bonusActions = toBestiaryBlocks(patch.bonus_actions);
+    if (hasOwn(patch, "reactions")) next.reactions = toBestiaryBlocks(patch.reactions);
+    if (hasOwn(patch, "legendary_actions")) {
+        next.legendaryActions = toBestiaryBlocks(patch.legendary_actions);
+    }
+    if (hasOwn(patch, "lair_actions")) next.lairActions = toBestiaryBlocks(patch.lair_actions);
+    return next;
+}
+
+function campaignEntryToCreatureSheetData(entry: CampaignEntry, locale: string): CreatureSheetData {
+    return {
+        name: entry.name || (locale === "en" ? "New creature" : "Nueva criatura"),
+        subtitle: [entry.creatureSize, entry.creatureType, entry.alignment]
+            .filter(Boolean)
+            .join(" - "),
+        sourceLabel: sourceLabel(entry.sourceType, locale),
+        imageUrl: entry.imageUrl,
+        isPlayerVisible: entry.isPlayerVisible,
+        creatureSize: entry.creatureSize || null,
+        creatureType: entry.creatureType || null,
+        alignment: entry.alignment || null,
+        challengeRating: entry.challengeRating,
+        xp: entry.xp,
+        armorClass: entry.armorClass,
+        hitPoints: entry.hitPoints,
+        hitDice: entry.hitDice || null,
+        proficiencyBonus: entry.proficiencyBonus,
+        abilityScores: entry.abilityScores,
+        speed: entry.speed,
+        savingThrows: entry.savingThrows,
+        skills: entry.skills,
+        senses: entry.senses,
+        languages: entry.languages || null,
+        flavor: entry.flavor || null,
+        notes: entry.notes || null,
+        tags: entry.tags,
+        traits: entry.traits,
+        actions: entry.actions,
+        bonusActions: entry.bonusActions,
+        reactions: entry.reactions,
+        legendaryActions: entry.legendaryActions,
+        lairActions: entry.lairActions,
+    };
+}
+
 export default function BestiaryManagerPanel({
     campaignId,
     locale,
     refreshNonce = 0,
     focusEntryId = null,
+    pendingProposal = null,
+    proposalBusy = false,
+    onConfirmPendingProposal,
+    onRejectPendingProposal,
+    onSelectedEntryChange,
 }: BestiaryManagerPanelProps) {
     const t = (es: string, en: string) => tr(locale, es, en);
     const localeCode = locale === "en" ? "en" : "es";
@@ -578,6 +1094,23 @@ export default function BestiaryManagerPanel({
     const [campaignPanelMode, setCampaignPanelMode] = useState<"view" | "edit">("view");
     const [draft, setDraft] = useState<Draft | null>(null);
     const [pendingImage, setPendingImage] = useState<File | null>(null);
+    const [collapsedFolderState, setCollapsedFolderState] = useState<Record<string, boolean>>({});
+    const [manualFolders, setManualFolders] = useState<string[]>([]);
+    const [folderOrderByParent, setFolderOrderByParent] = useState<Record<string, string[]>>({});
+    const [newFolderInput, setNewFolderInput] = useState("");
+    const [editingFolderPath, setEditingFolderPath] = useState<string | null>(null);
+    const [editingFolderName, setEditingFolderName] = useState("");
+    const [draggingEntryId, setDraggingEntryId] = useState<string | null>(null);
+    const [draggingFolderPath, setDraggingFolderPath] = useState<string | null>(null);
+    const [dragOverFolderKey, setDragOverFolderKey] = useState<string | null>(null);
+    const [dragOverEntryPlacement, setDragOverEntryPlacement] = useState<{
+        entryId: string;
+        position: "before" | "after";
+    } | null>(null);
+    const [dragOverFolderPlacement, setDragOverFolderPlacement] = useState<{
+        folderPath: string;
+        position: "before" | "inside" | "after";
+    } | null>(null);
 
     const [commonQuery, setCommonQuery] = useState("");
     const [commonList, setCommonList] = useState<CommonSummary[]>([]);
@@ -706,6 +1239,84 @@ export default function BestiaryManagerPanel({
     }, [campaignId, refreshNonce]);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const raw = window.localStorage.getItem(manualBestiaryFoldersStorageKey(campaignId));
+            if (!raw) {
+                setManualFolders([]);
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                setManualFolders([]);
+                return;
+            }
+            setManualFolders(
+                Array.from(
+                    new Set(
+                        parsed
+                            .map((value) => normalizeFolderPath(asText(value)))
+                            .filter(Boolean)
+                    )
+                )
+            );
+        } catch {
+            setManualFolders([]);
+        }
+    }, [campaignId]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const payload = JSON.stringify(
+            Array.from(new Set(manualFolders.map((value) => normalizeFolderPath(value)).filter(Boolean)))
+        );
+        window.localStorage.setItem(manualBestiaryFoldersStorageKey(campaignId), payload);
+    }, [campaignId, manualFolders]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const raw = window.localStorage.getItem(manualBestiaryFolderOrderStorageKey(campaignId));
+            if (!raw) {
+                setFolderOrderByParent({});
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                setFolderOrderByParent({});
+                return;
+            }
+            const next: Record<string, string[]> = {};
+            for (const [rawParent, rawChildren] of Object.entries(parsed as Record<string, unknown>)) {
+                if (!Array.isArray(rawChildren)) continue;
+                const parent = normalizeFolderPath(rawParent);
+                next[parent] = Array.from(
+                    new Set(rawChildren.map((value) => normalizeFolderPath(asText(value))).filter(Boolean))
+                );
+            }
+            setFolderOrderByParent(next);
+        } catch {
+            setFolderOrderByParent({});
+        }
+    }, [campaignId]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const normalized: Record<string, string[]> = {};
+        for (const [rawParent, rawChildren] of Object.entries(folderOrderByParent)) {
+            const parent = normalizeFolderPath(rawParent);
+            const children = Array.from(
+                new Set(rawChildren.map((value) => normalizeFolderPath(value)).filter(Boolean))
+            );
+            if (children.length > 0) normalized[parent] = children;
+        }
+        window.localStorage.setItem(
+            manualBestiaryFolderOrderStorageKey(campaignId),
+            JSON.stringify(normalized)
+        );
+    }, [campaignId, folderOrderByParent]);
+
+    useEffect(() => {
         if (creating) return;
         if (!selectedId) {
             setDraft(null);
@@ -724,6 +1335,23 @@ export default function BestiaryManagerPanel({
         setSelectionPulse((value) => value + 1);
         setSelectedId(focusEntryId);
     }, [entries, focusEntryId]);
+
+    useEffect(() => {
+        if (!onSelectedEntryChange) return;
+        if (!selectedId) {
+            onSelectedEntryChange(null);
+            return;
+        }
+        const selectedEntry = entries.find((entry) => entry.id === selectedId) ?? null;
+        if (!selectedEntry) {
+            onSelectedEntryChange(null);
+            return;
+        }
+        onSelectedEntryChange({
+            id: selectedEntry.id,
+            name: selectedEntry.name,
+        });
+    }, [entries, onSelectedEntryChange, selectedId]);
 
     useEffect(() => {
         if (viewMode !== "common") return;
@@ -858,13 +1486,588 @@ export default function BestiaryManagerPanel({
 
     function startCreate() {
         const nextSort = entries.reduce((max, entry) => Math.max(max, entry.sortOrder), 0) + 1;
+        const defaultFolderPath = selectedId
+            ? entries.find((entry) => entry.id === selectedId)?.folderPath ?? ""
+            : "";
         setCreating(true);
         setCampaignPanelMode("edit");
         setSelectedId(null);
         setPendingImage(null);
-        setDraft(emptyDraft(nextSort));
+        setDraft(emptyDraft(nextSort, defaultFolderPath));
         setError(null);
         setNotice(null);
+    }
+
+    function createManualFolder() {
+        const normalized = normalizeFolderPath(newFolderInput);
+        if (!normalized) {
+            setError(
+                t(
+                    "Indica una carpeta valida (ejemplo: Jefes/Cueva).",
+                    "Provide a valid folder path (example: Bosses/Cavern)."
+                )
+            );
+            return;
+        }
+
+        const alreadyExists =
+            manualFolders.some((value) => normalizeFolderPath(value) === normalized)
+            || entries.some((entry) => normalizeFolderPath(entry.folderPath) === normalized);
+        if (alreadyExists) {
+            setNotice(t("La carpeta ya existe.", "Folder already exists."));
+            setNewFolderInput("");
+            return;
+        }
+
+        setManualFolders((prev) => [...prev, normalized]);
+        setCollapsedFolderState((prev) => {
+            const next = { ...prev };
+            const segments = normalized.split("/");
+            let currentPath = "";
+            let changed = false;
+            for (const segment of segments) {
+                currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+                const key = `folder:${currentPath}`;
+                if (next[key]) {
+                    delete next[key];
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+        setNewFolderInput("");
+        setError(null);
+        setNotice(t("Carpeta creada.", "Folder created."));
+    }
+
+    function applyMetadataFolderPath(metadata: Record<string, unknown>, folderPath: string): Record<string, unknown> {
+        const next = { ...metadata };
+        const normalizedFolder = normalizeFolderPath(folderPath);
+        if (normalizedFolder) {
+            next.folder_path = normalizedFolder;
+        } else {
+            delete next.folder_path;
+            delete next.folderPath;
+            delete next.folder;
+            delete next.bestiary_folder;
+            delete next.bestiaryFolder;
+        }
+        return next;
+    }
+
+    function remapFolderOrderByPrefix(
+        sourceMap: Record<string, string[]>,
+        oldPrefix: string,
+        newPrefix: string
+    ): Record<string, string[]> {
+        const next: Record<string, string[]> = {};
+
+        const pushChild = (parentPath: string, childPath: string) => {
+            const parent = normalizeFolderPath(parentPath);
+            const child = normalizeFolderPath(childPath);
+            if (!parent && !child.includes("/")) {
+                const existing = next[parent] ?? [];
+                if (!existing.includes(child)) {
+                    next[parent] = [...existing, child];
+                }
+                return;
+            }
+            if (!isDirectChildFolderPath(child, parent)) return;
+            const existing = next[parent] ?? [];
+            if (!existing.includes(child)) {
+                next[parent] = [...existing, child];
+            }
+        };
+
+        for (const [rawParent, rawChildren] of Object.entries(sourceMap)) {
+            const mappedParent = replaceFolderPrefix(rawParent, oldPrefix, newPrefix);
+            for (const rawChild of rawChildren) {
+                const mappedChild = replaceFolderPrefix(rawChild, oldPrefix, newPrefix);
+                if (!mappedChild) continue;
+                pushChild(mappedParent, mappedChild);
+            }
+        }
+
+        return next;
+    }
+
+    async function applyFolderPrefixReplacement(
+        oldPrefix: string,
+        newPrefix: string,
+        successMessage: string
+    ): Promise<boolean> {
+        const oldPath = normalizeFolderPath(oldPrefix);
+        const nextPath = normalizeFolderPath(newPrefix);
+        if (!oldPath || oldPath === nextPath) return true;
+
+        const previousEntries = entries;
+        const previousManualFolders = manualFolders;
+        const previousOrderByParent = folderOrderByParent;
+        const previousEditingFolderPath = editingFolderPath;
+
+        const changedEntries: Array<{ id: string; metadata: Record<string, unknown>; folderPath: string }> = [];
+        const optimisticEntries = entries
+            .map((entry) => {
+                const currentPath = normalizeFolderPath(entry.folderPath);
+                const mappedPath = replaceFolderPrefix(currentPath, oldPath, nextPath);
+                if (mappedPath === currentPath) return entry;
+                const metadata = applyMetadataFolderPath(entry.metadata, mappedPath);
+                changedEntries.push({
+                    id: entry.id,
+                    metadata,
+                    folderPath: mappedPath,
+                });
+                return {
+                    ...entry,
+                    folderPath: mappedPath,
+                    metadata,
+                };
+            })
+            .sort(compareEntries);
+
+        const optimisticManualFolders = Array.from(
+            new Set(
+                manualFolders
+                    .map((path) => replaceFolderPrefix(path, oldPath, nextPath))
+                    .map((path) => normalizeFolderPath(path))
+                    .filter(Boolean)
+            )
+        );
+        const optimisticFolderOrder = remapFolderOrderByPrefix(folderOrderByParent, oldPath, nextPath);
+
+        setEntries(optimisticEntries);
+        setManualFolders(optimisticManualFolders);
+        setFolderOrderByParent(optimisticFolderOrder);
+        if (editingFolderPath && isSameOrDescendantFolderPath(editingFolderPath, oldPath)) {
+            setEditingFolderPath(replaceFolderPrefix(editingFolderPath, oldPath, nextPath) || null);
+        }
+
+        if (selectedId) {
+            const selected = optimisticEntries.find((entry) => entry.id === selectedId) ?? null;
+            setDraft(selected ? entryToDraft(selected) : null);
+        }
+
+        try {
+            await Promise.all(
+                changedEntries.map((entry) =>
+                    supabase
+                        .from("campaign_bestiary_entries")
+                        .update({
+                            metadata: Object.keys(entry.metadata).length > 0 ? entry.metadata : {},
+                        })
+                        .eq("id", entry.id)
+                        .eq("campaign_id", campaignId)
+                )
+            );
+            setNotice(successMessage);
+            return true;
+        } catch (updateError: unknown) {
+            setEntries(previousEntries);
+            setManualFolders(previousManualFolders);
+            setFolderOrderByParent(previousOrderByParent);
+            setEditingFolderPath(previousEditingFolderPath);
+            if (selectedId) {
+                const previousSelected = previousEntries.find((entry) => entry.id === selectedId) ?? null;
+                setDraft(previousSelected ? entryToDraft(previousSelected) : null);
+            }
+            setError(
+                updateError instanceof Error
+                    ? updateError.message
+                    : t("No se pudo actualizar carpetas.", "Could not update folders.")
+            );
+            return false;
+        }
+    }
+
+    async function renameFolderPath(oldPathRaw: string, nextFolderNameRaw: string) {
+        const oldPath = normalizeFolderPath(oldPathRaw);
+        const nextName = normalizeFolderPath(nextFolderNameRaw);
+        if (!oldPath) return;
+        if (!nextName) {
+            setError(t("El nombre no puede estar vacio.", "Folder name cannot be empty."));
+            return;
+        }
+        if (nextName.includes("/")) {
+            setError(
+                t(
+                    "Solo puedes renombrar el nombre de la carpeta, no la ruta completa.",
+                    "Rename only the folder name, not the full path."
+                )
+            );
+            return;
+        }
+
+        const parent = folderParentPath(oldPath);
+        const renamedPath = normalizeFolderPath(parent ? `${parent}/${nextName}` : nextName);
+        if (!renamedPath || renamedPath === oldPath) {
+            setEditingFolderPath(null);
+            return;
+        }
+        if (isSameOrDescendantFolderPath(renamedPath, oldPath)) {
+            setError(
+                t(
+                    "No puedes mover una carpeta dentro de si misma.",
+                    "Cannot move a folder inside itself."
+                )
+            );
+            return;
+        }
+
+        const renamed = await applyFolderPrefixReplacement(
+            oldPath,
+            renamedPath,
+            t("Carpeta renombrada.", "Folder renamed.")
+        );
+        if (renamed) {
+            setEditingFolderPath(null);
+            setEditingFolderName("");
+        }
+    }
+
+    async function deleteFolderPath(folderPathRaw: string) {
+        const folderPath = normalizeFolderPath(folderPathRaw);
+        if (!folderPath) return;
+        if (
+            !window.confirm(
+                t(
+                    "Se eliminara esta carpeta. Las criaturas y subcarpetas se moveran al nivel superior. Continuar?",
+                    "This folder will be removed. Creatures and subfolders will move up one level. Continue?"
+                )
+            )
+        ) {
+            return;
+        }
+
+        const parent = folderParentPath(folderPath);
+        const nextManualFolders = Array.from(
+            new Set(
+                manualFolders
+                    .map((path) => {
+                        const normalized = normalizeFolderPath(path);
+                        if (normalized === folderPath) return "";
+                        return replaceFolderPrefix(normalized, folderPath, parent);
+                    })
+                    .map((path) => normalizeFolderPath(path))
+                    .filter(Boolean)
+            )
+        );
+
+        const deleted = await applyFolderPrefixReplacement(
+            folderPath,
+            parent,
+            t("Carpeta eliminada.", "Folder deleted.")
+        );
+        if (deleted) {
+            setManualFolders(nextManualFolders);
+        }
+
+        if (editingFolderPath && isSameOrDescendantFolderPath(editingFolderPath, folderPath)) {
+            setEditingFolderPath(null);
+            setEditingFolderName("");
+        }
+    }
+
+    async function moveEntryToFolder(entryId: string, folderPath: string) {
+        const targetEntry = entries.find((entry) => entry.id === entryId);
+        if (!targetEntry) return;
+
+        const normalizedFolderPath = normalizeFolderPath(folderPath);
+        if (normalizeFolderPath(targetEntry.folderPath) === normalizedFolderPath) return;
+
+        const previousEntries = entries;
+        const nextMetadata = { ...targetEntry.metadata };
+        if (normalizedFolderPath) {
+            nextMetadata.folder_path = normalizedFolderPath;
+        } else {
+            delete nextMetadata.folder_path;
+            delete nextMetadata.folderPath;
+            delete nextMetadata.folder;
+            delete nextMetadata.bestiary_folder;
+            delete nextMetadata.bestiaryFolder;
+        }
+
+        setEntries((prev) =>
+            prev
+                .map((entry) =>
+                    entry.id === entryId
+                        ? {
+                            ...entry,
+                            folderPath: normalizedFolderPath,
+                            metadata: nextMetadata,
+                        }
+                        : entry
+                )
+                .sort(compareEntries)
+        );
+        if (selectedId === entryId) {
+            setDraft((prev) =>
+                prev
+                    ? {
+                        ...prev,
+                        folderPath: normalizedFolderPath,
+                        metadata: nextMetadata,
+                    }
+                    : prev
+            );
+        }
+        setDragOverFolderKey(null);
+        setDraggingEntryId(null);
+
+        try {
+            const { data, error: updateError } = await supabase
+                .from("campaign_bestiary_entries")
+                .update({
+                    metadata: Object.keys(nextMetadata).length > 0 ? nextMetadata : {},
+                })
+                .eq("id", entryId)
+                .eq("campaign_id", campaignId)
+                .select("*")
+                .maybeSingle();
+
+            if (updateError) throw new Error(updateError.message);
+            const savedEntry = toEntry(asRecord(data));
+            setEntries((prev) =>
+                prev
+                    .map((entry) => (entry.id === entryId ? savedEntry : entry))
+                    .sort(compareEntries)
+            );
+            if (selectedId === entryId) {
+                setDraft(entryToDraft(savedEntry));
+            }
+            setNotice(
+                normalizedFolderPath
+                    ? t("Criatura movida de carpeta.", "Creature moved to folder.")
+                    : t("Criatura sin carpeta.", "Creature moved out of folder.")
+            );
+        } catch (moveError: unknown) {
+            setEntries(previousEntries);
+            if (selectedId === entryId) {
+                const previous = previousEntries.find((entry) => entry.id === entryId) ?? null;
+                setDraft(previous ? entryToDraft(previous) : null);
+            }
+            setError(
+                moveError instanceof Error
+                    ? moveError.message
+                    : t("No se pudo mover la criatura.", "Could not move creature.")
+            );
+        }
+    }
+
+    async function reorderEntriesByDrop(
+        draggedEntryId: string,
+        targetEntryId: string,
+        position: "before" | "after"
+    ) {
+        if (draggedEntryId === targetEntryId) return;
+
+        const draggedEntry = entries.find((entry) => entry.id === draggedEntryId);
+        const targetEntry = entries.find((entry) => entry.id === targetEntryId);
+        if (!draggedEntry || !targetEntry) return;
+
+        const previousEntries = entries;
+        const targetFolderPath = normalizeFolderPath(targetEntry.folderPath);
+        const folderChanged = normalizeFolderPath(draggedEntry.folderPath) !== targetFolderPath;
+        const draggedMetadata = { ...draggedEntry.metadata };
+        if (folderChanged) {
+            if (targetFolderPath) {
+                draggedMetadata.folder_path = targetFolderPath;
+            } else {
+                delete draggedMetadata.folder_path;
+                delete draggedMetadata.folderPath;
+                delete draggedMetadata.folder;
+                delete draggedMetadata.bestiary_folder;
+                delete draggedMetadata.bestiaryFolder;
+            }
+        }
+
+        const ordered = [...entries].sort(compareEntries);
+        const withoutDragged = ordered.filter((entry) => entry.id !== draggedEntryId);
+        const targetIndex = withoutDragged.findIndex((entry) => entry.id === targetEntryId);
+        if (targetIndex < 0) return;
+
+        const insertIndex = position === "after" ? targetIndex + 1 : targetIndex;
+        const movedDraggedEntry: CampaignEntry = folderChanged
+            ? {
+                ...draggedEntry,
+                folderPath: targetFolderPath,
+                metadata: draggedMetadata,
+            }
+            : draggedEntry;
+
+        withoutDragged.splice(insertIndex, 0, movedDraggedEntry);
+        const nextEntries = withoutDragged.map((entry, index) => ({
+            ...entry,
+            sortOrder: (index + 1) * 10,
+        }));
+
+        setEntries(nextEntries);
+        setDragOverEntryPlacement(null);
+        setDragOverFolderKey(null);
+        setDraggingEntryId(null);
+
+        if (selectedId) {
+            const selectedEntry = nextEntries.find((entry) => entry.id === selectedId) ?? null;
+            setDraft(selectedEntry ? entryToDraft(selectedEntry) : null);
+        }
+
+        try {
+            const updateJobs = nextEntries.map((entry) => {
+                const payload: Record<string, unknown> = {
+                    sort_order: entry.sortOrder,
+                };
+                if (entry.id === draggedEntryId && folderChanged) {
+                    payload.metadata =
+                        Object.keys(entry.metadata).length > 0 ? entry.metadata : {};
+                }
+                return supabase
+                    .from("campaign_bestiary_entries")
+                    .update(payload)
+                    .eq("id", entry.id)
+                    .eq("campaign_id", campaignId);
+            });
+
+            const results = await Promise.all(updateJobs);
+            const failed = results.find((result) => result.error);
+            if (failed?.error) {
+                throw new Error(failed.error.message);
+            }
+
+            setNotice(
+                folderChanged
+                    ? t("Orden y carpeta actualizados.", "Order and folder updated.")
+                    : t("Orden actualizado.", "Order updated.")
+            );
+        } catch (reorderError: unknown) {
+            setEntries(previousEntries);
+            if (selectedId) {
+                const previousSelected = previousEntries.find((entry) => entry.id === selectedId) ?? null;
+                setDraft(previousSelected ? entryToDraft(previousSelected) : null);
+            }
+            setError(
+                reorderError instanceof Error
+                    ? reorderError.message
+                    : t("No se pudo actualizar el orden.", "Could not update order.")
+            );
+        }
+    }
+
+    async function moveFolderByDrop(
+        sourceFolderPathRaw: string,
+        targetFolderPathRaw: string,
+        position: "before" | "inside" | "after"
+    ) {
+        const sourceFolderPath = normalizeFolderPath(sourceFolderPathRaw);
+        const targetFolderPath = normalizeFolderPath(targetFolderPathRaw);
+        if (!sourceFolderPath) return;
+        if (position !== "inside" && !targetFolderPath) return;
+        if (sourceFolderPath === targetFolderPath) return;
+        if (targetFolderPath && isSameOrDescendantFolderPath(targetFolderPath, sourceFolderPath)) {
+            setError(
+                t(
+                    "No puedes mover una carpeta dentro de si misma.",
+                    "Cannot move a folder inside itself."
+                )
+            );
+            return;
+        }
+
+        const sourceName = folderBaseName(sourceFolderPath);
+        const destinationParent =
+            position === "inside" ? targetFolderPath : folderParentPath(targetFolderPath);
+        if (
+            destinationParent
+            && isSameOrDescendantFolderPath(destinationParent, sourceFolderPath)
+        ) {
+            setError(
+                t(
+                    "No puedes mover una carpeta dentro de si misma.",
+                    "Cannot move a folder inside itself."
+                )
+            );
+            return;
+        }
+
+        const destinationPath = normalizeFolderPath(
+            destinationParent ? `${destinationParent}/${sourceName}` : sourceName
+        );
+        let finalSourcePath = sourceFolderPath;
+        if (destinationPath && destinationPath !== sourceFolderPath) {
+            const renamed = await applyFolderPrefixReplacement(
+                sourceFolderPath,
+                destinationPath,
+                t("Carpeta movida.", "Folder moved.")
+            );
+            if (!renamed) return;
+            finalSourcePath = destinationPath;
+        }
+
+        const folderPathsAfterMove = Array.from(
+            new Set(
+                campaignFolderPaths
+                    .map((path) => replaceFolderPrefix(path, sourceFolderPath, finalSourcePath))
+                    .concat(finalSourcePath)
+                    .map((path) => normalizeFolderPath(path))
+                    .filter(Boolean)
+            )
+        );
+
+        setFolderOrderByParent((prev) => {
+            const next = { ...prev };
+            const sourceParent = folderParentPath(finalSourcePath);
+            const targetParent =
+                position === "inside" ? targetFolderPath : folderParentPath(targetFolderPath);
+
+            const sourceParentOrder = Array.isArray(next[sourceParent]) ? next[sourceParent] : [];
+            const cleanedSourceParentOrder = sourceParentOrder.filter(
+                (path) => normalizeFolderPath(path) !== finalSourcePath
+            );
+            if (cleanedSourceParentOrder.length > 0) {
+                next[sourceParent] = cleanedSourceParentOrder;
+            } else {
+                delete next[sourceParent];
+            }
+
+            const siblingPaths = folderPathsAfterMove.filter((path) =>
+                isDirectChildFolderPath(path, targetParent)
+            );
+            const baseOrder = Array.isArray(next[targetParent]) ? next[targetParent] : [];
+            const ordered = Array.from(
+                new Set(
+                    baseOrder
+                        .map((value) => normalizeFolderPath(value))
+                        .filter((value) => siblingPaths.includes(value))
+                )
+            );
+
+            if (!ordered.includes(finalSourcePath)) {
+                ordered.push(finalSourcePath);
+            }
+
+            if (position === "inside") {
+                const withoutSource = ordered.filter((value) => value !== finalSourcePath);
+                next[targetParent] = [...withoutSource, finalSourcePath];
+                return next;
+            }
+
+            const targetPath = normalizeFolderPath(targetFolderPath);
+            const withoutSource = ordered.filter((value) => value !== finalSourcePath);
+            const targetIndex = withoutSource.indexOf(targetPath);
+            if (targetIndex < 0) {
+                next[targetParent] = [...withoutSource, finalSourcePath];
+                return next;
+            }
+            const insertIndex = position === "after" ? targetIndex + 1 : targetIndex;
+            withoutSource.splice(insertIndex, 0, finalSourcePath);
+            next[targetParent] = withoutSource;
+            return next;
+        });
+
+        setDraggingFolderPath(null);
+        setDragOverFolderPlacement(null);
+        setDragOverFolderKey(null);
+        if (destinationPath === sourceFolderPath) {
+            setNotice(t("Orden de carpetas actualizado.", "Folder order updated."));
+        }
     }
 
     async function saveDraft() {
@@ -1041,6 +2244,7 @@ export default function BestiaryManagerPanel({
                 skills: commonProficiencies.skills,
                 senses: toLooseRecord(commonDetail.senses),
                 languages: asText(commonDetail.languages) || null,
+                metadata: {},
                 traits: toBestiaryBlocks(commonDetail.special_abilities),
                 actions: toBestiaryBlocks(commonDetail.actions),
                 bonus_actions: toBestiaryBlocks(commonDetail.bonus_actions),
@@ -1278,12 +2482,317 @@ export default function BestiaryManagerPanel({
     }
 
     const isEditMode = creating || campaignPanelMode === "edit";
+    const pendingProposalPatch = useMemo(() => {
+        if (!pendingProposal) return null;
+        return asRecord(pendingProposal.patch);
+    }, [pendingProposal]);
+    const pendingProposalTargetEntry = useMemo(() => {
+        if (!pendingProposal || pendingProposal.operation !== "update") return null;
+        if (pendingProposal.targetEntryId) {
+            const byId = entries.find((entry) => entry.id === pendingProposal.targetEntryId);
+            if (byId) return byId;
+        }
+        const targetName = asText(pendingProposal.targetName);
+        if (targetName) {
+            const byName = entries.find(
+                (entry) => normalizeLookupKey(entry.name) === normalizeLookupKey(targetName)
+            );
+            if (byName) return byName;
+        }
+        const patchName = pendingProposalPatch ? asText(pendingProposalPatch.name) : "";
+        if (patchName) {
+            return (
+                entries.find(
+                    (entry) => normalizeLookupKey(entry.name) === normalizeLookupKey(patchName)
+                ) ?? null
+            );
+        }
+        return null;
+    }, [entries, pendingProposal, pendingProposalPatch]);
+    const pendingProposalPreviewEntry = useMemo(() => {
+        if (!pendingProposal || !pendingProposalPatch) return null;
+        const base =
+            pendingProposal.operation === "update" && pendingProposalTargetEntry
+                ? pendingProposalTargetEntry
+                : createProposalPreviewSeedEntry(entries);
+        const preview = applyBestiaryPatchToEntryPreview(base, pendingProposalPatch);
+        if (!preview.name.trim()) {
+            preview.name =
+                asText(pendingProposal.targetName) ||
+                (locale === "en" ? "New creature" : "Nueva criatura");
+        }
+        return preview;
+    }, [entries, locale, pendingProposal, pendingProposalPatch, pendingProposalTargetEntry]);
+    const pendingProposalSheet: CreatureSheetData | null = useMemo(() => {
+        if (!pendingProposalPreviewEntry) return null;
+        return campaignEntryToCreatureSheetData(pendingProposalPreviewEntry, locale);
+    }, [locale, pendingProposalPreviewEntry]);
+    const pendingProposalChangeRows = useMemo(() => {
+        if (!pendingProposal || !pendingProposalPatch || !pendingProposalPreviewEntry) {
+            return [] as Array<{ label: string; value: string }>;
+        }
+        const metadataPatch = hasOwn(pendingProposalPatch, "metadata")
+            ? asRecord(pendingProposalPatch.metadata)
+            : {};
+        const hasFolderPatch =
+            hasOwn(pendingProposalPatch, "folder_path") ||
+            hasOwn(pendingProposalPatch, "folderPath") ||
+            hasOwn(metadataPatch, "folder_path") ||
+            hasOwn(metadataPatch, "folderPath") ||
+            hasOwn(metadataPatch, "folder") ||
+            hasOwn(metadataPatch, "bestiary_folder") ||
+            hasOwn(metadataPatch, "bestiaryFolder");
+        const hasCatalogIndexPatch =
+            hasOwn(pendingProposalPatch, "catalog_index") ||
+            hasOwn(pendingProposalPatch, "catalogIndex") ||
+            hasOwn(metadataPatch, "catalog_index") ||
+            hasOwn(metadataPatch, "catalogIndex") ||
+            hasOwn(metadataPatch, "bestiary_index") ||
+            hasOwn(metadataPatch, "bestiaryIndex");
+        const rows: Array<{ label: string; value: string }> = [];
+        const push = (labelText: string, valueText: string) => {
+            const normalizedValue = valueText.trim();
+            if (!normalizedValue) return;
+            rows.push({ label: labelText, value: normalizedValue });
+        };
+        if (hasOwn(pendingProposalPatch, "name")) {
+            push(t("Nombre", "Name"), pendingProposalPreviewEntry.name || "-");
+        }
+        if (hasOwn(pendingProposalPatch, "creature_size")) {
+            push(t("Tamano", "Size"), pendingProposalPreviewEntry.creatureSize || "-");
+        }
+        if (hasOwn(pendingProposalPatch, "creature_type")) {
+            push(t("Tipo", "Type"), pendingProposalPreviewEntry.creatureType || "-");
+        }
+        if (hasOwn(pendingProposalPatch, "alignment")) {
+            push(t("Alineamiento", "Alignment"), pendingProposalPreviewEntry.alignment || "-");
+        }
+        if (hasFolderPatch) {
+            push(t("Carpeta", "Folder"), pendingProposalPreviewEntry.folderPath || "-");
+        }
+        if (hasCatalogIndexPatch) {
+            push(t("Indice", "Index"), pendingProposalPreviewEntry.catalogIndex || "-");
+        }
+        if (hasOwn(pendingProposalPatch, "challenge_rating")) {
+            push(
+                "CR",
+                pendingProposalPreviewEntry.challengeRating == null
+                    ? "-"
+                    : String(pendingProposalPreviewEntry.challengeRating)
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "xp")) {
+            push("XP", pendingProposalPreviewEntry.xp == null ? "-" : String(pendingProposalPreviewEntry.xp));
+        }
+        if (hasOwn(pendingProposalPatch, "proficiency_bonus")) {
+            push(
+                "PB",
+                pendingProposalPreviewEntry.proficiencyBonus == null
+                    ? "-"
+                    : `${pendingProposalPreviewEntry.proficiencyBonus >= 0 ? "+" : ""}${pendingProposalPreviewEntry.proficiencyBonus}`
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "armor_class")) {
+            push("AC", pendingProposalPreviewEntry.armorClass == null ? "-" : String(pendingProposalPreviewEntry.armorClass));
+        }
+        if (hasOwn(pendingProposalPatch, "hit_points")) {
+            push("HP", pendingProposalPreviewEntry.hitPoints == null ? "-" : String(pendingProposalPreviewEntry.hitPoints));
+        }
+        if (hasOwn(pendingProposalPatch, "hit_dice")) {
+            push(t("Dados de golpe", "Hit dice"), pendingProposalPreviewEntry.hitDice || "-");
+        }
+        if (hasOwn(pendingProposalPatch, "ability_scores")) {
+            const line = (["STR", "DEX", "CON", "INT", "WIS", "CHA"] as const)
+                .map((ability) => `${ability} ${pendingProposalPreviewEntry.abilityScores[ability]}`)
+                .join(" - ");
+            push(t("Atributos", "Ability scores"), line);
+        }
+        if (hasOwn(pendingProposalPatch, "speed")) {
+            push(
+                t("Velocidad", "Speed"),
+                formatInlineRecord(pendingProposalPreviewEntry.speed) || "-"
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "senses")) {
+            push(
+                t("Sentidos", "Senses"),
+                formatInlineRecord(pendingProposalPreviewEntry.senses) || "-"
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "languages")) {
+            push(t("Idiomas", "Languages"), pendingProposalPreviewEntry.languages || "-");
+        }
+        if (hasOwn(pendingProposalPatch, "tags")) {
+            push(
+                t("Etiquetas", "Tags"),
+                pendingProposalPreviewEntry.tags.length > 0
+                    ? pendingProposalPreviewEntry.tags.join(", ")
+                    : "-"
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "traits")) {
+            push(
+                t("Rasgos", "Traits"),
+                String(pendingProposalPreviewEntry.traits.length)
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "actions")) {
+            push(
+                t("Acciones", "Actions"),
+                String(pendingProposalPreviewEntry.actions.length)
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "bonus_actions")) {
+            push(
+                t("Acciones bonus", "Bonus actions"),
+                String(pendingProposalPreviewEntry.bonusActions.length)
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "reactions")) {
+            push(
+                t("Reacciones", "Reactions"),
+                String(pendingProposalPreviewEntry.reactions.length)
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "legendary_actions")) {
+            push(
+                t("Acciones legendarias", "Legendary actions"),
+                String(pendingProposalPreviewEntry.legendaryActions.length)
+            );
+        }
+        if (hasOwn(pendingProposalPatch, "lair_actions")) {
+            push(
+                t("Acciones de guarida", "Lair actions"),
+                String(pendingProposalPreviewEntry.lairActions.length)
+            );
+        }
+        return rows;
+    }, [pendingProposal, pendingProposalPatch, pendingProposalPreviewEntry, t]);
+    const pendingProposalTargetMissing =
+        pendingProposal?.operation === "update" && !pendingProposalTargetEntry;
+    const hasPendingCreateListPreview =
+        pendingProposal?.operation === "create" && Boolean(pendingProposalPreviewEntry);
+    const campaignFolderPaths = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    [
+                        ...manualFolders,
+                        ...entries.map((entry) => entry.folderPath),
+                        hasPendingCreateListPreview && pendingProposalPreviewEntry
+                            ? pendingProposalPreviewEntry.folderPath
+                            : "",
+                    ]
+                        .map((value) => normalizeFolderPath(value))
+                        .filter(Boolean)
+                )
+            ),
+        [entries, hasPendingCreateListPreview, manualFolders, pendingProposalPreviewEntry]
+    );
+    const campaignTree = useMemo(() => {
+        const listItems: CampaignTreeItem[] = entries.map((entry) => ({
+            key: entry.id,
+            entry,
+            isPreview: false,
+        }));
+        if (hasPendingCreateListPreview && pendingProposalPreviewEntry) {
+            listItems.push({
+                key: "__ai-preview-create__",
+                entry: pendingProposalPreviewEntry,
+                isPreview: true,
+            });
+        }
+        return buildCampaignFolderTree(
+            listItems,
+            campaignFolderPaths,
+            folderOrderByParent,
+            localeCode
+        );
+    }, [
+        campaignFolderPaths,
+        entries,
+        folderOrderByParent,
+        hasPendingCreateListPreview,
+        localeCode,
+        pendingProposalPreviewEntry,
+    ]);
+
+    useEffect(() => {
+        if (campaignFolderPaths.length === 0 && Object.keys(folderOrderByParent).length === 0) return;
+        const validPaths = new Set(campaignFolderPaths.map((value) => normalizeFolderPath(value)));
+        const validParents = new Set<string>([""]);
+        for (const path of validPaths) {
+            let parent = folderParentPath(path);
+            while (true) {
+                validParents.add(parent);
+                if (!parent) break;
+                parent = folderParentPath(parent);
+            }
+        }
+
+        setFolderOrderByParent((prev) => {
+            const next: Record<string, string[]> = {};
+            let changed = false;
+
+            for (const parent of validParents) {
+                const rawChildren = Array.isArray(prev[parent]) ? prev[parent] : [];
+                const normalizedChildren = Array.from(
+                    new Set(
+                        rawChildren
+                            .map((value) => normalizeFolderPath(value))
+                            .filter((value) => isDirectChildFolderPath(value, parent))
+                    )
+                );
+                const filteredChildren = normalizedChildren.filter((value) => validPaths.has(value));
+                if (filteredChildren.length > 0) {
+                    next[parent] = filteredChildren;
+                }
+                if (
+                    normalizedChildren.length !== filteredChildren.length
+                    || filteredChildren.some((value, index) => value !== normalizedChildren[index])
+                ) {
+                    changed = true;
+                }
+            }
+
+            const prevKeys = Object.keys(prev);
+            const nextKeys = Object.keys(next);
+            if (prevKeys.length !== nextKeys.length) changed = true;
+            if (!changed) return prev;
+            return next;
+        });
+    }, [campaignFolderPaths, folderOrderByParent]);
+
+    useEffect(() => {
+        if (!selectedId) return;
+        const selectedEntry = entries.find((entry) => entry.id === selectedId);
+        if (!selectedEntry) return;
+
+        const normalizedPath = normalizeFolderPath(selectedEntry.folderPath);
+        if (!normalizedPath) return;
+
+        const segments = normalizedPath.split("/").filter(Boolean);
+        let currentPath = "";
+        setCollapsedFolderState((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            for (const segment of segments) {
+                currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+                const key = `folder:${currentPath}`;
+                if (next[key]) {
+                    delete next[key];
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [entries, selectedId]);
 
     const campaignSheet: CreatureSheetData | null = useMemo(() => {
         if (!draft) return null;
         return {
             name: draft.name || t("Nueva criatura", "New creature"),
-            subtitle: [draft.creatureSize, draft.creatureType, draft.alignment].filter(Boolean).join(" · "),
+            subtitle: [draft.creatureSize, draft.creatureType, draft.alignment].filter(Boolean).join(" - "),
             sourceLabel: sourceLabel(draft.sourceType, locale),
             imageUrl: draft.imageUrl,
             isPlayerVisible: draft.isPlayerVisible,
@@ -1319,7 +2828,7 @@ export default function BestiaryManagerPanel({
         const commonProficiencies = parseCommonProficiencies(commonDetail.proficiencies);
         return {
             name: asText(commonDetail.name) || asText(commonDetail.localized_name) || asText(commonDetail.index),
-            subtitle: [asText(commonDetail.size), asText(commonDetail.type), asText(commonDetail.alignment)].filter(Boolean).join(" · "),
+            subtitle: [asText(commonDetail.size), asText(commonDetail.type), asText(commonDetail.alignment)].filter(Boolean).join(" - "),
             sourceLabel: t("Bestiario comun (SRD)", "Common bestiary (SRD)"),
             imageUrl: normalizeImageUrl(asText(commonDetail.image)),
             creatureSize: asText(commonDetail.size) || null,
@@ -1377,6 +2886,488 @@ export default function BestiaryManagerPanel({
         element.scrollTop += deltaY;
         event.preventDefault();
         event.stopPropagation();
+    }
+
+    function toggleFolderCollapsed(key: string): void {
+        setCollapsedFolderState((prev) => {
+            const next = { ...prev };
+            if (next[key]) {
+                delete next[key];
+            } else {
+                next[key] = true;
+            }
+            return next;
+        });
+    }
+
+    function isFolderCollapsed(key: string): boolean {
+        return collapsedFolderState[key] === true;
+    }
+
+    function extractDraggedEntryId(event: DragEvent<HTMLElement>): string | null {
+        const direct = event.dataTransfer.getData(BESTIARY_DRAG_ENTRY_TYPE);
+        if (direct) return direct;
+        const fallback = event.dataTransfer.getData("text/plain");
+        return fallback || null;
+    }
+
+    function extractDraggedFolderPath(event: DragEvent<HTMLElement>): string | null {
+        const direct = event.dataTransfer.getData(BESTIARY_DRAG_FOLDER_TYPE);
+        if (direct) return normalizeFolderPath(direct);
+        return null;
+    }
+
+    function handleEntryDragStart(event: DragEvent<HTMLElement>, entryId: string): void {
+        event.dataTransfer.setData(BESTIARY_DRAG_ENTRY_TYPE, entryId);
+        event.dataTransfer.setData("text/plain", entryId);
+        event.dataTransfer.effectAllowed = "move";
+        setDraggingFolderPath(null);
+        setDragOverFolderPlacement(null);
+        setDraggingEntryId(entryId);
+    }
+
+    function handleEntryDragEnd(): void {
+        setDraggingEntryId(null);
+        setDraggingFolderPath(null);
+        setDragOverFolderKey(null);
+        setDragOverEntryPlacement(null);
+        setDragOverFolderPlacement(null);
+    }
+
+    function dragPlacementFromEvent(event: DragEvent<HTMLElement>): "before" | "after" {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+    }
+
+    function handleEntryDragOver(event: DragEvent<HTMLElement>, targetEntryId: string): void {
+        if (!draggingEntryId || draggingFolderPath || draggingEntryId === targetEntryId) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        setDragOverFolderKey(null);
+        setDragOverFolderPlacement(null);
+        setDragOverEntryPlacement({
+            entryId: targetEntryId,
+            position: dragPlacementFromEvent(event),
+        });
+    }
+
+    function handleEntryDragLeave(targetEntryId: string): void {
+        setDragOverEntryPlacement((prev) =>
+            prev?.entryId === targetEntryId ? null : prev
+        );
+    }
+
+    function handleEntryDrop(event: DragEvent<HTMLElement>, targetEntryId: string): void {
+        event.preventDefault();
+        const draggedFolder = extractDraggedFolderPath(event) || draggingFolderPath;
+        if (draggedFolder) {
+            setDragOverEntryPlacement(null);
+            return;
+        }
+        const draggedId = extractDraggedEntryId(event) || draggingEntryId;
+        if (!draggedId || draggedId === targetEntryId) {
+            setDragOverEntryPlacement(null);
+            return;
+        }
+        const placement =
+            dragOverEntryPlacement?.entryId === targetEntryId
+                ? dragOverEntryPlacement.position
+                : dragPlacementFromEvent(event);
+        setDragOverEntryPlacement(null);
+        void reorderEntriesByDrop(draggedId, targetEntryId, placement);
+    }
+
+    function folderPlacementFromEvent(event: DragEvent<HTMLElement>): "before" | "inside" | "after" {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const relative = (event.clientY - bounds.top) / Math.max(bounds.height, 1);
+        if (relative < 0.28) return "before";
+        if (relative > 0.72) return "after";
+        return "inside";
+    }
+
+    function handleFolderDragStart(event: DragEvent<HTMLElement>, folderPath: string): void {
+        const normalized = normalizeFolderPath(folderPath);
+        if (!normalized) return;
+        event.stopPropagation();
+        event.dataTransfer.setData(BESTIARY_DRAG_FOLDER_TYPE, normalized);
+        event.dataTransfer.setData("text/plain", normalized);
+        event.dataTransfer.effectAllowed = "move";
+        setDraggingEntryId(null);
+        setDragOverEntryPlacement(null);
+        setDragOverFolderKey(null);
+        setDraggingFolderPath(normalized);
+    }
+
+    function handleFolderDragEnd(): void {
+        setDraggingFolderPath(null);
+        setDragOverFolderPlacement(null);
+        setDragOverFolderKey(null);
+        setDragOverEntryPlacement(null);
+    }
+
+    function handleFolderDragOver(event: DragEvent<HTMLElement>, folderKey: string): void {
+        if (!draggingEntryId && !draggingFolderPath) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        if (draggingFolderPath) {
+            const targetPath = normalizeFolderPath(folderKey.replace(/^folder:/, ""));
+            if (targetPath && targetPath !== draggingFolderPath) {
+                setDragOverFolderPlacement({
+                    folderPath: targetPath,
+                    position: folderPlacementFromEvent(event),
+                });
+            }
+            setDragOverEntryPlacement(null);
+            setDragOverFolderKey(null);
+            return;
+        }
+        setDragOverEntryPlacement(null);
+        setDragOverFolderKey(folderKey);
+    }
+
+    function handleFolderDragLeave(folderKey: string): void {
+        setDragOverFolderKey((prev) => (prev === folderKey ? null : prev));
+        const targetPath = normalizeFolderPath(folderKey.replace(/^folder:/, ""));
+        setDragOverFolderPlacement((prev) =>
+            prev?.folderPath === targetPath ? null : prev
+        );
+    }
+
+    function handleFolderDrop(
+        event: DragEvent<HTMLElement>,
+        folderPath: string,
+        folderKey: string
+    ): void {
+        event.preventDefault();
+        const folderPathFromDrag = extractDraggedFolderPath(event) || draggingFolderPath;
+        if (folderPathFromDrag) {
+            const targetPath = normalizeFolderPath(folderPath);
+            if (targetPath) {
+                const placement =
+                    dragOverFolderPlacement?.folderPath === targetPath
+                        ? dragOverFolderPlacement.position
+                        : folderPlacementFromEvent(event);
+                setDragOverFolderPlacement(null);
+                void moveFolderByDrop(folderPathFromDrag, targetPath, placement);
+            }
+            return;
+        }
+
+        const entryId = extractDraggedEntryId(event) || draggingEntryId;
+        setDragOverFolderKey((prev) => (prev === folderKey ? null : prev));
+        setDragOverEntryPlacement(null);
+        if (!entryId) {
+            setDraggingEntryId(null);
+            return;
+        }
+        void moveEntryToFolder(entryId, folderPath);
+    }
+
+    function renderCampaignEntryNode(item: CampaignTreeItem, depth: number) {
+        const entry = item.entry;
+        const indexLabel = entry.catalogIndex.trim();
+        const rowPadding = { paddingLeft: `${8 + depth * 14}px` };
+
+        if (item.isPreview) {
+            return (
+                <li key={item.key}>
+                    <div
+                        style={rowPadding}
+                        className="relative isolate overflow-hidden w-full rounded-md border border-emerald-300/85 bg-emerald-50/80 py-2 pr-3 text-left shadow-[0_0_0_1px_rgba(16,185,129,0.18)]"
+                    >
+                        <div className="relative z-10">
+                            <p className="text-sm font-medium text-emerald-900 truncate">
+                                {entry.name || t("Nueva criatura", "New creature")}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-emerald-900/85 truncate">
+                                {indexLabel ? `[${indexLabel}] ` : ""}
+                                {entry.creatureType || t("Sin tipo", "No type")} - CR{" "}
+                                {entry.challengeRating ?? "-"}
+                            </p>
+                            <p className="mt-1 text-[10px] text-emerald-800/80">
+                                {t("Preview IA (pendiente)", "AI preview (pending)")}
+                            </p>
+                        </div>
+                    </div>
+                </li>
+            );
+        }
+
+        const isSelected = !creating && selectedId === entry.id;
+        const isDragging = draggingEntryId === entry.id;
+        const placement =
+            dragOverEntryPlacement?.entryId === entry.id
+                ? dragOverEntryPlacement.position
+                : null;
+        const selectedStyle = isSelected ? getBestiarySelectionStyle() : undefined;
+        const buttonStyle = selectedStyle ? { ...selectedStyle, ...rowPadding } : rowPadding;
+
+        return (
+            <li key={item.key}>
+                <button
+                    type="button"
+                    draggable
+                    onClick={() => {
+                        setSelectionPulse((value) => value + 1);
+                        setCreating(false);
+                        setCampaignPanelMode("view");
+                        setSelectedId(entry.id);
+                    }}
+                    onDragStart={(event) => handleEntryDragStart(event, entry.id)}
+                    onDragEnd={handleEntryDragEnd}
+                    onDragOver={(event) => handleEntryDragOver(event, entry.id)}
+                    onDragLeave={() => handleEntryDragLeave(entry.id)}
+                    onDrop={(event) => handleEntryDrop(event, entry.id)}
+                    style={buttonStyle}
+                    className={`relative isolate overflow-hidden w-full rounded-md border py-2 pr-3 text-left transition-[border-color,box-shadow,background-color] ${
+                        isSelected
+                            ? "border-transparent"
+                            : "border-ring bg-white/80 hover:bg-white"
+                    } ${isDragging ? "opacity-55" : ""} ${
+                        placement === "before"
+                            ? "shadow-[inset_0_2px_0_0_rgba(16,185,129,1)]"
+                            : placement === "after"
+                                ? "shadow-[inset_0_-2px_0_0_rgba(16,185,129,1)]"
+                                : ""
+                    }`}
+                >
+                    {isSelected ? (
+                        <SelectionBlobOverlay entryId={entry.id} pulse={selectionPulse} />
+                    ) : null}
+                    <div className="relative z-10">
+                        <p className="text-sm font-medium text-ink truncate">{entry.name}</p>
+                        <p className="mt-0.5 text-[11px] text-ink-muted truncate">
+                            {indexLabel ? `[${indexLabel}] ` : ""}
+                            {entry.creatureType || t("Sin tipo", "No type")} - CR{" "}
+                            {entry.challengeRating ?? "-"}
+                        </p>
+                        <p className="mt-1 text-[10px] text-ink-muted">
+                            {entry.isPlayerVisible
+                                ? t("Visible a jugadores", "Visible to players")
+                                : t("Solo DM", "DM only")}
+                        </p>
+                    </div>
+                </button>
+            </li>
+        );
+    }
+    function renderCampaignFolderNode(folder: CampaignTreeFolder, depth: number) {
+        const collapsed = isFolderCollapsed(folder.key);
+        const isEntryDropTarget = draggingEntryId != null && dragOverFolderKey === folder.key;
+        const folderPlacement =
+            draggingFolderPath && dragOverFolderPlacement?.folderPath === folder.path
+                ? dragOverFolderPlacement.position
+                : null;
+        const isEditing = editingFolderPath === folder.path;
+
+        const highlightClass = isEntryDropTarget
+            ? "border-emerald-400 bg-emerald-50/80 text-emerald-900"
+            : folderPlacement === "inside"
+                ? "border-amber-400 bg-amber-50/80 text-amber-900"
+                : folderPlacement === "before"
+                    ? "border-transparent shadow-[inset_0_2px_0_0_rgba(245,158,11,1)]"
+                    : folderPlacement === "after"
+                        ? "border-transparent shadow-[inset_0_-2px_0_0_rgba(245,158,11,1)]"
+                        : "border-transparent";
+
+        return (
+            <li key={folder.key} className="space-y-1">
+                {isEditing ? (
+                    <div
+                        style={{ paddingLeft: `${8 + depth * 14}px` }}
+                        className="flex items-center gap-1 rounded-md border border-ring bg-white/90 py-1.5 pr-2"
+                    >
+                        <input
+                            value={editingFolderName}
+                            onChange={(event) => setEditingFolderName(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void renameFolderPath(folder.path, editingFolderName);
+                                }
+                                if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    setEditingFolderPath(null);
+                                    setEditingFolderName("");
+                                }
+                            }}
+                            className="h-7 min-w-0 flex-1 rounded border border-ring bg-white px-2 text-[11px] text-ink"
+                            autoFocus
+                        />
+                        <button
+                            type="button"
+                            onClick={() => void renameFolderPath(folder.path, editingFolderName)}
+                            className="h-7 rounded border border-accent/50 bg-accent/10 px-2 text-[10px] text-accent-strong"
+                        >
+                            {t("Guardar", "Save")}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingFolderPath(null);
+                                setEditingFolderName("");
+                            }}
+                            className="h-7 rounded border border-ring bg-white px-2 text-[10px] text-ink"
+                        >
+                            {t("Cancelar", "Cancel")}
+                        </button>
+                    </div>
+                ) : (
+                    <div
+                        style={{ paddingLeft: `${8 + depth * 14}px` }}
+                        onDragOver={(event) => handleFolderDragOver(event, folder.key)}
+                        onDragLeave={() => handleFolderDragLeave(folder.key)}
+                        onDrop={(event) => {
+                            const draggedFolder = extractDraggedFolderPath(event) || draggingFolderPath;
+                            if (draggedFolder) {
+                                const placement =
+                                    dragOverFolderPlacement?.folderPath === folder.path
+                                        ? dragOverFolderPlacement.position
+                                        : folderPlacementFromEvent(event);
+                                setDragOverFolderPlacement(null);
+                                void moveFolderByDrop(draggedFolder, folder.path, placement);
+                                return;
+                            }
+                            handleFolderDrop(event, folder.path, folder.key);
+                        }}
+                        className={`flex items-center gap-1 rounded-md border py-1 pr-1 text-left text-[11px] text-ink-muted hover:border-ring/50 hover:bg-white/70 ${highlightClass}`}
+                    >
+                        <button
+                            type="button"
+                            draggable
+                            onDragStart={(event) => handleFolderDragStart(event, folder.path)}
+                            onDragEnd={handleFolderDragEnd}
+                            onClick={() => toggleFolderCollapsed(folder.key)}
+                            className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
+                        >
+                            {collapsed ? (
+                                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                            ) : (
+                                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                            )}
+                            <Folder className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{folder.name}</span>
+                            <span className="ml-auto rounded bg-panel px-1.5 py-0.5 text-[10px]">
+                                {folder.totalCount}
+                            </span>
+                        </button>
+                        <div className="flex items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    setEditingFolderPath(folder.path);
+                                    setEditingFolderName(folder.name);
+                                }}
+                                className="h-6 rounded border border-ring bg-white px-1.5 text-[10px] text-ink hover:bg-panel"
+                                title={t("Renombrar carpeta", "Rename folder")}
+                            >
+                                {t("Ren", "Ren")}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    void deleteFolderPath(folder.path);
+                                }}
+                                className="h-6 rounded border border-red-300 bg-red-50 px-1.5 text-[10px] text-red-700 hover:bg-red-100"
+                                title={t("Eliminar carpeta", "Delete folder")}
+                            >
+                                {t("Del", "Del")}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {collapsed ? null : (
+                    <div className="space-y-1">
+                        {folder.folders.length > 0 ? (
+                            <ul className="space-y-1">
+                                {folder.folders.map((child) =>
+                                    renderCampaignFolderNode(child, depth + 1)
+                                )}
+                            </ul>
+                        ) : null}
+                        {folder.items.length > 0 ? (
+                            <ul className="space-y-1">
+                                {folder.items.map((item) =>
+                                    renderCampaignEntryNode(item, depth + 1)
+                                )}
+                            </ul>
+                        ) : null}
+                    </div>
+                )}
+            </li>
+        );
+    }
+
+    function renderUncategorizedNode() {
+        const collapsed = isFolderCollapsed(UNCATEGORIZED_FOLDER_NODE_KEY);
+        const isEntryDropTarget =
+            draggingEntryId != null && dragOverFolderKey === UNCATEGORIZED_FOLDER_NODE_KEY;
+        const isFolderDropTarget =
+            draggingFolderPath != null && dragOverFolderPlacement?.folderPath === "";
+        return (
+            <li key={UNCATEGORIZED_FOLDER_NODE_KEY} className="space-y-1">
+                <button
+                    type="button"
+                    onClick={() => toggleFolderCollapsed(UNCATEGORIZED_FOLDER_NODE_KEY)}
+                    onDragOver={(event) => {
+                        if (draggingFolderPath) {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                            setDragOverFolderPlacement({ folderPath: "", position: "inside" });
+                            setDragOverFolderKey(null);
+                            setDragOverEntryPlacement(null);
+                            return;
+                        }
+                        handleFolderDragOver(event, UNCATEGORIZED_FOLDER_NODE_KEY);
+                    }}
+                    onDragLeave={() => {
+                        handleFolderDragLeave(UNCATEGORIZED_FOLDER_NODE_KEY);
+                        setDragOverFolderPlacement((prev) => (prev?.folderPath === "" ? null : prev));
+                    }}
+                    onDrop={(event) => {
+                        const draggedFolder = extractDraggedFolderPath(event) || draggingFolderPath;
+                        if (draggedFolder) {
+                            event.preventDefault();
+                            setDragOverFolderPlacement(null);
+                            void moveFolderByDrop(draggedFolder, "", "inside");
+                            return;
+                        }
+                        handleFolderDrop(event, "", UNCATEGORIZED_FOLDER_NODE_KEY);
+                    }}
+                    className={`flex w-full items-center gap-1 rounded-md border py-1.5 pr-2 text-left text-[11px] text-ink-muted hover:border-ring/50 hover:bg-white/70 ${
+                        isEntryDropTarget
+                            ? "border-emerald-400 bg-emerald-50/80 text-emerald-900"
+                            : isFolderDropTarget
+                                ? "border-amber-400 bg-amber-50/80 text-amber-900"
+                                : "border-transparent"
+                    }`}
+                    style={{ paddingLeft: "8px" }}
+                >
+                    {collapsed ? (
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <Folder className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{t("Sin carpeta", "No folder")}</span>
+                    <span className="ml-auto rounded bg-panel px-1.5 py-0.5 text-[10px]">
+                        {campaignTree.items.length}
+                    </span>
+                </button>
+                {collapsed ? null : campaignTree.items.length > 0 ? (
+                    <ul className="space-y-1">
+                        {campaignTree.items.map((item) => renderCampaignEntryNode(item, 1))}
+                    </ul>
+                ) : (
+                    <p className="px-7 text-[10px] text-ink-muted/80">
+                        {t("Arrastra criaturas aqui para quitar carpeta.", "Drop here to remove folder.")}
+                    </p>
+                )}
+            </li>
+        );
     }
 
     return (
@@ -1438,62 +3429,151 @@ export default function BestiaryManagerPanel({
                             </div>
                         </div>
 
+                        <div className="rounded-md border border-ring bg-white/70 p-2">
+                            <p className="text-[11px] font-medium text-ink">
+                                {t("Carpetas", "Folders")}
+                            </p>
+                            <div className="mt-1.5 flex items-center gap-2">
+                                <input
+                                    value={newFolderInput}
+                                    onChange={(event) => setNewFolderInput(event.target.value)}
+                                    onKeyDown={(event) => {
+                                        if (event.key !== "Enter") return;
+                                        event.preventDefault();
+                                        createManualFolder();
+                                    }}
+                                    placeholder={t("Jefes/Cueva", "Bosses/Cavern")}
+                                    className="h-8 min-w-0 flex-1 rounded-md border border-ring bg-white px-2 text-xs text-ink"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={createManualFolder}
+                                    className="h-8 rounded-md border border-accent/50 bg-accent/10 px-2.5 text-[11px] text-accent-strong hover:bg-accent/20"
+                                >
+                                    {t("Crear", "Create")}
+                                </button>
+                            </div>
+                            <p className="mt-1 text-[10px] text-ink-muted/90">
+                                {t(
+                                    "Arrastra criaturas a carpetas para moverlas.",
+                                    "Drag creatures into folders to move them."
+                                )}
+                            </p>
+                        </div>
+
                         <div
                             onWheel={handleListWheel}
                             className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain styled-scrollbar pr-1"
                         >
                             {loadingEntries ? (
                                 <p className="text-xs text-ink-muted">{t("Cargando...", "Loading...")}</p>
-                            ) : entries.length === 0 ? (
+                            ) : campaignTree.totalCount === 0 && campaignTree.folders.length === 0 ? (
                                 <p className="text-xs text-ink-muted">{t("Aún no hay criaturas en Campaña.", "No campaign creatures yet.")}</p>
                             ) : (
-                                <ul className="space-y-2">
-                                    {entries.map((entry) => {
-                                        const isSelected = !creating && selectedId === entry.id;
-                                        const selectedStyle = isSelected ? getBestiarySelectionStyle() : undefined;
-
-                                        return (
-                                            <li key={entry.id}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectionPulse((value) => value + 1);
-                                                        setCreating(false);
-                                                        setCampaignPanelMode("view");
-                                                        setSelectedId(entry.id);
-                                                    }}
-                                                    style={selectedStyle}
-                                                    className={`relative isolate overflow-hidden w-full rounded-md border px-3 py-2 text-left transition-[border-color,box-shadow,background-color] ${
-                                                        isSelected
-                                                            ? "border-transparent"
-                                                            : "border-ring bg-white/80 hover:bg-white"
-                                                    }`}
-                                                >
-                                                    {isSelected ? (
-                                                        <SelectionBlobOverlay entryId={entry.id} pulse={selectionPulse} />
-                                                    ) : null}
-                                                    <div className="relative z-10">
-                                                        <p className="text-sm font-medium text-ink truncate">{entry.name}</p>
-                                                        <p className="mt-0.5 text-[11px] text-ink-muted truncate">
-                                                            {entry.creatureType || t("Sin tipo", "No type")} · CR {entry.challengeRating ?? "-"}
-                                                        </p>
-                                                        <p className="mt-1 text-[10px] text-ink-muted">
-                                                            {entry.isPlayerVisible
-                                                                ? t("Visible a jugadores", "Visible to players")
-                                                                : t("Solo DM", "DM only")}
-                                                        </p>
-                                                    </div>
-                                                </button>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
+                                <div className="space-y-1">
+                                    <ul className="space-y-1">
+                                        {renderUncategorizedNode()}
+                                        {campaignTree.folders.map((folder) =>
+                                            renderCampaignFolderNode(folder, 0)
+                                        )}
+                                    </ul>
+                                </div>
                             )}
                         </div>
                     </aside>
 
                     <section className="min-h-0 overflow-y-auto overflow-x-hidden styled-scrollbar pr-1">
-                        {draft ? (
+                        {pendingProposal && pendingProposalSheet ? (
+                            <div className="space-y-3">
+                                <div className="rounded-xl border border-emerald-300/70 bg-emerald-50/60 p-3">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div className="space-y-1">
+                                            <h3 className="text-sm font-semibold text-emerald-900">
+                                                {t("Vista previa IA", "AI preview")}
+                                            </h3>
+                                            <p className="text-xs text-emerald-900/90">
+                                                {pendingProposal.operation === "update"
+                                                    ? t(
+                                                          "Se propone editar una criatura existente. Rechazar cambios no borra la criatura actual.",
+                                                          "An existing creature will be edited. Rejecting changes will not delete the current creature."
+                                                      )
+                                                    : t(
+                                                          "Se propone crear una nueva criatura de bestiario.",
+                                                          "A new bestiary creature will be created."
+                                                      )}
+                                            </p>
+                                            {pendingProposal.reply ? (
+                                                <p className="text-xs text-emerald-900/80 whitespace-pre-wrap">
+                                                    {pendingProposal.reply}
+                                                </p>
+                                            ) : null}
+                                            {pendingProposalTargetMissing ? (
+                                                <p className="text-xs text-amber-900">
+                                                    {t(
+                                                        "No se encontró el objetivo original; la vista previa usa una base vacía para mostrar los cambios.",
+                                                        "The original target was not found; preview uses an empty base to display changes."
+                                                    )}
+                                                </p>
+                                            ) : null}
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => onRejectPendingProposal?.()}
+                                                disabled={proposalBusy || !onRejectPendingProposal}
+                                                className="inline-flex items-center gap-1 rounded-md border border-ring bg-white/90 px-3 py-1.5 text-xs text-ink hover:bg-white disabled:opacity-60"
+                                            >
+                                                {t("Rechazar cambios", "Reject changes")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onConfirmPendingProposal?.()}
+                                                disabled={proposalBusy || !onConfirmPendingProposal}
+                                                className="inline-flex items-center gap-1 rounded-md border border-emerald-500 bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-200 disabled:opacity-60"
+                                            >
+                                                {proposalBusy
+                                                    ? t("Aplicando...", "Applying...")
+                                                    : t("Confirmar cambios", "Confirm changes")}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {pendingProposal.operation === "update" &&
+                                pendingProposalChangeRows.length > 0 ? (
+                                    <div className="rounded-xl border border-emerald-300/70 bg-emerald-50/70 p-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900">
+                                            {t(
+                                                "Cambios detectados (resaltados)",
+                                                "Detected changes (highlighted)"
+                                            )}
+                                        </p>
+                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                            {pendingProposalChangeRows.map((row, index) => (
+                                                <p
+                                                    key={`pending-change-${row.label}-${index}`}
+                                                    className="rounded-md border border-emerald-300/80 bg-emerald-100/80 px-2 py-1 text-[11px] text-emerald-900"
+                                                >
+                                                    <span className="font-semibold">{row.label}:</span>{" "}
+                                                    {row.value}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                <CreatureSheet
+                                    data={pendingProposalSheet}
+                                    locale={locale}
+                                    statsMode="hex"
+                                    className={`shadow-[0_14px_34px_rgba(45,29,12,0.12)] ${
+                                        pendingProposal.operation === "update"
+                                            ? "ring-2 ring-emerald-300/85"
+                                            : "ring-1 ring-emerald-200/70"
+                                    }`}
+                                />
+                            </div>
+                        ) : draft ? (
                             isEditMode ? (
                                 <div className="space-y-3">
                                     <div className="rounded-xl border border-ring bg-panel/80 p-3">
@@ -1534,6 +3614,22 @@ export default function BestiaryManagerPanel({
                                             <label className="text-xs text-ink-muted">{t("Nombre", "Name")}
                                                 <input value={draft.name} onChange={(e) => updateDraft("name", e.target.value)} className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink" />
                                             </label>
+                                            <label className="text-xs text-ink-muted">{t("Carpeta", "Folder")}
+                                                <input
+                                                    value={draft.folderPath}
+                                                    onChange={(e) => updateDraft("folderPath", e.target.value)}
+                                                    placeholder={t("Jefes/Cueva", "Bosses/Cavern")}
+                                                    className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink"
+                                                />
+                                            </label>
+                                            <label className="text-xs text-ink-muted">{t("Indice", "Index")}
+                                                <input
+                                                    value={draft.catalogIndex}
+                                                    onChange={(e) => updateDraft("catalogIndex", e.target.value)}
+                                                    placeholder={t("A-12", "A-12")}
+                                                    className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink"
+                                                />
+                                            </label>
                                             <label className="text-xs text-ink-muted">{t("Tipo", "Type")}
                                                 <input value={draft.creatureType} onChange={(e) => updateDraft("creatureType", e.target.value)} className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink" />
                                             </label>
@@ -1563,6 +3659,20 @@ export default function BestiaryManagerPanel({
                                             </label>
                                             <label className="text-xs text-ink-muted">{t("Idiomas", "Languages")}
                                                 <input value={draft.languages} onChange={(e) => updateDraft("languages", e.target.value)} className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink" />
+                                            </label>
+                                            <label className="text-xs text-ink-muted md:col-span-2 lg:col-span-3">
+                                                {t("Etiquetas", "Tags")} ({t("separadas por coma", "comma separated")})
+                                                <input
+                                                    value={tagsToEditorText(draft.tags)}
+                                                    onChange={(e) =>
+                                                        updateDraft(
+                                                            "tags",
+                                                            parseTagsFromEditorText(e.target.value)
+                                                        )
+                                                    }
+                                                    placeholder={t("alado, nocturno, alfa", "winged, nocturnal, alpha")}
+                                                    className="mt-1 w-full rounded-md border border-ring bg-white/90 px-2 py-1.5 text-sm text-ink"
+                                                />
                                             </label>
                                         </div>
 
@@ -1735,6 +3845,17 @@ export default function BestiaryManagerPanel({
                                                 </button>
                                             </div>
                                         </div>
+                                        {draft.folderPath.trim() || draft.catalogIndex.trim() ? (
+                                            <p className="mt-2 text-[11px] text-ink-muted">
+                                                {draft.folderPath.trim()
+                                                    ? `${t("Carpeta", "Folder")}: ${draft.folderPath.trim()}`
+                                                    : `${t("Carpeta", "Folder")}: ${t("Sin carpeta", "No folder")}`}
+                                                {" - "}
+                                                {draft.catalogIndex.trim()
+                                                    ? `${t("Indice", "Index")}: ${draft.catalogIndex.trim()}`
+                                                    : `${t("Indice", "Index")}: -`}
+                                            </p>
+                                        ) : null}
                                     </div>
 
                                     {campaignSheet ? <CreatureSheet data={campaignSheet} locale={locale} statsMode="hex" className="shadow-[0_14px_34px_rgba(45,29,12,0.12)]" /> : null}
